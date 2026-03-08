@@ -1,0 +1,734 @@
+ICME 2025 Generalizable HDR and SDR Video
+Quality Measurement Grand Challenge
+Yixu Chen∗†, Bowen Chen∗†, Hai Wei†, Alan C. Bovik†, Baojun Li‡, Wei Sun§, Linhan Cao§, Kang Fu§,
+Dandan Zhu§,
+Jun Jia§,
+Menghan Hu§,
+Xiongkuo Min§,
+Guangtao Zhai§,
+Dounia Hammou∥,
+Fei Yin∥,
+Rafał K. Mantiuk∥,
+Amritha Premkumar¶,
+Prajit T Rajendran¶,
+Vignesh V Menon¶,
+Abstract—This paper reports IEEE International Conference
+on Multimedia & Expo (ICME) 2025 Grand Challenge on
+Generalizable HDR and SDR Video Quality Measurement. With
+the rapid development of video technology, especially High
+Dynamic Range (HDR) and Standard Dynamic Range (SDR)
+contents, the need for robust and generalizable Video Quality
+Assessment (VQA) methods has become increasingly demanded.
+Existing VQA models often struggle to deliver consistent per-
+formance across varying dynamic ranges, distortion types, and
+diverse content. This challenge was established to benchmark and
+promote VQA approaches capable of jointly handling HDR and
+SDR content. In the final evaluation phase, five teams submitted
+seven models along with technical reports to the Full Reference
+(FR) and No Reference (NR) tracks. Among them, four methods
+outperformed VMAF baseline, while the top-performing model
+achieved state-of-the-art performance, setting a new benchmark
+for generalizable video quality assessment.
+Index Terms—Video Quality Assessment
+I. INTRODUCTION
+Video Quality Assessment (VQA) focuses on understand-
+ing how humans perceive the quality of videos affected by
+distortions introduced during acquisition, compression, trans-
+mission, or enhancement. VQA plays a key role in various
+video processing applications such as video coding, restora-
+tion, and streaming. Despite significant progress, accurately
+predicting human-perceived video quality remains difficult due
+to the various distortions, content characteristics, and temporal
+dynamics.
+The growing development of High Dynamic Range (HDR)
+video, alongside traditional Standard Dynamic Range (SDR)
+content, introduces further challenges for VQA. HDR and
+SDR differ in key visual properties such as peak luminance,
+and color gamut, which influence how distortions are per-
+ceived. Many current VQA models are designed specifically
+for either HDR or SDR, limiting their effectiveness when
+applied across both formats. These limitations are even more
+noticeable when evaluating a variety of distortions or diverse
+content types.
+To address these issues, the ICME 2025 Grand Challenge
+on Generalizable HDR and SDR Video Quality Measurement
+was introduced. The goal is to benchmark VQA methods
+The challenge is sponsored by Amazon Prime Video. The organizers are
+noted by †. These authors* contributed equally. The other authors who win the
+challenge and their teams are indicated by the following team names: ‡ SLCV,
+§ ECNU-SJTU VQA, ∥Cambridge VDP, ¶ PhoenixVideo. Website: https:
+//sites.google.com/view/icme25-vqm-gc/. Code: https://github.com/Easoncyx/
+vqm challenge.
+that can perform consistently across both HDR and SDR
+content. The challenge includes two tracks: Full-Reference,
+where reference videos are available, and No-Reference, where
+the model must predict quality without access to the original
+video. These two tracks simulate real-world conditions ranging
+from controlled media production environments to open, user-
+generated content scenarios. An HDR&SDR VQA database
+is used for this challenge, covering a wide range of content
+types and distortion conditions in both HDR and SDR formats.
+Subjective quality scores were collected for evaluation as the
+ground truth.
+The models proposed by different participating teams
+demonstrate a range of strategies, including large multimodal
+foundational models tuned for VQA tasks, human vision
+system modeling with transformer, traditional interpretable
+coding features and machine learning pipelines. Several teams
+addressed the limited availability of HDR training data through
+pretraining on SDR datasets and domain adaptation tech-
+niques. Others introduced customized feature extraction, tem-
+poral modeling, or data augmentation strategies to enhance
+generalization across content types and distortion levels. This
+diversity reflects ongoing trends in video quality assessment:
+combining perceptual modeling, data-driven learning, and
+practical considerations.
+In total, five teams submitted their final solutions to the
+challenge, spanning FR and NR settings. Four out of seven
+models outperformed VMAF baseline, and the top-performing
+method achieved state-of-the-art results under the official
+evaluation protocol. This paper presents the design of the
+challenge, details of the dataset, evaluation methodology, and
+an overview of the submitted methods and their performance.
+II. CHALLENGE DESIGN
+We organize the ICME 2025 Grand Challenge on General-
+izable HDR and SDR Video Quality Assessment to facilitate
+the development and benchmarking of perceptual VQA models
+that perform consistently across HDR and SDR formats. The
+challenge is structured to address three core objectives: (1)
+encouraging novel VQA models capable of handling both
+HDR and SDR content under a variety of distortion conditions;
+(2) providing a standardized benchmark for both FR and
+NR methods; and (3) releasing an open-sourced large-scale
+HDR&SDR video quality dataset with high-quality subjective
+labels to support future research.
+arXiv:2506.22790v2  [eess.IV]  15 Jul 2025
+
+Task: Participants are tasked with designing models that
+predict quality scores in the range [0, 10], aiming for strong
+alignment with human perceptual judgments. Two tracks are
+provided:
+• Full-Reference Track: Models are given access to both
+the original and distorted versions of each video.
+• No-Reference Track: Models must operate using only the
+distorted input.
+Submissions must support both SDR and HDR10 video
+formats.
+Dataset: The challenge uses a subset of the HDRSDR-VQA
+dataset [1] developed by the LIVE Lab at the University of
+Texas at Austin, in collaboration with Amazon Prime Video.
+This subset consists of 31 open-source source videos selected
+from the 8K HDR AVT-VQDB-UHD-2-HDR dataset [2].
+Each sequence was encoded in both HDR10 (BT.2020, PQ,
+yuv420p10le) and SDR (BT.709, yuv420p) formats, with a
+duration of approximately 7 seconds per clip.
+HDR-to-SDR conversions were performed using NBCU-
+niversal LUTs to ensure consistent tone-mapping across se-
+quences. Each source video was further encoded at nine bitrate
+and resolution levels, resulting in 18 distorted versions per
+content (9 HDR, 9 SDR). Encoding was carried out using
+FFmpeg with the libx265 encoder in constant bitrate mode.
+All videos are annotated using subjective scores col-
+lected through a pairwise comparison study conducted on six
+HDR10-capable consumer displays. The study followed ITU-
+R BT.500.13 [3] and used the Active Sampling for Pairwise
+Comparisons (ASAP) algorithm [4]. The collected data were
+scaled into continuous Just-Objectionable-Difference (JOD)
+scores with the pwcmp algorithm [5].
+For the challenge, 20 open-source videos (360 sequences:
+180 HDR and 180 SDR) are released for training. The re-
+maining 11 contents (198 sequences: 99 HDR and 99 SDR)
+are reserved for the test set. In the FR track, the 3840×2160
+versions encoded at 50 Mbps are used as the reference videos.
+Evaluation: Submissions are evaluated by comparing the
+predicted quality scores against the ground-truth JOD values
+derived from subjective experiments. The primary evaluation
+metric is Spearman’s Rank Order Correlation Coefficient
+(SROCC), which assesses the monotonic relationship between
+predicted and subjective scores.
+In addition to SROCC, the following metrics are also
+reported:
+• Pearson’s Linear Correlation Coefficient (PLCC), com-
+puted after a third-order polynomial regression to account
+for possible non-linear relationships.
+• Root Mean Square Error (RMSE), also calculated post-
+regression, to reflect absolute prediction error.
+• Kendall’s Rank Correlation Coefficient (KROCC), which
+provides an additional non-parametric measure of ranking
+consistency.
+• Inference time, the average inference time across the test
+set with a single Nvidia L40S GPU.
+Before calculating the PLCC and RMSE, a four-parameter
+non-linear mapping [6] is used to map the model’s prediction
+to MOS on private test set to account for scale difference.
+f(o) =
+β1 −β2
+1 + e−o−β3
+|β4|
++ β2
+where o is the objective model prediction.
+Runtime is measured on an AWS EC2 G6e.8xlarge instance.
+It is not used for ranking, but is included to contextualize
+model complexity.
+Challenge Phases and Submission: During the develop-
+ment phase, participants are provided with the training data
+along with the corresponding ground-truth JOD scores to
+facilitate model training and validation. In the final testing
+phase, models are evaluated on the unseen test set. Partici-
+pants are required to submit their final models packaged in
+Docker containers to ensure reproducibility and standardized
+evaluation.
+III. CHALLENGE RESULTS
+Three baseline methods were included to provide refer-
+ence points for model performance: ITU-T P.1204.3 [11],
+EQM [12], VMAF [13], and PSNR-Y. P.1204.3 is a standard-
+ized no-reference model developed to assess compressed video
+quality in streaming scenarios. EQM introduces a lightweight
+no-reference video quality metric that leverages quantization
+and motion features extracted from the encoding or decoding
+process, the speed is measured on the decoder version. VMAF
+is a widely adopted full-reference metric that combines multi-
+ple quality indicators using support vector regression. PSNR-Y
+is a simple pixel-based full-reference metric that measures the
+signal fidelity on the luma channel.
+Table I summarizes the performance of all participating
+models across the full test set as well as SDR and HDR10
+subsets. The table includes standard quality assessment met-
+rics—SROCC, PLCC, KROCC, and RMSE with the average
+per-video inference time, providing a comprehensive view of
+both prediction accuracy and computational efficiency.
+The
+top-performing
+no-reference
+model,
+SLCV
+[7],
+achieved the highest overall performance, with an SROCC
+of 0.945 and PLCC of 0.943, outperforming both tradi-
+tional baselines and several full-reference models. Among
+full-reference submissions, ECNU-FR [8] and cvvdpMlTrans-
+former [9] showed strong results, with consistent performance
+across both SDR and HDR content. Four out of seven par-
+ticipating methods outperformed the official baseline VMAF.
+All evaluations ran on an AWS EC2 G6e instance. All the
+baseline models and PhoenixVideo [10] were tested on CPU,
+while all other submitted models utilized GPU. Fig. 1 shows
+the relationship between model-predicted scores and subjective
+JOD values on the full test set.
+IV. PARTICIPATING METHODS
+In this section, we provide detailed descriptions of the top-
+performing teams in both the FR and NR tracks. We also
+include brief summaries of the remaining submissions that
+
+TABLE I: Challenge results across all, SDR, and HDR10 videos. Metrics shown: SROCC / PLCC / KROCC / RMSE. Inf
+Time denotes the average inference time per video across the entire test set on Nvidia L40S GPU unless noted otherwise.
+Track
+Team/Model Name
+All
+SDR
+HDR10
+Inf Time (s)
+NR
+SLCV [7]
+0.945 / 0.943 / 0.802 / 0.465
+0.933 / 0.943 / 0.787 / 0.450
+0.953 / 0.944 / 0.823 / 0.476
+42.27
+FR
+ECNU-SJTU-FR [8]
+0.932 / 0.941 / 0.778 / 0.482
+0.924 / 0.944 / 0.767 / 0.454
+0.938 / 0.939 / 0.789 / 0.507
+17.34
+FR
+cvvdpMlTransformer [9]
+0.917 / 0.910 / 0.757 / 0.580
+0.908 / 0.914 / 0.751 / 0.550
+0.927 / 0.906 / 0.769 / 0.609
+76.96
+FR
+cvvdpMlSaliency [9]
+0.910 / 0.908 / 0.743 / 0.588
+0.923 / 0.923 / 0.769 / 0.521
+0.897 / 0.894 / 0.726 / 0.647
+76.87
+NR
+ECNU-SJTU-NR [8]
+0.880 / 0.897 / 0.697 / 0.632
+0.843 / 0.882 / 0.657 / 0.650
+0.922 / 0.914 / 0.757 / 0.604
+17.84
+FR(RR)
+PhoenixVideo (CPU) [10]
+0.832 / 0.787 / 0.632 / 0.862
+0.871 / 0.846 / 0.677 / 0.719
+0.800 / 0.760 / 0.595 / 0.936
+10.01
+NR
+BVI-VQA
+0.603 / 0.579 / 0.422 / 1.139
+0.545 / 0.557 / 0.384 / 1.121
+0.659 / 0.613 / 0.467 / 1.138
+22.74
+Baseline Methods on CPU
+NR
+P1204.3 (1 thread) [11]
+0.925 / 0.935 / 0.762 / 0.496
+0.928 / 0.934 / 0.768 / 0.484
+0.927 / 0.945 / 0.775 / 0.470
+121.24
+NR
+EQM decoder (12 threads) [12]
+0.925 / 0.925 / 0.762 / 0.531
+0.919 / 0.917 / 0.751 / 0.538
+0.939 / 0.950 / 0.795 / 0.448
+16.65
+FR
+VMAF (12 threads) [13]
+0.905 / 0.901 / 0.725 / 0.597
+0.922 / 0.915 / 0.755 / 0.541
+0.896 / 0.909 / 0.720 / 0.594
+83.11
+FR
+PSNR-Y
+0.674 / 0.677 / 0.480 / 1.015
+0.727 / 0.737 / 0.542 / 0.901
+0.707 / 0.750 / 0.522 / 0.937
+-
+exceed the baseline to highlight the diversity of approaches
+explored in the challenge.
+A. MLLM-Based NR VQA - Winning Team for NR Track
+The winning solution [7] for the no-reference (NR) track
+introduces a novel approach to video quality assessment
+using a multimodal large language model (MLLM) shown
+in Fig. 2. This method is built upon InternVL 2.5 [14], a
+vision-language model originally developed for general vi-
+sual question-answering tasks. The InternVL 2.5 MLLM is
+adopted as the core architecture for the video quality eval-
+uation pipeline, incorporating FFmpeg-driven HDR-to-SDR
+preprocessing. This design enables the model to process both
+HDR and SDR videos within a unified framework, ensuring
+consistent evaluation of perceptual quality variations while
+adhering to standard display constraints.
+During the preprocessing phase, HDR10 content was con-
+verted to SDR equivalents through Mobius tone mapping im-
+plemented in FFmpeg (transfer characteristic parameter = 0.3).
+To maintain perceptual brightness consistency during dynamic
+range compression, the input signal was linearized under the
+assumption of a reference display peak luminance of 1000 nits.
+While this inevitably incurs some information loss inherent to
+HDR-to-SDR conversion, the standardized processing pipeline
+ensures consistent input distribution across both HDR and
+SDR content, thereby facilitating more robust model learning
+through dynamic range-agnostic feature representation.
+The training dataset provided for this NR track contains only
+360 videos, which presents significant challenges due to its
+limited scale. To address this constraint in the spatial domain,
+a data augmentation strategy called Spatial Window Sampling
+is introduced. This strategy applies a sliding window approach
+that crops video frames to a window size equal to two-thirds of
+the video’s shortest side. This method effectively increases the
+number of training samples and enhances the model’s ability to
+learn spatial features at a finer level. The InternVL 2.5 model
+is fine-tuned using the Low-Rank Adaptation (LoRA) [15]
+technique.
+All experiments were conducted on a computing node
+equipped with eight NVIDIA A100 GPUs (80 GB mem-
+ory each) and 1 TB of system RAM. The InternVL2.5-1B
+model was fine-tuned using LoRA with hyperparameters set
+to rank=16, alpha=48, and a learning rate of 2e-4. Training
+was distributed across eight NVIDIA A100-80G GPUs with a
+batch size of 24 for four epochs to prevent overfitting. During
+inference, the same sliding window sampling strategy used
+during training is applied to the test videos. The model inde-
+pendently predicts quality scores for six sub-videos generated
+by the sliding window, and the final quality score is calculated
+as the average of these predictions.
+B. FR-CompressedVQA-HDR - Winning team for FR Track
+The FR track winning method, FR-CompressedVQA-
+HDR [8] proposed by ECNU-SJTU VQA Team, builds upon
+prior work in SDR UGC-oriented VQA model (Compressed-
+VQA [16]) and extends it to handle HDR content. This HDR
+extension aims to generalize quality assessment to HDR con-
+tent by computing deep textural and structure similarities [17]
+between reference and distorted frames using Transformer-
+based representations. The model is designed to robustly
+evaluate visual fidelity under the complex luminance and
+contrast dynamics of HDR videos, and to generalize well by
+learning perceptual correspondence in feature space.
+As shown in Fig. 3, FR-CompressedVQA-HDR comprises
+two main components: a quality-aware feature extraction
+module and a quality regression module. For each pair of
+preprocessed reference and distorted frames zr
+i and zd
+i , deep
+hierarchical features f r
+i and f d
+i are extracted from multiple
+stages of a Swin Transformer [18] pretrained on ImageNet. At
+each stage, the model computes texture similarity via global
+mean alignment:
+fT (f r
+i , f d
+i ) =
+2µr
+i µd
+i + c1
+(µr
+i )2 + (µd
+i )2 + c1
+,
+(1)
+and structure similarity via variance and covariance statistics:
+fS(f r
+i , f d
+i ) =
+2σr,d
+i
++ c2
+(σr
+i )2 + (σd
+i )2 + c2
+,
+(2)
+where µr
+i , µd
+i and σr
+i , σd
+i are the global means and standard
+deviations of the feature maps respectively, σr,d
+i
+denotes the
+
+(a) NR-SLCV-SJTU [7]
+(b) FR-ECNU [8]
+(c) FR-cvvdpMlTransformer [9]
+(d) FR-cvvdpMlSaliency [9]
+(e) NR-ECNU-SJTU [8]
+(f) FR-PhoenixVideo [10]
+(g) NR-BVI-VQA
+(h) P1204.3 (Baseline) [11]
+(i) EQM (Baseline) [12]
+(j) VMAF (Baseline) [13]
+(k) PSNR (Baseline)
+Fig. 1: Scatter plots with non-linear mapping between prediction and JOD for all models on the test set.
+Fig. 2: Proposed NR-VQA pipeline based on InternVL 2.5. Tone-mapped HDR/SDR inputs are spatially cropped and passed
+through a fine-tuned MLLM. Final prediction is the average of regional scores.
+
+C
+concatenate
+Ref frames
+Dis frames
+Stage 1             Stage 2                Stage 3                  Stage 4
+C
+…
+FR
+feature
+FR model
+Swin Transformer 
+Structure Similarity
+Texture Similarity
+MLP
+Quality 
+Score
+Average  Pooling
+Fig. 3: Architecture of the CompressedVQA-HDR model. It extracts Swin Transformer features from reference and distorted
+frames, computes similarity statistics, and regresses a frame-level score.
+global covariance between them, and c1, c2 are constants
+for numerical stability. Similarity features from all stages are
+concatenated into a final quality-aware vector fi, which is
+passed through a two-layer MLP to predict the frame-level
+quality score ˆqi. The final video-level score ˆq is obtained by
+averaging predictions over all sampled frames.
+The model takes as input a pair of reference and distorted
+HDR videos. To reduce computational cost while preserving
+perceptual information, frames are sampled at 1 fps and
+spatially downsampled using bicubic interpolation to a fixed
+resolution (i.e., 384×384). These preprocessed frames are used
+for both training and inference. FR-CompressedVQA-HDR is
+trained using a two-stage strategy to enhance generalization to
+HDR content. First, the model is pretrained on the Compressed
+UGC VQA dataset [19], which contains 6, 400 UGC video
+clips for training and 800 for validation. Subsequently, the
+model is fine-tuned on the HDR-VQA dataset released by the
+ICME 2025 Grand Challenge [20], containing 180 HDR and
+180 SDR videos. The dataset is split into training and testing
+sets with an 8 : 2 ratio based on video content. Training
+is performed using the Adam optimizer with a learning rate
+of 1 × 10−4, a batch size of 6, and a total of 10 epochs
+for pretraining followed by 30 epochs for fine-tuning. The
+PLCC loss function is used to optimize the correlation between
+predicted and ground-truth quality scores.
+C. cvvdpMITransformer & cvvdpMISaliency
+ColorVideoVDP-ML [9] is a full-reference video quality
+metric that combines a classical visual difference predictor
+with a neural regressor shown in Fig. 4. The model is built
+upon ColorVideoVDP [21], a perceptual model that simulates
+low-level human vision, and extends it with machine learning
+components to account for high-level semantic factors influ-
+encing perceived video quality.
+The model first processes both reference and distorted
+videos through the ColorVideoVDP backbone, which simu-
+lates early stages of human visual perception using temporal
+decomposition, multi-scale filtering, and contrast sensitivity
+modeling. This produces dense perceptual features such as
+contrast maps and predicted visibility differences. The per-
+ceptual features are pooled spatially into non-overlapping
+patches corresponding to approximately one visual degree. For
+each patch, band, and frame, several statistics are computed,
+resulting in compact but expressive feature vectors. Two
+different regression heads are explored: Saliency-Based MLP
+uses two MLPs to predict per-patch distortion magnitude and
+saliency weight, modulating each patch’s contribution based
+on its importance, while Transformer-Based Regressor learns
+inter-patch relationships by encoding all patch-level features
+through a Transformer encoder, followed by a regression MLP
+head. All scores are aggregated using a weighted average
+across patches, bands, and frames, yielding a final JOD score.
+D. NR-CompressedVQA-HDR
+The NR-CompressedVQA-HDR [8] proposed by ECNU-
+SJTU VQA Team adopts a vision-language backbone SigLip
+v2 [22] for no-reference quality prediction of compressed
+HDR videos. The architecture of NR-CompressedVQA-HDR
+is shown in Fig. 5. Each distorted frame is processed through
+the visual encoder of SigLip v2, and the global average pooling
+of the final-layer feature maps is used as the quality-aware
+representation. These frame-level features are passed to a
+lightweight two-layer MLP to predict quality scores, which
+are averaged across the video to obtain the final prediction.
+To address data scarcity in HDR datasets, the model is
+trained using an iterative mixed-dataset training (IMDT) strat-
+egy [23] across multiple VQA datasets. The feature extractor
+is shared across datasets, while separate regressors are main-
+tained to adapt to different label scales. After this multi-dataset
+training, the model is fine-tuned on the HDR-VQA dataset.
+E. PhoenixVideo
+PhoenixVideo [10] presents a reduced-reference (RR) VQA
+method that relies on interpretable, handcrafted features and a
+lightweight machine learning model. The approach shown in
+Fig. 6 begins by extracting seven spatio-temporal features from
+both the reference and distorted videos using a Video Com-
+plexity Analyzer (VCA) [24], which applies 2D-DCT filtering
+
+Fig. 4: Architecture overview of the proposed ColorVideoVDP-ML. (a) provides details on the ColorVideoVDP metric that is
+used as a backbone. (b) explains how the features are pooled from the contrast information extracted from ColorVideoVDP.
+(c) showcases the regression of two architectures.
+Fig. 5: Architecture overview of the NR-CompressedVQA-HDR
+Fig. 6: Architecture overview of the PhoenixVideo.
+on luma and chroma channels to capture temporal and spatial
+texture characteristics. These include statistics of luma tex-
+ture strength, motion energy, chroma activity, and directional
+content. To model perceptual degradation, residual features
+are computed by subtracting distorted from reference features.
+Additionally, the method incorporates intra-frame SSIM [25]
+mean and standard deviation values, extracted directly from
+distorted frames, to provide complementary information on
+local structural integrity. The combined feature set is pooled
+temporally and passed into an XGBoost regressor trained
+to predict quality scores. This fully interpretable pipeline is
+efficient, requires minimal reference information, and avoids
+the use of deep neural networks, making it well-suited for real-
+time video quality monitoring and bitrate-adaptive streaming.
+V. ANALYSIS ON HDR AND SDR SCALE
+In the case of SDR content is derived from HDR via tone
+mapping, the HDR serves as the source (SRC), and the SDR
+is the processed video. SDR and HDR content exhibit similar
+complexity and should be treated as variants of the same
+content, with their scores recovered together in a pairwise
+comparison (PC) subjective study. We observed that most full-
+
+(a) as separate source
+(b) as same source
+Fig. 7: EQM NR vs JoD where SDR and HDR are recovered differently
+reference (FR) metrics do not support comparisons across
+different pixel formats. For those FR metrics that do support it,
+or for no-reference (NR) metrics, the correlations drop sharply
+when SDR and HDR are included in the same rating session
+and their scores are recovered as if they originate from the
+same source content because viewers can better discern the
+HDR characteristics of a video in a PC rating session. For
+example, as shown in Fig. 7, the SROCC for EQM NR drops
+from 0.92 to 0.68. The same applies to other metrics; e.g.,
+SLCV changes from 0.94 to 0.96, P1204.3 drops from 0.92
+to 0.62, and VMAF drops from 0.90 to 0.55. For simplicity,
+in the challenge, we used the scores in which SDR and HDR
+were rated as separate content. Models can be trained to better
+separate HDR and SDR video and capturing resolution-bitrate-
+dynamic range crossover [26] by using dataset build with PC
+study protocol with joint rating of HDR and SDR.
+VI. CONCLUSION
+This paper presented a summary of the ICME 2025 Grand
+Challenge on Generalizable HDR and SDR Video Quality
+Measurement, which aimed to benchmark VQA methods
+capable of handling both HDR and SDR content under diverse
+distortion conditions. The challenge attracted a range of solu-
+tions, including deep learning-based architectures, multimodal
+models, and lightweight interpretable pipelines. We hope that
+this challenge and its accompanying dataset will continue to
+support future research on video quality assessment across
+dynamic range formats, and serve as a useful benchmark for
+developing more generalizable and perceptually accurate VQA
+models.
+VII. APPENDIX: TEAMS AND AFFILIATIONS
+Team: SLCV
+• Members: Baojun Li
+Team: PhoenixVideo
+• Members: Amritha Premkumar, Prajit T Rajendran, Vig-
+nesh V Menon
+• Affiliations:
+Department
+of
+Computer
+Science,
+Rheinland-Pf¨alzische
+Technische
+Universit¨at,
+Kaiserslautern, Germany; Universit´e Paris-Saclay, CEA,
+List, F-91120, Palaiseau, France; Video Communication
+and Applications department, Fraunhofer HHI, Berlin,
+Germany
+Team: ECNU-SJTU VQA Team
+• Members: Wei Sun, Linhan Cao, Kang Fu, Dandan Zhu,
+Jun Jia, Menghan Hu, Xiongkuo Min, Guangtao Zhai
+• Affiliations:
+East
+China
+Normal
+University,
+China;
+Shanghai Jiao Tong University, China.
+Team: Cambridge VDP Team
+• Members: Dounia Hammou, Fei Yin, Rafał K. Mantiuk
+• Affiliations:Department of Computer Science and Tech-
+nology, University of Cambridge, UK.
+Team: BVI-VQA Team
+• Members: Robert Hamilton, Chengxi Zeng, Chen Feng,
+Yuxuan Jiang, Tianhao Peng, Fan Zhang, David Bull
+• Affiliations: Visual Information Laboratory, University of
+Bristol, United Kingdom.
+REFERENCES
+[1] Bowen Chen, Cheng-han Lee, Yixu Chen, Zaixi Shang, Hai Wei, and
+Alan C. Bovik, “Hdrsdr-vqa: A subjective video quality dataset for hdr
+and sdr comparative evaluation,” 2025.
+[2] Dominik Keller, Thomas Goebel, Valentin Siebenkees, Julius Prenzel,
+and Alexander Raake,
+“Avt-vqdb-uhd-2-hdr: An open 8k hdr source
+dataset for video quality research,” in 2024 16th International Confer-
+ence on Quality of Multimedia Experience (QoMEX), 2024, pp. 186–
+192.
+[3] B Series, “Methodology for the subjective assessment of the quality of
+television pictures,” Recommendation ITU-R BT, vol. 500, no. 13, 2012.
+[4] Aliaksei Mikhailiuk, Clifford Wilmot, Maria Perez-Ortiz, Dingcheng
+Yue, and Rafał K Mantiuk, “Active sampling for pairwise comparisons
+via approximate message passing and information gain maximization,”
+in 2020 25th International Conference on Pattern Recognition (ICPR).
+IEEE, 2021, pp. 2559–2566.
+[5] Maria Perez-Ortiz and Rafal K Mantiuk,
+“A practical guide and
+software for analysing pairwise comparison experiments,” arXiv preprint
+arXiv:1712.03686, 2017.
+
+[6] Kalpana Seshadrinathan, Rajiv Soundararajan, Alan Conrad Bovik, and
+Lawrence K. Cormack,
+“Study of subjective and objective quality
+assessment of video,”
+IEEE Transactions on Image Processing, vol.
+19, no. 6, pp. 1427–1441, 2010.
+[7] Baojun Li,
+“Multimodal large language model for hdr & sdr video
+quality measurement,”
+in 2025 IEEE International Conference on
+Multimedia and Expo (ICME), 2025.
+[8] Wei Sun, Linhan Cao, Kang Fu, Dandan Zhu, Jun Jia, Menghan Hu,
+Xiongkuo Min, and Guangtao Zhai, “Compressedvqa-hdr: Generalized
+full-reference and no-reference quality assessment models for com-
+pressed high dynamic range videos,”
+in 2025 IEEE International
+Conference on Multimedia and Expo (ICME), 2025.
+[9] Dounia Hammou, Fei Yin, and Rafal Mantiuk,
+“Colorvideovdp-ml:
+Visual difference predictor with a neural regressor for image and
+video quality prediction,” in 2025 IEEE International Conference on
+Multimedia and Expo (ICME), 2025.
+[10] Amritha Premkumar, Prajit T Rajendran, and Vignesh V Menon, “Learn-
+ing quality from complexity and structure: A feature-fused xgboost
+model for video quality assessment,”
+in 2025 IEEE International
+Conference on Multimedia and Expo (ICME), 2025.
+[11] Rakesh Rao Ramachandra Rao, Steve G¨oring, Werner Robitza, Alexan-
+der Raake, Bernhard Feiten, Peter List, and Ulf W¨ustenhagen,
+“Bitstream-based model standard for 4k/uhd: Itu-t p.1204.3 – model
+details, evaluation, analysis and open source implementation,” in 2020
+Twelfth International Conference on Quality of Multimedia Experience
+(QoMEX), Athlone, Ireland, May 2020.
+[12] Yixu Chen, Zaixi Shang, Hai Wei, Yongjun Wu, and Sriram Sethuraman,
+“Encoder-quantization-motion-based video quality metrics,”
+in 2024
+Picture Coding Symposium (PCS), 2024, pp. 1–5.
+[13] Zhi Li, Christos Bampis, Julie Novak, Anne Aaron, Kyle Swanson,
+Moorthy Anush, and Jan De Cock,
+“Vmaf: The journey continues,”
+2018.
+[14] Zhe Chen, Weiyun Wang, Yue Cao, Yangzhou Liu, Zhangwei Gao, Erfei
+Cui, Jinguo Zhu, Shenglong Ye, Hao Tian, Zhaoyang Liu, Lixin Gu,
+Xuehui Wang, Qingyun Li, Yimin Ren, Zixuan Chen, Jiapeng Luo,
+Jiahao Wang, Tan Jiang, Bo Wang, Conghui He, Botian Shi, Xingcheng
+Zhang, Han Lv, Yi Wang, Wenqi Shao, Pei Chu, Zhongying Tu, Tong
+He, Zhiyong Wu, Huipeng Deng, Jiaye Ge, Kai Chen, Kaipeng Zhang,
+Limin Wang, Min Dou, Lewei Lu, Xizhou Zhu, Tong Lu, Dahua Lin,
+Yu Qiao, Jifeng Dai, and Wenhai Wang,
+“Expanding performance
+boundaries of open-source multimodal models with model, data, and
+test-time scaling,” 2025.
+[15] Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi
+Li, Shean Wang, Lu Wang, and Weizhu Chen,
+“Lora: Low-rank
+adaptation of large language models,” 2021.
+[16] Wei Sun, Tao Wang, Xiongkuo Min, Fuwang Yi, and Guangtao Zhai,
+“Deep learning based full-reference and no-reference quality assessment
+models for compressed ugc videos,” in IEEE International Conference
+on Multimedia & Expo Workshops, 2021, pp. 1–6.
+[17] Keyan Ding, Kede Ma, Shiqi Wang, and Eero P Simoncelli, “Image
+quality assessment: Unifying structure and texture similarity,”
+IEEE
+Transactions on Pattern Analysis and Machine Intelligence, vol. 44, no.
+5, pp. 2567–2581, 2020.
+[18] Ze Liu, Yutong Lin, Yue Cao, Han Hu, Yixuan Wei, Zheng Zhang,
+Stephen Lin, and Baining Guo, “Swin transformer: Hierarchical vision
+transformer using shifted windows,” in Proceedings of the IEEE/CVF
+International Conference on Computer Vision, 2021, pp. 10012–10022.
+[19] Haiqiang Wang, Gary Li, Shan Liu, and C.-C. Jay Kuo, “Challenge
+on quality assessment of compressed ugc videos,” Website, 2021, http:
+//ugcvqa.com/.
+[20] “Generalizable hdr & sdr video quality measurement grand challenge,”
+Website, 2025, https://sites.google.com/view/icme25-vqm-gc/home.
+[21] Rafal K. Mantiuk, Param Hanji, Maliha Ashraf, Yuta Asano, and
+Alexandre Chapiro, “Colorvideovdp: A visual difference predictor for
+image, video and display distortions,” ACM Trans. Graph., vol. 43, no.
+4, July 2024.
+[22] Michael Tschannen, Alexey Gritsenko, Xiao Wang, Muhammad Ferjad
+Naeem, Ibrahim Alabdulmohsin, Nikhil Parthasarathy, Talfan Evans,
+Lucas Beyer, Ye Xia, Basil Mustafa, Olivier H´enaff, Jeremiah Harmsen,
+Andreas Steiner, and Xiaohua Zhai,
+“Siglip 2: Multilingual vision-
+language encoders with improved semantic understanding, localization,
+and dense features,” 2025.
+[23] Wei Sun, Xiongkuo Min, Danyang Tu, Siwei Ma, and Guangtao Zhai,
+“Blind quality assessment for in-the-wild images via hierarchical feature
+fusion and iterative mixed database training,” IEEE Journal of Selected
+Topics in Signal Processing, vol. 17, no. 6, pp. 1178–1192, 2023.
+[24] Vignesh V Menon, Christian Feldmann, Klaus Schoeffmann, Mo-
+hammed Ghanbari, and Christian Timmerer, “Green video complexity
+analysis for efficient encoding in adaptive video streaming,” in Proceed-
+ings of the First International Workshop on Green Multimedia Systems.
+June 2023, GMSys ’23, p. 16–18, ACM.
+[25] Zhou Wang, A.C. Bovik, H.R. Sheikh, and E.P. Simoncelli,
+“Image
+quality assessment: from error visibility to structural similarity,” IEEE
+Transactions on Image Processing, vol. 13, no. 4, pp. 600–612, 2004.
+[26] Jingwen Zhu, Yixu Chen, Hai Wei, Sriram Sethuraman, and Yongjun
+Wu,
+“Video quality assessment for resolution cross-over in live
+sports,”
+in 2025 IEEE International Conference on Multimedia and
+Expo (ICME), 2025.

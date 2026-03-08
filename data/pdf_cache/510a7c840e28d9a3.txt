@@ -1,0 +1,1488 @@
+Collaborative Diffusion for Multi-Modal Face Generation and Editing
+Ziqi Huang
+Kelvin C.K. Chan
+Yuming Jiang
+Ziwei LiuB
+S-Lab, Nanyang Technological University
+{ziqi002, chan0899, yuming002, ziwei.liu}@ntu.edu.sg
+This man has 
+beard of medium 
+length. He is in 
+his thirties.
+This female is in 
+the middle age.
+He is a teen. The 
+face is covered with 
+short pointed 
+beard.
+This man has 
+beard of medium 
+length. He is in his 
+thirties.
+This man has 
+beard of medium 
+length. He is in his 
+thirties.
+This woman is a 
+teen. There is no 
+beard on her face.
+(a) Face Generation
+(b) Face Editing
+Input Image
+Target Mask
+Target Text
+Edited Image
+Generated Image (512×512)
+He is a young 
+adult. This man has 
+a rough growth of 
+stubble.
+This man has 
+beard of medium 
+length. He is in his 
+thirties.
+This female is in 
+the middle age.
+She is a teenager.
+Generated Image
+Multi-Modal 
+Conditions
+Multi-Modal Conditions
+Figure 1. We propose Collaborative Diffusion, where users can use multiple modalities to control face generation and editing. (a) Face
+Generation. Given multi-modal controls, our framework synthesizes high-quality images consistent with the input conditions. (b) Face
+Editing. Collaborative Diffusion also supports multi-modal editing of real images with promising identity preservation capability.
+Abstract
+Diffusion models arise as a powerful generative tool re-
+cently. Despite the great progress, existing diffusion models
+mainly focus on uni-modal control, i.e., the diffusion process
+is driven by only one modality of condition. To further un-
+leash the users’ creativity, it is desirable for the model to be
+controllable by multiple modalities simultaneously, e.g. gen-
+erating and editing faces by describing the age (text-driven)
+while drawing the face shape (mask-driven).
+In this work, we present Collaborative Diffusion, where
+pre-trained uni-modal diffusion models collaborate to
+achieve multi-modal face generation and editing without
+re-training. Our key insight is that diffusion models driven
+by different modalities are inherently complementary regard-
+ing the latent denoising steps, where bilateral connections
+can be established upon. Speciﬁcally, we propose dynamic
+diffuser, a meta-network that adaptively hallucinates multi-
+modal denoising steps by predicting the spatial-temporal
+BCorresponding author.
+Project page: https://ziqihuangg.github.io/projects/collaborative-diffusion.html
+Code: https://github.com/ziqihuangg/Collaborative-Diffusion
+inﬂuence functions for each pre-trained uni-modal model.
+Collaborative Diffusion not only collaborates generation
+capabilities from uni-modal diffusion models, but also inte-
+grates multiple uni-modal manipulations to perform multi-
+modal editing. Extensive qualitative and quantitative experi-
+ments demonstrate the superiority of our framework in both
+image quality and condition consistency.
+1. Introduction
+Recent years have witnessed substantial progress in image
+synthesis and editing with the surge of diffusion models [11,
+23,62,64]. In addition to the remarkable synthesis quality,
+one appealing property of diffusion models is the ﬂexibility
+of conditioning on various modalities, such as texts [3,19,
+33, 34, 44, 53, 56], segmentation masks [53, 72, 73], and
+sketches [8,72]. However, existing explorations are largely
+conﬁned to the use of a single modality at a time. The
+exploitation of multiple conditions remains under-explored.
+As a generative tool, its controllability is still limited.
+To unleash users’ creativity, it is desirable that the model
+arXiv:2304.10530v1  [cs.CV]  20 Apr 2023
+
+is simultaneously controllable by multiple modalities. While
+it is trivial to extend the current supervised framework
+with multiple modalities, training a large-scale model from
+scratch is computationally expensive, especially when exten-
+sive hyper-parameter tuning and delicate architecture designs
+are needed. More importantly, each trained model could
+only accept a ﬁxed combination of modalities, and hence
+re-training is necessary when a subset of modalities are ab-
+sent, or when additional modalities become available. The
+above demonstrates the necessity of a uniﬁed framework that
+effectively exploits pre-trained models and integrate them
+for multi-modal synthesis and editing.
+In this paper, we propose Collaborative Diffusion, a
+framework that synergizes pre-trained uni-modal diffusion
+models for multi-modal face generation and editing without
+the need of re-training. Motivated by the fact that different
+modalities are complementary to each other (e.g., text for
+age and mask for hair shape), we explore the possibility
+of establishing lateral connections between models driven
+by different modalities. We propose dynamic diffuser to
+adaptively predict the spatial-temporal inﬂuence function for
+each pre-trained model. The dynamic diffuser dynamically
+determines spatial-varying and temporal-varying inﬂuences
+of each model, suppressing contributions from irrelevant
+modalities while enhancing contributions from admissible
+modalities. In addition to multi-modal synthesis, the sim-
+plicity and ﬂexibility of our framework enable extension to
+multi-modal face editing with minimal modiﬁcations. In
+particular, the dynamic diffuser is ﬁrst trained for collabora-
+tive synthesis. It is then ﬁxed and combined with existing
+face editing approaches [33,55] for multi-modal editing. It
+is worth-mentioning that users can select the best editing
+approaches based on their needs without the need of altering
+the dynamic diffusers.
+We demonstrate both qualitatively and quantitatively that
+our method achieves superior image quality and condition
+consistency in both synthesis and editing tasks. Our contri-
+butions can be summarized as follows:
+• We introduce Collaborative Diffusion, which exploits
+pre-trained uni-modal diffusion models for multi-modal
+controls without re-training. Our approach is the ﬁrst
+attempt towards ﬂexible integration of uni-modal diffu-
+sion models into a single collaborative framework.
+• Tailored for the iterative property of diffusion models,
+we propose dynamic diffuser, which predicts the spatial-
+varying and temporal-varying inﬂuence functions to
+selectively enhance or suppress the contributions of the
+given modalities at each iterative step.
+• We demonstrate the ﬂexibility of our framework by ex-
+tending it to face editing driven by multiple modalities.
+Both quantitative and qualitative results demonstrate the
+superiority of Collaborative Diffusion in multi-modal
+face generation and editing.
+2. Related Work
+Diffusion Models. Diffusion models [23, 62, 64] have re-
+cently become a mainstream approach for image synthe-
+sis [11,13,43] apart from Generative Adversarial Networks
+(GANs) [17], and success has also been found in various
+domains including video generation [20, 22, 61, 70], im-
+age restoration [24, 57], semantic segmentation [1, 5, 18],
+and natural language processing [2]. In the diffusion-based
+framework, models are trained with score-matching objec-
+tives [25,71] at various noise levels, and sampling is done
+via iterative denoising. Existing works focus on improv-
+ing the performance and efﬁciency of diffusion models
+through enhanced architecture designs [19,53] and sampling
+schemes [63]. In contrast, this work focuses on exploit-
+ing existing models, and providing a succinct framework
+for multi-modal synthesis and editing without large-scale
+re-training of models.
+Face Generation. Existing face generation approaches can
+be divided into three main directions. Following the GAN
+paradigm, the StyleGAN series [30–32] boost the quality of
+facial synthesis, and provide an interpretable latent space
+for steerable style controls and manipulations. The vector-
+quantized approaches [15, 68] learn a discrete codebook
+by mapping the input images into a low-dimensional dis-
+crete feature space. The learned codebook is then sampled,
+either sequentially [15, 68] or parallelly [6, 7, 19], for syn-
+thesis. In contrast to the previous two approaches, diffusion
+models are trained with a stationary objective, without the
+need of optimizing complex losses (e.g., adversarial loss)
+or balancing multiple objectives (e.g., codebook loss versus
+reconstruction loss). With training simplicity as a merit,
+diffusion-based approaches have become increasingly pop-
+ular in recent years. Our framework falls in the diffusion-
+based paradigm. In particular, we leverage pre-trained diffu-
+sion models for multi-modal generation and editing.
+Conditional Face Generation and Editing. Conditional
+generation [12, 13, 16, 36, 39, 42, 45, 48–51, 56, 72, 74–78]
+and editing [9, 37, 46, 58, 59, 74, 75] is an active line of
+research focusing on conditioning generative models on dif-
+ferent modalities, such as texts [27,46,74,75], segmentation
+masks [37,38,45,52], and audios [65]. For example, Style-
+CLIP [46], DiffusionCLIP [34], and many others [40, 66]
+have demonstrated remarkable performance in text-guided
+face generation and editing. However, most existing models
+do not support simultaneous conditioning on multiple modal-
+ities (e.g., text and mask at the same time), and supporting
+additional modalities often requires time-consuming model
+re-training and extensive hyper-parameter tuning, which are
+not preferable in general. In this work, we propose Col-
+laborative Diffusion to exploit pre-trained uni-modal diffu-
+sion models [53] (e.g., text-driven and mask-driven mod-
+els) to achieve multi-modal conditioning without model re-
+training.
+
+Text-Driven 
+Diffusion Model
+Mask-Driven 
+Diffusion Model
+This person is
+in her forties.
+⨀
+Dynamic Diffuser 2
+Dynamic Diffuser 1
+⊕
+Mask 
+Branch
+Text 
+Branch
+……
+⨀
+Collaborative Diffusion at t
+X Branch
+Pre-Trained 
+Diffusion Model
+Dynamic Diffuser
+"!"#
+"!
+"$
+"%
+⨀Pixel-wise Multiplication
+⊕Pixel-wise Addition
+Multi-Modal 
+Conditions c
+Influence Function
+of Mask Branch
+Influence Function
+of Text Branch
+Synthesized 
+Image
+…
+…
+Collaborative Diffusion Overview
+This person is
+in her forties.
+Legend
+X Condition
+"$"#
+"!
+"!"#
+#& "!"# "!, %)
+%'()*
+%!+,!
+Figure 2. Overview of Collaborative Diffusion. We use pre-trained uni-modal diffusion models to perform multi-modal guided face
+generation and editing. At each step of the reverse process (i.e., from timestep t to t −1), the dynamic diffuser predicts the spatial-varying
+and temporal-varying inﬂuence function to selectively enhance or suppress the contributions of the given modality.
+3. Collaborative Diffusion
+We propose Collaborative Diffusion, which exploits mul-
+tiple pre-trained uni-modal diffusion models (Section 3.1) for
+multi-modal generation and editing. The key of our frame-
+work is the dynamic diffuser, which adaptively predicts the
+inﬂuence functions to enhance or suppress the contributions
+of the pre-trained models based on the spatial-temporal inﬂu-
+ences of the modalities. Our framework is compatible with
+most existing approaches for both multi-modal guided syn-
+thesis (Section 3.2) and multi-modal editing (Section 3.3).
+3.1. Uni-Modal Conditional Diffusion Models
+Diffusion models are a class of generative models that
+model the data distribution in the form of pθ(x0) :=
+R
+pθ(x0:T ) dx1:T . The diffusion process (a.k.a. forward
+process) gradually adds Gaussian noise to the data and even-
+tually corrupts the data x0 into an approximately pure Gaus-
+sian noise xT using a variance schedule β1, . . . , βT :
+q(x1:T |x0) :=
+T
+Y
+t=1
+q(xt|xt−1),
+q(xt|xt−1) := N(xt;
+p
+1 −βtxt−1, βtI).
+(1)
+Reversing the forward process allows sampling new data x0
+by starting from p(xT ) = N(xT ; 0, I). The reverse process
+is deﬁned as a Markov chain where each step is a learned
+Gaussian transition (µθ, Σθ):
+pθ(x0:T ) := p(xT )
+T
+Y
+t=1
+pθ(xt−1|xt),
+pθ(xt−1|xt) := N(xt−1; µθ(xt, t), Σθ(xt, t)).
+(2)
+Training diffusion models relies on minimizing the varia-
+tional bound on p(x)’s negative log-likelihood. The com-
+monly used optimization objective LDM [23] reparameter-
+izes the learnable Gaussian transition as ϵθ(·), and tempo-
+rally reweights the variational bound to trade for better sam-
+ple quality:
+LDM(θ) := Et,x0,ϵ∼N(0,I)
+h
+∥ϵ −ϵθ(xt, t)∥2i
+,
+(3)
+where xt can be directly approximated by xt = √¯αtx0 +
+√1 −¯αtϵ, with ¯αt := Qt
+s=1 αs and αt := 1 −βt.
+To sample data x0 from a trained diffusion model ϵθ(·),
+we iteratively denoise xt from t = T to t = 1 with noise z:
+xt−1 =
+1
+√αt
+
+xt −1 −αt
+√1 −¯αt
+ϵθ(xt, t)
+
++ σtz
+(4)
+The unconditional diffusion models can be extended to
+model conditional distributions pθ(x0|c), where x0 is the
+image corresponding to the condition c such as class labels,
+segmentation masks, and text descriptions. The conditional
+diffusion model receives an additional input τ(c) and is
+trained by minimizing ∥ϵ −ϵθ(xt, t, τ(c))∥2, where τ(·) is
+an encoder that projects the condition c to an embedding
+τ(c). For brevity, we will use c to represent τ(c) in our
+subsequent discussions.
+
+Algorithm 1 Dynamic Diffuser Training
+1: repeat
+2:
+x0, c1, c2, ..., cM ∼q(x0, c1, c2, ..., cM)
+3:
+t ∼Uniform({1, . . . , T})
+4:
+ϵ ∼N(0, I)
+5:
+for m = 1, ..., M do
+6:
+ϵpred,m,t = ϵθm(√¯αtx0 + √1 −¯αtϵ, t, cm)
+7:
+Im,t = Dφm(√¯αtx0 + √1 −¯αtϵ, t, cm)
+8:
+end for
+9:
+ˆIm,t,p =
+exp(Im,t,p)
+PM
+j=1 exp(Ij,t,p), softmax at each pixel p
+10:
+ϵpred,t = PM
+m=1 ˆIm,t ⊙ϵpred,m,t
+11:
+Take gradient descent step on
+∇φ ∥ϵ −ϵpred,t∥2 where φ = {φm|m = 1, ..., M}
+12: until converged
+Algorithm 2 Collaborative Sampling
+1: xT ∼N(0, I)
+2: for t = T, . . . , 1 do
+3:
+z ∼N(0, I) if t > 1, else z = 0
+4:
+for m = 1, ..., M do
+5:
+ϵpred,m,t = ϵθm(xt, t, cm)
+6:
+Im,t = Dφm(xt, t, cm)
+7:
+end for
+8:
+ˆIm,t,p =
+exp(Im,t,p)
+PM
+j=1 exp(Ij,t,p), softmax at each pixel p
+9:
+ϵpred,t = PM
+m=1 ˆIm,t ⊙ϵpred,m,t
+10:
+xt−1 =
+1
+√αt
+
+xt −
+1−αt
+√1−¯αt ϵpred,t
+
++ σtz
+11: end for
+12: return x0
+Dynamic 
+Diffuser !!!
+""
+##
+$#,"
+timestep %
+Influence Function
+Figure 3. Dynamic Diffuser. It predicts the inﬂuence function that
+represents the desired level of contribution from each pre-trained
+diffusion model. The inﬂuence function varies at different timestep
+t and different spatial locations, and is dependent on the state of
+diffusion xt and the condition input cm.
+3.2. Multi-Modal Collaborative Synthesis
+In our Collaborative Diffusion, multiple uni-modal diffu-
+sion models collaborate at each step of the denoising process
+for multi-modal guided synthesis. The core of our frame-
+work is the dynamic diffuser, which determines the extent
+of contribution from each collaborator by predicting the
+spatial-temporal inﬂuence functions.
+Problem Formulation. Given M pre-trained uni-modal
+conditional diffusion models {ϵθm} (each models the distri-
+bution p(x0|cm)), where the modality index m = 1, ..., M,
+our objective is to sample from p(x0|c), where c
+=
+{c1, c2, · · · , cM}, without altering pre-trained models.
+Dynamic Diffuser. In diffusion models, each step of the
+reverse process requires predicting the noise ϵ. With mul-
+tiple diffusion models collaborating, we need to carefully
+determine when, where, and how much each diffusion model
+contributes to the prediction ϵ. At each diffusion timestep
+t = T, ..., 1, the inﬂuence Im,t from each pre-trained dif-
+fusion model ϵθm is adaptively determined by a dynamic
+diffuser Dφm:
+Im,t = Dφm(xt, t, cm),
+(5)
+where m = 1, ..., M is the index of the modalities, Im,t ∈
+Rh×w, xt is the noisy image at time t, cm is the condition
+of the mth modality, and Dφm is the dynamic diffuser imple-
+mented by a UNet [54]. To regularize the overall inﬂuence
+strength, we perform softmax across all modalities’ Im,t at
+each pixel p to obtain the ﬁnal inﬂuence function ˆIm,t:
+ˆIm,t,p =
+exp(Im,t,p)
+PM
+j=1 exp(Ij,t,p)
+.
+(6)
+Multi-Modal Collaboration. We use the M learned inﬂu-
+ence functions ˆIm,t to control the contribution from each
+pre-trained diffusion model at each denoising step:
+ϵpred,t =
+M
+X
+m=1
+ˆIm,t ⊙ϵθm(xt, t, cm)
+(7)
+where ϵθm is the mth collaborator, and ⊙denotes pixel-wise
+multiplication. The complete training procedure of dynamic
+diffusers and the image sampling strategy in our Collabo-
+rative Diffusion framework are detailed in Algorithm 1 and
+Algorithm 2, respectively.
+Relation with Composable Diffusion. Composable Diffu-
+sion [41] combines two instances of the same text-to-image
+diffusion model to achieve compositional visual generation
+via intermediate results addition. Our framework is related
+to Composable Diffusion in terms of composing diffusion
+models for image synthesis, but is substantially different
+in terms of the task nature and methodology. Composable
+Diffusion aims to decompose the text condition into elemen-
+tary segments to factorize the conditional synthesis problem,
+while we aim to integrate uni-modal collaborators to achieve
+multi-modal controls. Furthermore, different from Compos-
+able Diffusion, which can only compose instances of the
+
+Algorithm 3 Collaborative Editing
+Require:
+input image xinput, target conditions cm,target,
+diffusion models ϵθm,
+dynamic diffusers Dφm,
+(m
+=
+1, . . . , M),
+interpolation scale α
+1: for m = 1, ..., M do
+▷Uni-Modal Editing
+2:
+cm = cm,target
+3:
+xt = √¯αtxinput + √1 −¯αtϵ
+4:
+cm,opt = argmincm Eϵ,t ∥ϵ −ϵθm(xt, t, cm)∥2
+5:
+θm,opt = argminθm Eϵ,t ∥ϵ −ϵθm(xt, t, cm,opt)∥2
+6:
+cm,int = α · cm,target + (1 −α) · cm,opt
+7: end for
+8: xT ∼N(0, I)
+▷Collaborate the Uni-Modal Edits
+9: for t = T, . . . , 1 do
+10:
+z ∼N(0, I) if t > 1, else z = 0
+11:
+for m = 0, ..., M do
+12:
+ϵpred,m,t = ϵθm,opt(xt, t, cm,int)
+13:
+Im,t = Dφm(xt, t, cm,int)
+14:
+end for
+15:
+ˆIm,t,p =
+exp(Im,t,p)
+PM
+j=1 exp(Ij,t,p), softmax at each pixel p
+16:
+ϵpred,t = PM
+m=1 ˆIm,t ⊙ϵpred,m,t
+17:
+xt−1 =
+1
+√αt
+
+xt −
+1−αt
+√1−¯αt ϵpred,t
+
++ σtz
+18: end for
+19: return x0
+same text-based synthesis model (i.e., the weights of the dif-
+fusion models being composed are the same), our framework
+possesses the ﬂexibility in integrating models with different
+weights, architectures, and modalities through the learned
+dynamic diffusers.
+3.3. Multi-Modal Collaborative Editing
+In addition to face synthesis, our framework is also ca-
+pable of combining multiple facial manipulations, each of
+which is guided by a different modality, into a collaborative
+edit. Our collaborative framework in theory can integrate
+any existing uni-modal diffusion-based editing approach for
+collaborative editing.
+In this work, we demonstrate such possibility by extend-
+ing Imagic [33] to the multi-modal paradigm. We ﬁrst follow
+Imagic to ﬁne-tune the embeddings and models to better
+capture the input face identity during editing. The trained
+dynamic diffusers discussed in Section 3.2 are then used to
+combine the ﬁne-tuned models. Algorithm 3 displays the
+complete procedure of collaborative editing. Note that ﬁne-
+tuning the pre-trained models is for identity preservation
+proposed in Imagic, which is independent to our framework.
+The extension of our framework to editing requires no further
+training of dynamic diffusers.
+There is no beard. 
+This woman looks 
+extremely young.
+His face is covered 
+with short beard. 
+This man is in the 
+thirties.
+He is a young 
+adult. This man has 
+a rough growth of 
+stubble.
+Generated Images
+Multi-Modal Conditions
+TediGAN
+Composable
+Ours
+Figure 4. Qualitative Comparison of Face Generation. In the
+second example, TediGAN and Composable fails to follow mask,
+while ours generates results highly consistent to both conditions.
+He is a teen. The 
+face is covered with 
+short pointed 
+beard.
+This man has 
+beard of medium 
+length. He is in his 
+thirties.
+Edited Images
+Multi-Modal Target Conditions
+Input Image
+TediGAN
+Composable
+Ours
+Figure 5. Qualitative Comparison of Face Editing. While Tedi-
+GAN’s hair shape is inconsistent with mask, and Composable fails
+to generate beard according to text, our framework produces results
+highly consistent with both conditions while maintaining identity.
+4. Experiments
+4.1. Experimental Setup
+Datasets. CelebAMask-HQ [37] consists of manually an-
+notated segmentation masks for each of the 30,000 images
+in the CelebA-HQ dataset [29]. Each mask has up to 19
+classes, including the main facial components such as hair,
+skin, eyes, and nose, and accessories such as eyeglasses and
+cloth. CelebA-Dialog [26] provides rich and ﬁne-grained
+natural language descriptions for the images in CelebA-HQ.
+In this work, we train the mask-driven diffusion models on
+CelebAMask-HQ, and the text-driven models on CelebA-
+Dialog. For dynamic diffuser, we simply combine the mask
+and text for each image without further processing.
+Implementation Details. We adopt LDM [53] for our uni-
+modal diffusion models since it achieves a good balance
+between quality and speed. Our dynamic diffuser is a time-
+conditional UNet [54], with conditional embeddings injected
+via cross-attention [69]. The dynamic diffuser is ×30 smaller
+than the pre-trained diffusion model. The detailed architec-
+ture and settings are provided in the supplementary material.
+4.2. Comparison Methods
+TediGAN [74,75] is a StyleGAN-based face synthesis and
+manipulation method. It projects both text and mask condi-
+
+She looks very 
+young.
+His face is covered 
+with short beard. 
+He is a young 
+adult.
+Generated Images
+Multi-Modal Conditions
+Figure 6. Diversity of Face Generation. Given input conditions, our method demonstrates promising synthesis diversity in facial attributes
+that are not constrained by a speciﬁc combination of multi-modal conditions, such as hair color and skin tone.
+tions into StyleGAN’s W+ latent space, and performs style
+mixing to achieve multi-modal control.
+Composable Diffusion [41] parallely implements two in-
+stances of the same text-to-image diffusion model to perform
+compositional scene generation. We generalize it by replac-
+ing the two text-to-image model instances by the text-driven
+model and the mask-driven model trained using LDM [53].
+The two models are composed by averaging the intermediate
+diffusion results at each step of the reverse process.
+4.3. Evaluation Metrics
+FID. We use Frechet Inception Distance (FID) [21] to mea-
+sure the quality of images synthesized by different methods.
+FID computes the feature representation’s distance between
+generated images and real images. A lower FID implies
+better sample quality.
+CLIP Score. CLIP [47] is a vision-language model trained
+on large-scale datasets. It uses an image encoder and a text
+encoder to project images and texts to a common feature
+space, respectively. The CLIP score is computed as the
+cosine similarity between the normalized image and text
+embeddings. A higher score usually indicates higher consis-
+tency between the output image and the text caption.
+Mask Accuracy. For each output image, we predict the
+segmentation mask using the face parsing network provided
+by CelebAMask-HQ [37]. Mask accuracy is the pixel-wise
+accuracy against the ground-truth segmentation. A higher
+average accuracy indicates better consistency between the
+output image and the segmentation mask.
+User Study. We conduct user study with 25 human evalua-
+tors to measure the effectiveness of the methods perceptually.
+For face generation, we randomly sample multi-modal con-
+ditions in the validation split of CelebA-HQ Dataset, and
+then synthesize output images given the conditions. Evalu-
+ators are provided with the input conditions and the output
+images, and they are asked to choose the best image based
+on 1) image photo-realism, 2) image-text consistency, 3)
+image-mask consistency. User study is conducted similarly
+for face editing, except that 1) evaluators are also provided
+with the input image for editing, and 2) they are also asked
+Table 1. Quantitative Results of Face Generation. Compared
+with TediGAN and Composable Diffusion, our method synthesizes
+images with better quality (lower FID), and higher consistency with
+the text and mask conditions.
+Method
+FID ↓
+Text (%) ↑
+Mask (%) ↑
+TediGAN [74,75]
+157.81
+24.27
+72.19
+Composable [41]
+124.62
+23.94
+76.11
+Ours
+111.36
+24.51
+80.25
+2.61%
+27.99%
+69.40%
+(a) Face Generation
+2.91%
+12.36%
+84.37%
+(b) Face Editing
+TediGAN
+Composable
+Ours
+Figure 7. User Study. Among the three methods, the majority of
+users vote for our results as the best for both generation (69.40%)
+and editing (84.37%), in terms of image quality, condition consis-
+tency, and identity preservation.
+to assess the level of identity preservation between the edited
+image and input image.
+4.4. Comparative Study
+Qualitative Comparison. In Figure 8, we provide the gen-
+eration results of our Collaborative Diffusion under different
+combinations of texts and masks. It is observed that our
+framework is capable of synthesizing realistic outputs con-
+sistent with the multi-modal inputs, even for relatively rare
+conditions, such as a man with long hair. We then compare
+our method with TediGAN [74,75] and Composable Diffu-
+sion [41] in Figure 4. For example, in the second example,
+TediGAN and Composable Diffusion’s results are incon-
+sistent with the mask, while ours is able to maintain both
+mask and text consistency. We also show in Figure 6 that
+our method synthesizes images with high diversity without
+losing condition consistency.
+In addition to image generation, it is also observed in
+
+He is a teen. The 
+face is covered with 
+short pointed 
+beard.
+He looks very old. 
+He doesn't have 
+any mustache at 
+all.
+She is a teenager.
+This female is in 
+the middle age.
+This man has 
+beard of medium 
+length. He is in his 
+thirties.
+This woman looks 
+very old.
+Mask 
+Condition
+Text 
+Condition
+Generated
+Images
+Figure 8. Face Generation Results. Our method generates realistic images under different combinations of multi-modal conditions, even
+for relatively rare combinations in the training distribution, such as a man with long hair.
+Figure 9 that our framework is able to edit images based
+on multi-modal conditions while preserving identity. The
+comparison to existing works in Figure 5 also veriﬁes our
+effectiveness. For example, in the second example, while
+TediGAN is unable to synthesize hair consistent to the mask
+and Composable Diffusion fails to generate beard according
+to the text, our framework is able to generate results highly
+consistent to both conditions while maintaining identity.
+Quantitative Comparison. As shown in Table 1, our Col-
+laborate Diffusion outperforms TediGAN and Composable
+Diffusion in all three objective metrics. In addition, as de-
+picted in Figure 7, our framework achieves the best result
+in 69.40% and 84.37% of the time for face generation and
+editing, respectively. These results verify our effectiveness
+in both image quality and image-condition consistency.
+4.5. Ablation Study
+In this section, we visualize the inﬂuence functions, and
+show that it is necessary for the inﬂuence function to be
+both spatially and temporally varying to facilitate effective
+collaboration.
+4.5.1
+Spatial Variations of Inﬂuence Functions
+As shown in Figure 10, the inﬂuence functions behaves differ-
+ently at different spatial regions. For instance, the inﬂuence
+for the mask-driven model mainly lies on the contours of
+facial regions, such as the outline of hair, face, and eyes, as
+these regions are crucial in deﬁning facial layout. In con-
+trast, the inﬂuence for the text-driven model is stronger at
+skin regions including cheeks and chin. This is because the
+attributes related skin texture, such as age and beard length,
+are better described by text.
+To verify its necessity, we remove the spatial variation of
+inﬂuence functions. From Table 2 we observe that removing
+the spatial variance results in deterioration in both output
+quality and condition consistency. This corroborates our
+hypothesis that it is important to assign different weights to
+different modalities at different spatial regions.
+4.5.2
+Temporal Variations of Inﬂuence Functions
+In addition to the spatial variation, it is also observed in
+Figure 10 that the inﬂuence from the mask-driven model is
+stronger at earlier diffusion stages (i.e., larger t), since early
+stages focus on initializing the facial layout using the mask-
+
+He is a teen. The 
+face is covered with 
+short pointed 
+beard.
+This man has 
+beard of medium 
+length. He is in his 
+thirties.
+He looks very old. 
+He doesn't have 
+any mustache at 
+all.
+This man has 
+beard of medium 
+length. He is in his 
+thirties.
+This woman is a 
+teen. There is no 
+beard on her face.
+He is a teen. The 
+face is covered with 
+short pointed 
+beard.
+This woman is a 
+teen. There is no 
+beard on her face.
+He is a teen. The 
+face is covered with 
+short pointed 
+beard.
+Input Image
+Target Mask
+Target Text
+Edited Image
+Input Image
+Target Mask
+Target Text
+Edited Image
+Figure 9. Face Editing Results. Given the input real image and target conditions, we display the edited image using our method.
+He is a teen. 
+The face is 
+covered with 
+short pointed 
+beard.
+Text Condition
+Mask Condition
+"!"!-#.,'"())
+"!"!-#.,'"*))
+"!"'$+','"())
+"!"'$+','"*))
+"!"!-#.,'",))
+"!"'$+','",))
+"!"!-#.,'",)
+"!"'$+','",)
+Figure 10. Visualization of Inﬂuence Functions. The inﬂuence
+functions vary spatially at different face regions, and temporally at
+different diffusion timesteps.
+Table 2. Ablation Study. Temporal or spatial suppression in
+inﬂuence variation introduces performance drops, which shows the
+necessity of inﬂuence functions’ spatial-temporal adaptivity.
+Method
+FID ↓
+Text (%) ↑
+Mask (%) ↑
+Ours w/o Spatial
+117.81
+24.36
+80.08
+Ours w/o Temporal
+117.34
+24.48
+77.07
+Ours
+111.36
+24.51
+80.25
+driven model’s predictions. At later stages, the inﬂuence
+from the text-driven model increases as the textural details
+(e.g., skin wrinkles and beard length) are instantiated using
+information from the text.
+We remove the temporal variation in the inﬂuence func-
+tions to demonstrate its importance. It is shown in Table 2
+that both the quality and condition consistency drop without
+the temporal variation.
+5. Conclusion
+With generative AI gaining increasing attention, multi-
+modal conditioning becomes an indispensable direction to
+unleash creativity and enable comprehensive controls from
+human creators. In this work, we take the ﬁrst step forward
+and propose Collaborative Diffusion, where pre-trained uni-
+modal diffusion models collaboratively achieve multi-modal
+face generation and editing without being re-trained. With
+our dynamic diffuser, this framework could be used to extend
+arbitrary uni-modal approach to the multi-modal paradigm
+through predicting the relative inﬂuence of different modali-
+ties. We believe our idea of synergizing uni-modal models
+for multi-modal tasks would be a good inspiration for future
+works in various domains such as motion and 3D generation.
+Limitations and Future Work. Since our framework fo-
+cuses on exploiting pre-trained diffusion models, our per-
+formance is dependent on the capability of each model. An
+orthogonal direction is to train each collaborator on large-
+scale datasets for performance gain.
+Potential Negative Societal Impacts. The facial manipula-
+tion capabilities of Collaborative Diffusion could be applied
+maliciously on real human faces. We advise users to apply it
+only for proper recreational purposes.
+Acknowledgement. We would like to thank Liangyu Chen
+and Bo Li for proofreading. This study is supported by NTU
+NAP, MOE AcRF Tier 1 (2021-T1-001-088), and under the
+RIE2020 Industry Alignment Fund – Industry Collaboration
+Projects (IAF-ICP) Funding Initiative, as well as cash and
+in-kind contribution from the industry partner(s).
+
+References
+[1] Tomer Amit, Eliya Nachmani, Tal Shaharbany, and Lior Wolf.
+SegDiff: Image segmentation with diffusion probabilistic
+models. arXiv preprint arXiv:2112.00390, 2021. 2
+[2] Jacob Austin, Daniel D Johnson, Jonathan Ho, Daniel Tarlow,
+and Rianne van den Berg. Structured denoising diffusion
+models in discrete state-spaces. In NeurIPS, 2021. 2
+[3] Omri Avrahami, Dani Lischinski, and Ohad Fried. Blended
+diffusion for text-driven editing of natural images. In CVPR,
+2022. 1
+[4] Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E Hinton.
+Layer normalization. arXiv preprint arXiv:1607.06450, 2016.
+12
+[5] Dmitry Baranchuk, Ivan Rubachev, Andrey Voynov, Valentin
+Khrulkov, and Artem Babenko. Label-efﬁcient semantic seg-
+mentation with diffusion models. In ICLR, 2022. 2
+[6] Sam Bond-Taylor, Peter Hessey, Hiroshi Sasaki, Toby P
+Breckon, and Chris G Willcocks. Unleashing transformers:
+parallel token prediction with discrete absorbing diffusion for
+fast high-resolution image generation from vector-quantized
+codes. In ECCV, 2022. 2
+[7] Huiwen Chang, Han Zhang, Lu Jiang, Ce Liu, and William T
+Freeman. MaskGIT: Masked generative image transformer.
+In CVPR, 2022. 2
+[8] Shin-I Cheng, Yu-Jie Chen, Wei-Chen Chiu, Hung-Yu Tseng,
+and Hsin-Ying Lee. Adaptively-realistic image generation
+from stroke and sketch with diffusion model. In WACV, 2023.
+1
+[9] Guillaume Couairon, Jakob Verbeek, Holger Schwenk,
+and Matthieu Cord.
+Diffedit:
+Diffusion-based seman-
+tic image editing with mask guidance.
+arXiv preprint
+arXiv:2210.11427, 2022. 2
+[10] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina
+Toutanova.
+BERT: Pre-training of deep bidirectional
+transformers for language understanding.
+arXiv preprint
+arXiv:1810.04805, 2018. 12
+[11] Prafulla Dhariwal and Alexander Nichol. Diffusion models
+beat GANs on image synthesis. In NeurIPS, 2021. 1, 2
+[12] Ming Ding, Zhuoyi Yang, Wenyi Hong, Wendi Zheng, Chang
+Zhou, Da Yin, Junyang Lin, Xu Zou, Zhou Shao, Hongxia
+Yang, et al. CogView: Mastering text-to-image generation
+via transformers. In NeurIPS, 2021. 2
+[13] Patrick Esser, Robin Rombach, Andreas Blattmann, and Bjorn
+Ommer. ImageBART: Bidirectional context with multinomial
+diffusion for autoregressive image synthesis. In NeurIPS,
+2021. 2
+[14] Patrick Esser, Robin Rombach, and Bj¨orn Ommer. A note
+on data biases in generative models. In NeurIPS Workshop,
+2020. 14
+[15] Patrick Esser, Robin Rombach, and Bjorn Ommer. Taming
+transformers for high-resolution image synthesis. In CVPR,
+2021. 2
+[16] Oran Gafni, Adam Polyak, Oron Ashual, Shelly Sheynin,
+Devi Parikh, and Yaniv Taigman. Make-a-scene: Scene-based
+text-to-image generation with human priors. arXiv preprint
+arXiv:2203.13131, 2022. 2
+[17] Ian J Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing
+Xu, David Warde-Farley, Sherjil Ozair, Aaron C Courville,
+and Yoshua Bengio. Generative adversarial nets. In NeurIPS,
+2014. 2
+[18] Alexandros Graikos, Nikolay Malkin, Nebojsa Jojic, and
+Dimitris Samaras. Diffusion models as plug-and-play priors.
+In NeurIPS, 2022. 2
+[19] Shuyang Gu, Dong Chen, Jianmin Bao, Fang Wen, Bo Zhang,
+Dongdong Chen, Lu Yuan, and Baining Guo. Vector quan-
+tized diffusion model for text-to-image synthesis. In CVPR,
+2022. 1, 2
+[20] William Harvey, Saeid Naderiparizi, Vaden Masrani, Chris-
+tian Weilbach, and Frank Wood. Flexible diffusion modeling
+of long videos. arXiv preprint arXiv:2205.11495, 2022. 2
+[21] Martin Heusel, Hubert Ramsauer, Thomas Unterthiner, Bern-
+hard Nessler, and Sepp Hochreiter. GANs trained by a two
+time-scale update rule converge to a local nash equilibrium.
+In NeurIPS, 2017. 6
+[22] Jonathan Ho, William Chan, Chitwan Saharia, Jay Whang,
+Ruiqi Gao, Alexey Gritsenko, Diederik P Kingma, Ben Poole,
+Mohammad Norouzi, David J Fleet, et al. Imagen video:
+High deﬁnition video generation with diffusion models. arXiv
+preprint arXiv:2210.02303, 2022. 2
+[23] Jonathan Ho, Ajay Jain, and Pieter Abbeel. Denoising diffu-
+sion probabilistic models. In NeurIPS, 2020. 1, 2, 3
+[24] Jonathan Ho, Chitwan Saharia, William Chan, David J Fleet,
+Mohammad Norouzi, and Tim Salimans. Cascaded diffusion
+models for high ﬁdelity image generation. JMLR, 2022. 2
+[25] Aapo Hyv¨arinen and Peter Dayan.
+Estimation of non-
+normalized statistical models by score matching. JMLR, 2005.
+2
+[26] Yuming Jiang, Ziqi Huang, Xingang Pan, Chen Change Loy,
+and Ziwei Liu. Talk-to-Edit: Fine-grained facial editing via
+dialog. In ICCV, 2021. 5, 13
+[27] Yuming Jiang, Shuai Yang, Haonan Qju, Wayne Wu,
+Chen Change Loy, and Ziwei Liu. Text2human: Text-driven
+controllable human image generation. ACM TOG, 2022. 2
+[28] Justin Johnson, Alexandre Alahi, and Fei-Fei Li. Perceptual
+losses for real-time style transfer and super-resolution. In
+ECCV, 2016. 12
+[29] Tero Karras, Timo Aila, Samuli Laine, and Jaakko Lehtinen.
+Progressive growing of GANs for improved quality, stability,
+and variation. In ICLR, 2018. 5, 12, 13, 14
+[30] Tero Karras, Miika Aittala, Samuli Laine, Erik H¨ark¨onen,
+Janne Hellsten, Jaakko Lehtinen, and Timo Aila. Alias-free
+generative adversarial networks. In NeurIPS, 2021. 2
+[31] Tero Karras, Samuli Laine, and Timo Aila. A style-based
+generator architecture for generative adversarial networks. In
+CVPR, 2019. 2
+[32] Tero Karras, Samuli Laine, Miika Aittala, Janne Hellsten,
+Jaakko Lehtinen, and Timo Aila. Analyzing and improving
+the image quality of StyleGAN. In CVPR, 2020. 2
+[33] Bahjat Kawar, Shiran Zada, Oran Lang, Omer Tov, Huiwen
+Chang, Tali Dekel, Inbar Mosseri, and Michal Irani. Imagic:
+Text-based real image editing with diffusion models. arXiv
+preprint arXiv:2210.09276, 2022. 1, 2, 5, 13
+
+[34] Gwanghyun Kim, Taesung Kwon, and Jong Chul Ye. Dif-
+fusionCLIP: Text-guided diffusion models for robust image
+manipulation. In CVPR, 2022. 1, 2
+[35] Diederik P Kingma and Max Welling. Auto-encoding varia-
+tional bayes. arXiv preprint arXiv:1312.6114, 2013. 12
+[36] Jing Yu Koh, Jason Baldridge, Honglak Lee, and Yinfei Yang.
+Text-to-image generation grounded by ﬁne-grained user at-
+tention. In WACV, 2021. 2
+[37] Cheng-Han Lee, Ziwei Liu, Lingyun Wu, and Ping Luo.
+MaskGAN: Towards diverse and interactive facial image ma-
+nipulation. In CVPR, 2020. 2, 5, 6, 13
+[38] Bowen Li, Xiaojuan Qi, Thomas Lukasiewicz, and Philip HS
+Torr. ManiGAN: Text-guided image manipulation. In CVPR,
+2020. 2
+[39] Wenbo Li, Pengchuan Zhang, Lei Zhang, Qiuyuan Huang,
+Xiaodong He, Siwei Lyu, and Jianfeng Gao. Object-driven
+text-to-image synthesis via adversarial training. In CVPR,
+2019. 2
+[40] Zhiheng Li, Martin Renqiang Min, Kai Li, and Chenliang
+Xu. StyleT2I: Toward compositional and high-ﬁdelity text-to-
+image synthesis. In CVPR, 2022. 2
+[41] Nan Liu, Shuang Li, Yilun Du, Antonio Torralba, and
+Joshua B Tenenbaum.
+Compositional visual genera-
+tion with composable diffusion models.
+arXiv preprint
+arXiv:2206.01714, 2022. 4, 6, 14
+[42] Xihui Liu, Dong Huk Park, Samaneh Azadi, Gong Zhang, Ar-
+man Chopikyan, Yuxiao Hu, Humphrey Shi, Anna Rohrbach,
+and Trevor Darrell. More control for free! image synthesis
+with semantic diffusion guidance. In WACV, 2023. 2
+[43] Chenlin Meng, Yutong He, Yang Song, Jiaming Song, Jiajun
+Wu, Jun-Yan Zhu, and Stefano Ermon. SDEdit: Guided image
+synthesis and editing with stochastic differential equations.
+In ICLR, 2022. 2
+[44] Alex Nichol, Prafulla Dhariwal, Aditya Ramesh, Pranav
+Shyam, Pamela Mishkin, Bob McGrew, Ilya Sutskever, and
+Mark Chen. GLIDE: Towards photorealistic image generation
+and editing with text-guided diffusion models. arXiv preprint
+arXiv:2112.10741, 2021. 1
+[45] Taesung Park, Ming-Yu Liu, Ting-Chun Wang, and Jun-Yan
+Zhu. Semantic image synthesis with spatially-adaptive nor-
+malization. In CVPR, 2019. 2
+[46] Or Patashnik, Zongze Wu, Eli Shechtman, Daniel Cohen-Or,
+and Dani Lischinski. StyleCLIP: Text-driven manipulation of
+stylegan imagery. In ICCV, 2021. 2
+[47] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya
+Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry,
+Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning
+transferable visual models from natural language supervision.
+In ICML, 2021. 6
+[48] Aditya Ramesh, Prafulla Dhariwal, Alex Nichol, Casey Chu,
+and Mark Chen. Hierarchical text-conditional image gener-
+ation with CLIP latents. arXiv preprint arXiv:2204.06125,
+2022. 2
+[49] Aditya Ramesh, Mikhail Pavlov, Gabriel Goh, Scott Gray,
+Chelsea Voss, Alec Radford, Mark Chen, and Ilya Sutskever.
+Zero-shot text-to-image generation. In ICML, 2021. 2
+[50] Scott Reed, Zeynep Akata, Xinchen Yan, Lajanugen Lo-
+geswaran, Bernt Schiele, and Honglak Lee. Generative adver-
+sarial text to image synthesis. In ICML, 2016. 2
+[51] Scott E Reed, Zeynep Akata, Santosh Mohan, Samuel Tenka,
+Bernt Schiele, and Honglak Lee. Learning what and where to
+draw. In NeurIPS, 2016. 2
+[52] Elad Richardson, Yuval Alaluf, Or Patashnik, Yotam Nitzan,
+Yaniv Azar, Stav Shapiro, and Daniel Cohen-Or. Encoding
+in style: a StyleGAN encoder for image-to-image translation.
+In CVPR, 2021. 2
+[53] Robin Rombach, Andreas Blattmann, Dominik Lorenz,
+Patrick Esser, and Bj¨orn Ommer. High-resolution image
+synthesis with latent diffusion models. In CVPR, 2022. 1, 2,
+5, 6, 12
+[54] Olaf Ronneberger, Philipp Fischer, and Thomas Brox. U-Net:
+Convolutional networks for biomedical image segmentation.
+In MICCAI, 2015. 4, 5, 12
+[55] Nataniel Ruiz, Yuanzhen Li, Varun Jampani, Yael Pritch,
+Michael Rubinstein, and Kﬁr Aberman. Dreambooth: Fine
+tuning text-to-image diffusion models for subject-driven gen-
+eration. arXiv preprint arXiv:2208.12242, 2022. 2
+[56] Chitwan Saharia, William Chan, Saurabh Saxena, Lala Li, Jay
+Whang, Emily Denton, Seyed Kamyar Seyed Ghasemipour,
+Burcu Karagol Ayan, S Sara Mahdavi, Rapha Gontijo Lopes,
+et al. Photorealistic text-to-image diffusion models with deep
+language understanding. arXiv preprint arXiv:2205.11487,
+2022. 1, 2
+[57] Chitwan Saharia, Jonathan Ho, William Chan, Tim Sali-
+mans, David J Fleet, and Mohammad Norouzi. Image super-
+resolution via iterative reﬁnement. IEEE TPAMI, 2022. 2
+[58] Yujun Shen, Jinjin Gu, Xiaoou Tang, and Bolei Zhou. Inter-
+preting the latent space of GANs for semantic face editing. In
+CVPR, 2020. 2
+[59] Yujun Shen, Ceyuan Yang, Xiaoou Tang, and Bolei Zhou.
+InterFaceGAN: Interpreting the disentangled face representa-
+tion learned by GANs. IEEE TPAMI, 2020. 2
+[60] Karen Simonyan and Andrew Zisserman. Very deep convo-
+lutional networks for large-scale image recognition. arXiv
+preprint arXiv:1409.1556, 2014. 12
+[61] Uriel Singer, Adam Polyak, Thomas Hayes, Xi Yin, Jie An,
+Songyang Zhang, Qiyuan Hu, Harry Yang, Oron Ashual,
+Oran Gafni, et al. Make-a-video: Text-to-video generation
+without text-video data. arXiv preprint arXiv:2209.14792,
+2022. 2
+[62] Jascha Sohl-Dickstein, Eric Weiss, Niru Maheswaranathan,
+and Surya Ganguli.
+Deep unsupervised learning using
+nonequilibrium thermodynamics. In ICML, 2015. 1, 2
+[63] Jiaming Song, Chenlin Meng, and Stefano Ermon. Denoising
+diffusion implicit models. In ICLR, 2021. 2, 14
+[64] Yang Song, Jascha Sohl-Dickstein, Diederik P Kingma, Ab-
+hishek Kumar, Stefano Ermon, and Ben Poole. Score-based
+generative modeling through stochastic differential equations.
+In ICLR, 2021. 1, 2
+[65] Yang Song, Jingwen Zhu, Dawei Li, Xiaolong Wang, and
+Hairong Qi. Talking face generation by conditional recurrent
+adversarial network. IJCAI, 2019. 2
+
+[66] Jianxin Sun, Qiyao Deng, Qi Li, Muyi Sun, Min Ren, and
+Zhenan Sun. AnyFace: Free-style text-to-face synthesis and
+manipulation. In CVPR, 2022. 2
+[67] Patrick Tinsley, Adam Czajka, and Patrick Flynn. This face
+does not exist... but it might be yours! identity leakage in
+generative models. In WACV, 2021. 14
+[68] Aaron Van Den Oord, Oriol Vinyals, et al. Neural discrete
+representation learning. In NeurIPS, 2017. 2
+[69] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-
+reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia
+Polosukhin. Attention is all you need. In NeurIPS, 2017. 5,
+12
+[70] Ruben Villegas, Mohammad Babaeizadeh, Pieter-Jan Kinder-
+mans, Hernan Moraldo, Han Zhang, Mohammad Taghi Saffar,
+Santiago Castro, Julius Kunze, and Dumitru Erhan. Phenaki:
+Variable length video generation from open domain textual
+description. arXiv preprint arXiv:2210.02399, 2022. 2
+[71] Pascal Vincent. A connection between score matching and
+denoising autoencoders. Neural Computation, 2011. 2
+[72] Tengfei Wang, Ting Zhang, Bo Zhang, Hao Ouyang, Dong
+Chen, Qifeng Chen, and Fang Wen.
+Pretraining is all
+you need for image-to-image translation.
+arXiv preprint
+arXiv:2205.12952, 2022. 1, 2
+[73] Weilun Wang, Jianmin Bao, Wengang Zhou, Dongdong Chen,
+Dong Chen, Lu Yuan, and Houqiang Li. Semantic image syn-
+thesis via diffusion models. arXiv preprint arXiv:2207.00050,
+2022. 1
+[74] Weihao Xia, Yujiu Yang, Jing-Hao Xue, and Baoyuan Wu.
+TediGAN: Text-guided diverse face image generation and
+manipulation. In CVPR, 2021. 2, 5, 6, 14
+[75] Weihao Xia, Yujiu Yang, Jing-Hao Xue, and Baoyuan Wu.
+Towards open-world text-guided face image generation and
+manipulation. arXiv preprint arXiv:2104.08910, 2021. 2, 5,
+6, 14
+[76] Tao Xu, Pengchuan Zhang, Qiuyuan Huang, Han Zhang, Zhe
+Gan, Xiaolei Huang, and Xiaodong He. AttnGAN: Fine-
+grained text to image generation with attentional generative
+adversarial networks. In CVPR, 2018. 2
+[77] Han Zhang, Tao Xu, Hongsheng Li, Shaoting Zhang, Xiao-
+gang Wang, Xiaolei Huang, and Dimitris N Metaxas. Stack-
+GAN: Text to photo-realistic image synthesis with stacked
+generative adversarial networks. In ICCV, 2017. 2
+[78] Han Zhang, Tao Xu, Hongsheng Li, Shaoting Zhang, Xiao-
+gang Wang, Xiaolei Huang, and Dimitris N Metaxas. Stack-
+GAN++: Realistic image synthesis with stacked generative
+adversarial networks. IEEE TPAMI, 2018. 2
+
+Supplementary
+In this supplementary ﬁle, we elaborate on the implementation details of the Collaborative Diffusion framework in
+Section A. We then provide further explanations on experimental details in Section B. More qualitative results and visualizations
+are provided in Section C. Finally, we discuss the potential societal impacts in Section D.
+A. Implementation Details
+In this section, we describe the implementation details of our Collaborative Diffusion framework.
+A.1. Multi-Modal Collaborative Synthesis
+We adopt LDM [53] as our uni-modal diffusion models for its good balance between quality and speed. LDM [53] applies
+diffusion models in the latent space of autoencoders to reduce the computation overhead of training and sampling. Our
+framework supports both 256×256 and 512×512 resolution, and we will use the 256×256 version in subsequent discussions
+for simplicity.
+We train a Variational Autoencoder (VAE) [35], where the encoder compresses 256×256×3 resolution images into the
+64×64×3 latent space, and the decoder reconstructs the 256×256×3 images from the 64×64×3 latent codes. The VAE is
+trained on the CelebA-HQ [29] Dataset by minimizing the following objective:
+LVAE = 1.0 · Lrec + 1.0 · Lvgg + 10−6 · Lkl,
+(8)
+where Lrec is the L1 distance between the reconstructed image and the input image, Lvgg is the perceptual loss [28] using
+VGG-16 [60], and Lkl is the Kullback–Leibler divergence term which regularizes the VAE latent space towards the Gaussian
+distribution. The KL term is largely scaled down by a factor of 10−6 for two reasons: 1) KL regularization was required in
+the original VAE for directly sampling latent codes from the Gaussian prior. In this work, we simply use VAE as an image
+compression tool instead of a generative model, so that we do not need strong regularization of VAE latent space. Diffusion
+models will take care of sampling meaningful latent codes from the weakly regularized VAE latent space. 2) Weaker KL
+regularization allows relatively stronger focus on image reconstruction, and thus potentially less distortion during VAE’s
+compression-reconstruction process. All our dynamic diffusers and uni-modal diffusion models are applied in the 64×64×3
+latent space of the pre-trained VAE. The reverse process of diffusion models gradually denoises the Gaussian xT ∈R64×64×3
+to x0 ∈R64×64×3 which will then be decoded to a synthesized image of size 256×256×3 using VAE’s decoder. In subsequent
+discussions, we will term xT as the “latent code”, and x0 as the “image” to avoid confusion between diffusion models’ latent
+space and VAE’s latent space.
+The text conditions are converted to a sequence of 77 tokens using BERT-tokenizer [10], and are then embedded using 32
+transformer encoder layers to obtain the 77×640 text condition embedding. The segmentation masks are downsampled to
+32×32 resolution, and each pixel is expanded to a 1×19 one-hot vector to encode the 19 classes of facial components. The
+uni-modal diffusion models are trained with learning rate of 2×10−6 and batch size of 32 on CelebA-HQ [29]’s 256×256
+images and corresponding condition annotations.
+The dynamic diffuser Dθm takes the noisy image xt, timestep t, and the condition cm as input, and predicts the inﬂuence
+function Im,t. Since the input noisy image xt ∈R64×64×3 and the output inﬂuence function Im,t ∈R64×64×1 has the same
+spatial resolution, we implement dynamic diffuser as a UNet [54].
+The timestep t is injected to the dynamic diffuser using Adaptive Layer Normalization (AdaLN) [4]:
+hout = (1 + s(t))LayerNorm(hin) + b(t),
+(9)
+where s(·) and b(·) are linear layers that project the timestep t to the scale and bias respectively, and hin and hout are the
+intermediate activations before and after timestep injection.
+The condition cm is fed into the dynamic diffuser via cross-attention [69] with the intermediate activations h:
+hout = CrossAttention(hin, cm) = softmax(QKT
+√
+d
+) · V,
+(10)
+Q = WQ · hin,
+K = WK · cm,
+V = WV · cm,
+(11)
+
+Table A3. Hyperparameters of Dynamic Diffusers.
+Dynamic Diffuser for Text Branch
+Dynamic Diffuser for Mask Branch
+VAE latent space shape
+64×64×3
+64×64×3
+Number of parameters
+13.1M
+13.1M
+Diffusion steps
+1000
+1000
+Channels
+32
+32
+Attention resolutions
+8,4,2
+8,4,2
+Batch size
+8 samples × 4 GPUs
+8 samples × 4 GPUs
+Number of iterations
+187k
+187k
+Learning rate
+2×10−6
+2×10−6
+where WQ, WK, and WV are learnable projection matrices. We provide an overview of the hyperparameters of dynamic
+diffusers in Table A3.
+Our dynamic diffuser has a much smaller model size than the conditional diffusion model, as shown in Table A4.
+Table A4. Comparison of Model Size. A dynamic diffuser is much smaller than a uni-modal conditional diffusion model.
+Model Name
+Number of Parameters
+Mask-Driven Pre-trained Diffusion Model
+403.6M
+Text-Driven Pre-trained Diffusion Model
+403.6M
+Dynamic Diffuser for Mask Branch
+13.1M
+Dynamic Diffuser for Text Branch
+13.1M
+A.2. Collaborative Editing
+In this work, all face editing results, including user study and the qualitative results, are applied on real images in the
+validation split of the CelebA-HQ Dataset.
+We use Imagic [33] to demonstrate that our Collaborative Diffusion framework can be extended from synthesis to editing.
+Imagic is a text-based image editing method using diffusion models, and involves three steps to complete an edit. Given the
+input image xinput and target text ctext,target, Imagic ﬁrst optimizes the text condition so that the diffusion model ϵθtext can
+reconstruct the input image:
+ctext,opt = argmin
+ctext
+Eϵ,t ∥ϵ −ϵθtext(xt, t, ctext)∥2 ,
+(12)
+where ctext is initialized as ctext,target before optimization, and xt is constructed using the diffusion process via xt =
+√¯αtxinput + √1 −¯αtϵ. To further improve the ﬁdelity of the input image, the diffusion model ϵθtext is then ﬁne-tuned with
+the optimized condition ctext,opt being ﬁxed:
+θtext,opt = argmin
+θtext
+Eϵ,t ∥ϵ −ϵθtext(xt, t, ctext,opt)∥2 .
+(13)
+Finally, Imagic interpolates between ctext,target and ctext,opt to obtain the interpolated condition ctext,int:
+ctext,int = α · ctext,target + (1 −α) · ctext,opt.
+(14)
+The edited image is synthesized using the interpolated text condition ctext,int and the ﬁne-tuned diffusion model ϵθtext.
+We generalize Imagic to achieve mask-driven editing by optimizing the mask condition embedding cmask,target and
+ﬁne-tuning the pre-trained mask-driven model ϵθmask. We then use Collaborative Diffusion to integrate any text-driven edit
+and mask-driven edit on the same input image into a collaborative edit.
+B. Further Explanations on Experimental Details
+B.1. Dataset
+The CelebA-HQ Dataset [29] consists of 30,000 high-resolution images. We use the multi-modal annotations for these
+images in the CelebAMask-HQ [37] Dataset and the CelebA-Dialog Dataset [26]. The 30,000 images are split into the training
+
+set (27,000 images) and validation set (3,000 images). The training of uni-modal diffusion models and the dynamic diffusers
+are conducted on the training set, and all the results reported and shown in this work are using multi-modal conditions from
+the validation set.
+The segmentation masks in the CelebAMask-HQ Dataset has 19 classes including facial components and accessories:
+‘background’, ‘skin’, ‘nose’, ‘left eye’, ‘right eye’, ‘left eyebrow’, ‘right eyebrow’, ‘left ear’, ‘right ear’, ‘mouth’, ‘upper lip’,
+‘lower lip’, ‘hair’, ‘hat’, ‘eyeglass’, ‘earring’, ‘necklace’, ‘neck’, and ‘cloth’.
+The texts in the CelebA-Dialog Dataset provide ﬁne-grained natural language descriptions of the ﬁve attributes: ‘Bangs’,
+‘Eyeglasses’, ‘Beard’, ‘Smiling’, ‘Age’. To avoid conﬂict between segmentation masks and texts, we trimmed the descriptions
+regarding ‘Bangs’, ‘Eyeglasses’ and ‘Smiling’ from the natural language descriptions as they are described by segmentation
+masks as well.
+B.2. Implementation Details on Comparison Methods
+TediGAN [74,75]. TediGAN is a StyleGAN-based method for text-driven face generation and manipulation. It can be extended
+to support other modality’s guidance by projecting the conditions into StyleGAN’s W+ latent space, and performing style
+mixing to achieve multi-modal control. We use TediGAN [74,75]’s ofﬁcial implementation for text-driven and mask-driven
+generation and editing. For multi-modal driven generation, we mix the style codes of text and mask using TediGAN’s style
+mixing control mechanism. For editing, the style codes are initialized using the inverted W+ codes of the input image, and the
+remaining steps are the same as generation.
+Composable [41]. Both Composable and Ours use the same set of pre-trained uni-modal conditional diffusion models
+described in Section A. To accelerate the time-consuming sampling process of diffusion models while maintaining fair
+comparisons, we use DDIM [63] with 50 steps in all experiments (i.e., quantitative, qualitative, and user study) involving
+Composable or Ours.
+C. More Qualitative Results
+We show various qualitative results in Figure A11-A15, which are located at the end of this Supplementary File.
+C.1. Generation and Editing
+We provide more face generation results in Figure A11 and Figure A12, and face editing results in Figure A13.
+C.2. Visualization of Inﬂuence Functions
+In Figure A14 and Figure A15, we visualize the inﬂuence functions to show their spatial-temporal variation. Given the mask
+condition in Figure A14(a), Figure A14(b) displays the inﬂuence functions of the mask-driven collaborator at each DDIM
+sampling step t = 980, 960, ..., 20, 0, from the left to right, top to down. The text branches’ inﬂuence functions are displayed
+similarly. In Figure A14(f), we show the intermediate diffusion results xt for t = 980, 960, ..., 20, 0 by decoding them to the
+image space using the VAE decoder. The ﬁnal synthesized image is displayed in Figure A14(e). Figure A15 displays the
+intermediate results using a different set of multi-modal conditions, and is arranged in the same way as Figure A14.
+D. Potential Societal Impacts
+Collaborative Diffusion can achieve high-quality real image editing driven by different modalities. However, such
+capabilities could be applied to maliciously manipulate real human faces. Therefore, we advise users to use Collaborative
+Diffusion only for proper recreational purposes.
+The rapid progress in generative models unleashes creativity, but inevitably introduces various societal concerns. First, it
+becomes easier to create false imagery or maliciously manipulate the data, which could lead to the spread of misinformation.
+Second, training data might be revealed during the sampling process without explicit consent from data owner [67]. Third,
+generative models potentially suffer from the biases present in the training data [14]. For Collaborative Diffusion, we conducted
+training on CelebA-HQ [29]’s faces of various celebrities, which could potentially deviate from the looks of the general
+population. We hope to see more research to alleviate the risks and biases of generative models, and we advise all to apply
+generative models with discretion.
+
+He is a young 
+adult. He doesn't 
+have any beard at 
+all.
+He looks like an 
+elderly. This 
+gentleman doesn't 
+have any 
+mustache.
+She is in the 
+thirties.
+She looks like an 
+elderly.
+This female is a 
+teenager.
+This guy is in his 
+fifties. This person 
+doesn't have any 
+beard at all.
+This guy is in his 
+middle age. This 
+man has a rough 
+growth of stubble.
+This lady is in her 
+forties.
+Mask 
+Condition
+Text 
+Condition
+Generated
+Images
+Figure A11. More Face Generation Results (A). Our method generates realistic images under different combinations of multi-modal
+conditions, even for relatively rare combinations in the training distribution, such as a man with long hair.
+
+He is a young 
+adult. He doesn't 
+have any beard at 
+all.
+He looks like an 
+elderly. This 
+gentleman doesn't 
+have any 
+mustache.
+She is in the 
+thirties.
+She looks like an 
+elderly.
+This female is a 
+teenager.
+This guy is in his 
+fifties. This person 
+doesn't have any 
+beard at all.
+This guy is in his 
+middle age. This 
+man has a rough 
+growth of stubble.
+This lady is in her 
+forties.
+Mask 
+Condition
+Text 
+Condition
+Generated
+Images
+Figure A12. More Face Generation Results (B). Our method generates realistic images under different combinations of multi-modal
+conditions, even for relatively rare combinations in the training distribution, such as a man with long hair.
+
+He looks like an 
+elderly. This 
+gentleman doesn't 
+have any 
+mustache.
+He is a young 
+adult. He doesn't 
+have any beard at 
+all.
+He is a young 
+adult. He doesn't 
+have any beard at 
+all.
+This female is in 
+the middle age.
+He is a young 
+adult. He doesn't 
+have any beard at 
+all.
+This female is in 
+the middle age.
+This female is in 
+the middle age.
+He is a teen. The 
+face is covered with 
+short pointed 
+beard.
+This man doesn't 
+have any mustache 
+at all. This guy is in 
+his forties.
+This female is in 
+the middle age.
+He is a young 
+adult. He doesn't 
+have any beard at 
+all.
+This woman looks 
+like an elderly.
+Input Image
+Target Mask
+Target Text
+Edited Image
+Input Image
+Target Mask
+Target Text
+Edited Image
+He is a teen. The 
+face is covered with 
+short pointed 
+beard.
+This woman looks 
+like an elderly.
+He is a young 
+adult. He doesn't 
+have any beard at 
+all.
+She is a teenager.
+Figure A13. Face Editing Results. Given the input real image and target conditions, we display the edited image using our method.
+
+This person is 
+in her forties.
+(f) 𝒙! for 𝑡= 980, 960, … , 20, 0
+(d) 𝑰!"#!,! for 𝑡= 980, 960, … , 20, 0
+(b) 𝑰%&'(,! for 𝑡= 980, 960, … , 20, 0
+(a) 𝒄%&'(
+(c) 𝒄!"#!
+(e) 𝒙)
+Figure A14. Visualization of Inﬂuence Functions (A). The inﬂuence function varies spatially at different face regions, and temporally at
+different diffusion timesteps. The spatial-temporal adaptivity of inﬂuence functions facilitates effective collaboration.
+
+This man has 
+beard of medium 
+length. He is in 
+his thirties.
+(f) 𝒙! for 𝑡= 980, 960, … , 20, 0
+(d) 𝑰!"#!,! for 𝑡= 980, 960, … , 20, 0
+(b) 𝑰%&'(,! for 𝑡= 980, 960, … , 20, 0
+(a) 𝒄%&'(
+(c) 𝒄!"#!
+(e) 𝒙)
+Figure A15. Visualization of Inﬂuence Functions (B). The inﬂuence function varies spatially at different face regions, and temporally at
+different diffusion timesteps. The spatial-temporal adaptivity of inﬂuence functions facilitates effective collaboration.

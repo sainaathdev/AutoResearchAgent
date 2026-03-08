@@ -1,0 +1,2765 @@
+Controllable Video Generation: A Survey
+Yue Ma1†, Kunyu Feng2†, Zhongyuan Hu3†, Xinyu Wang3†, Yucheng Wang1,
+Mingzhe Zheng1, Bingyuan Wang2, Qinghe Wang4, Xuanhua He1, Hongfa Wang3,
+Chenyang Zhu3, Hongyu Liu1, Yingqing He1, Zeyu Wang1,2, Zhifeng Li6, Xiu Li3,
+Sirui Han1, Yike Guo1, Wei Liu6, Dan Xu1, Linfeng Zhang5*, Qifeng Chen1*
+1Hong Kong University of Science and Technology, Hong Kong, China.
+2Hong Kong University of Science and Technology(Guang Zhou), Guang Zhou, China.
+3Tsinghua University, Shenzhen, China.
+4 Dalian University of Technology, Dalian, China.
+5EPIC Lab of Artificial Intelligence, Shanghai Jiao Tong University, Shanghai, China.
+6Tencent, Shenzhen, China.
+*Corresponding author(s). E-mail(s): zhanglinfeng@sjtu.edu.cn; cqf@ust.hk;
+Contributing authors: mayuefighting@gmail.com; fengkunyu513@gmail.com;
+huzhongyyuan@gmail.com; cpwxyxwcp@gmail.com; ywangls@connect.ust.hk;
+mzhengar@connect.ust.hk; bwang667@connect.hkust-gz.edu.cn;
+qinghewang@mail.dlut.edu.cn; xhecd@connect.ust.hk; wanghf22@mails.tsinghua.edu.cn;
+chenyangzhu.cs@gmail.com; hliudq@connect.ust.hk; yhebm@connect.ust.hk;
+zeyuwang@ust.hk; zhifeng0.li@gmail.com; li.xiu@sz.tsinghua.edu.cn; siruihan@ust.hk;
+yikeguo@ust.hk; wl2223@columbia.edu; danxu@cse.ust.hk;
+†These authors contributed equally to this work.
+Abstract
+With the rapid development of AI-generated content (AIGC), video generation has emerged as one of
+its most dynamic and impactful subfields. In particular, the advancement of video generation foun-
+dation models has led to growing demand for controllable video generation methods that can more
+accurately reflect user intent. Most existing foundation models are designed for text-to-video genera-
+tion, where text prompts alone are often insufficient to express complex, multi-modal, and fine-grained
+user requirements. This limitation makes it challenging for users to generate videos with precise
+control using current models. To address this issue, recent research has explored the integration of
+additional non-textual conditions—such as camera motion, depth maps, and human pose—to extend
+pretrained video generation models and enable more controllable video synthesis. These approaches
+aim to enhance the flexibility and practical applicability of AIGC-driven video generation systems. In
+this survey, we provide a systematic review of controllable video generation, covering both theoretical
+foundations and recent advances in the field. We begin by introducing the key concepts and commonly
+used open-source video generation models. We then focus on control mechanisms in video diffusion
+models, analyzing how different types of conditions can be incorporated into the denoising process to
+guide generation. Finally, we categorize existing methods based on the types of control signals they
+leverage, including single-condition generation, multi-condition generation, and universal controllable
+1
+arXiv:2507.16869v3  [cs.GR]  19 Jan 2026
+
+generation. For a complete list of the literature on controllable video generation reviewed, please visit
+our curated repository at https://github.com/mayuelala/Awesome-Controllable-Video-Generation.
+Keywords: Video generation, Diffusion model, Controllable generation, Survey
+1 Introduction
+As interest in AI-generated content (AIGC) con-
+tinues to grow, video generation, one of its key
+domains, has emerged as a prominent focus for
+both researchers and users alike. Modern video
+generation methods (Ho et al. 2022; Ma et al.
+2024c; Chen et al. 2023b; Zhang et al. 2025j,g,c,b;
+Jiang et al. 2025a; Chen et al. 2025f; Zhang et al.
+2025l; Feng et al. 2025a,b; Geng et al. 2025; Zhu
+et al. 2025a, 2024a; Long et al. 2025) typically
+leverage cutting-edge generative paradigms (e.g.,
+diffusion (Ho et al. 2020; Lipman et al. 2022; Wang
+et al. 2025e) or autoregressive models (Van den
+Oord et al. 2016; Zhang et al. 2025h,d,i; Ramesh
+et al. 2021; Chang et al. 2022; Zhang et al. 2025e;
+Tian et al. 2024a)), combined with large-scale
+datasets (Bain et al. 2021; Chen et al. 2024c;
+Schuhmann et al. 2021), massive model parame-
+ters (Kong et al. 2024; Ma et al. 2025b; Zhang
+et al. 2025f; Wan et al. 2025), and advanced archi-
+tectural frameworks (Peebles and Xie 2023). We
+refer to these models as video generation foun-
+dation models, which have significantly advanced
+the quality of generated videos. The resulting out-
+puts exhibit an unprecedented level of creativity.
+Despite their impressive generative capabilities,
+these models often remain constrained by their
+reliance on text-only conditioning, which limits
+the degree of control users can exert over the gen-
+erated content. As a result, users frequently strug-
+gle to translate their creative ideas into precise
+video outputs, thereby diminishing the practical
+effectiveness of these models in real-world content
+creation scenarios.
+To address this challenge, researchers have
+begun exploring ways to incorporate control sig-
+nals beyond text, enabling more accurate and
+flexible guidance in the video generation process.
+For example, enabling users to modify camera
+trajectories or specify particular actions for char-
+acters in the video are emerging areas of interest.
+When fine-grained control over the generated con-
+tent becomes possible, users are empowered with
+greater creative flexibility, thereby unlocking the
+full potential and practical value of video genera-
+tion as a task.
+In this survey, we focus on the task of control-
+lable video generation, including both its theoret-
+ical foundations and practical applications. Our
+goal is to provide a comprehensive overview of
+the latest research advances and to shed light on
+the development trajectory of this rapidly evolv-
+ing field. Specifically, we start by providing a brief
+overview of the background and core concepts of
+video generative models, providing their theoreti-
+cal basis. This analysis clarifies the core principles
+of earlier research, fostering a deeper understand-
+ing of the field. Subsequently, the detailed reviews
+of previous studies are conducted to emphasize
+their unique contributions and distinctive fea-
+tures. Then we investigate the wide-ranging appli-
+cations of these methods, highlighting their prac-
+tical significance and influence across various con-
+texts and related downstream tasks. Additionally,
+we deep discuss the limitations and future work
+about controllable video generation. In Fig. 1,
+we present a line chart illustrating the number
+of controllable video generation studies utilizing
+various types of conditioning. As video founda-
+tion models have rapidly advanced, controllable
+video generation has also experienced significant
+growth.
+Recent
+survey
+papers
+provide
+extensively
+overviews of AI-generated content (AIGC), cover-
+ing various areas such as video generation based on
+Generative Adversarial Networks and Variational
+AutoEncoders (Aldausari et al. 2022; Yazdani
+et al. 2024), diffusion model theories and architec-
+tures (Xing et al. 2024d), efficient video diffusion
+models (Ma et al. 2025f), unified multi-modal
+video synthesis and understanding (Zhou et al.
+2024a), video editing (Sun et al. 2024), founda-
+tional video diffusion models (Wang et al. 2025h;
+Yang et al. 2025b; Melnik et al. 2024), and 4D gen-
+eration applications (Ren et al. 2025). While these
+reviews offer valuable insights, many only provide
+a cursory examination of video generative models
+2
+
+Imagen Video
+Dreamix
+MCDiff
+Follow Your Pose
+VideoComposer
+VideoCrafter
+VideoBooth
+MagicDrive
+VMC
+Lumiere
+EchoMimic
+Champ
+ReVideo
+DriveDream
+Motion Prompting
+Text-Animator
+Generative 
+Inbetweening
+AV-Link
+Aether
+ReCamMaster
+SUGAR
+2022
+2023.01-06
+2023.06-12
+2024.01-06
+2024.06-12
+2025.01-Present
+500
+1000
+1500
+2000
+Structure-control
+ID-control
+Image-control
+Temporal-control
+Audio-control
+Other-control
+Univeral-control
+Fig. 1: The development trend of con-
+trollable video generation methods across
+seven representative task categories. The
+line chart illustrates the rapid growth in the num-
+ber of related works from 2022 to the present, with
+different categories distinguished by color. Repre-
+sentative works from each period are highlighted
+above the chart. For instance, VideoCrafter (Chen
+et al. 2023b) and EchoMimic (Chen et al. 2025f)
+have achieved 4.9k and 3.9k stars in Github,
+respectively.
+or predominantly concentrate on other modali-
+ties. This is a significant gap in the literature
+regarding controllable video generation. Addition-
+ally, existing studies rarely address this topic in
+various control signals, e.g., depth, sketch, leav-
+ing a critical void in understanding the potential
+for integrating novel conditions into video gener-
+ative models and their implications for advancing
+controllable video generation.
+In summary, our contributions are as follows:
+• A well-structured taxonomy of controllable
+video generation methods is presented by classi-
+fying existing methods according to their input
+control signals, which facilitates understanding
+of existing methods and reveals core challenges
+in this field.
+• We present the theoretical foundations of GAN-
+, VAE-, Flow-, DM-, and AR-based architec-
+tures, along with recent video generation models
+built upon them, providing a clearer under-
+standing of their underlying mechanisms.
+• Our survey introduces broad coverage of condi-
+tional generation approaches, structured around
+the proposed taxonomy, and emphasizes the
+defining traits and methodological innovations
+of each technique.
+• We investigate the practical impact of condi-
+tional generation within video models, covering
+a range of generative scenarios that reflect
+its increasing significance in the AIGC land-
+scape. In addition, we identify key shortcomings
+of existing techniques and propose potential
+avenues for further exploration.
+The remainder of this paper is organized as fol-
+lows: Sec. 2 provides a concise overview of various
+generative paradigms. In Sec. 4, we introduce rep-
+resentative video generation models, and presents
+a comprehensive taxonomy for controllable video
+generation. In Sec. 5, we outline different control
+mechanisms, explain how novel conditions can be
+incorporated into video generation models, and
+summarize existing methods based on our pro-
+posed taxonomy. Sec. 6 highlights key application
+scenarios of controllable video generation. Lastly,
+in Sec. 7, we discuss several limitations of cur-
+rent research from both technical and practical
+perspectives, and propose promising directions for
+future work.
+2 Preliminaries
+This section first explains the basic theories of gen-
+erative models. In Fig. 2, we present an illustration
+of GAN, VAE, Flow-based Models, Diffusion Mod-
+els, and Autoregressive Models, then we give the
+taxonomy of the controllable video generation
+tasks.
+GANs and VAEs. Generative Adversarial
+Networks (GANs) and Variational Autoencoders
+(VAEs) are two classical models for generative
+modeling. GAN (Goodfellow et al. 2014) is based
+on a minimax game between a generator G and a
+discriminator D. The generator tries to produce
+realistic samples from random noise z ∼p(z),
+while the discriminator attempts to distinguish
+between real data x ∼p(x) and generated samples
+G(z). The objective is given by
+min
+G max
+D
+Ex
+
+log D(x)
+
++ Ez
+
+log
+ 1 −D(G(z))
+
+.
+VAE (Kingma et al. 2013) introduces a vari-
+ational posterior q(z|x) to approximate the true
+posterior p(z|x). The training objective is to max-
+imize the Evidence Lower Bound (ELBO):
+L(θ; x) = Eq(z|x;θ)
+
+log p(x | z; θ)
+
+−DKL
+ q(z | x; θ) ∥p(z)
+
+.
+3
+
+Both models form the foundation for develop-
+ments in generative modeling, including diffusion
+and flow-based models.
+Diffusion Models. In recent years, diffu-
+sion models have emerged as a powerful series
+of generative models, offering high-quality sam-
+ple generation. A typical model is the Denoising
+Diffusion Probabilistic Model (DDPM) (Ho et al.
+2020), which add Gaussian noise to pure data and
+learn to reverse this process at sample generation,
+following the Markov Chain.
+• Forward Process. In the forward process,
+DDPM converts clean data from the previous
+data distribution to noise by gradually adding
+random Gaussian noise:
+q(x1, . . . , xT | x0) =
+T
+Y
+t=1
+q(xt | xt−1),
+q(xt | xt−1) = N
+
+xt;
+p
+1 −βt xt−1, βtI
+
+.
+where the noise schedule βt is designed to
+increase monotonically with t, ensuring noise is
+smoothly added into the clean data.
+• Reverse Process. In the reverse process, the
+models aim to learn the ability to restore data
+from noise through denoising xt. At each step,
+the denoising operation is formulated as
+pθ(x0:T ) = p(xT )
+T
+Y
+t=1
+pθ(xt−1 | xt),
+pθ(xt−1 | xt) = N(xt−1; µθ(xt, t), Σθ(xt, t)) .
+where
+the
+mean
+µθ(xt, t)
+and
+the
+variance
+Σθ(xt, t) are parameterized by neural networks
+trained to predict the denoising transformation
+from xt to xt−1. To simplify the reverse pro-
+cess, the diffusion models often reparameterize
+the mean µθ(xt, t) using a noise prediction model
+ϵθ(xt, t), which directly estimates the noise added
+at each timestep instead of recovering the clean
+data:
+µθ (xt, t) =
+1
+√αt
+
+xt −
+βt
+√1 −¯αt
+ϵθ (xt, t)
+
+.
+Flow-based Models. Flow-based models are
+a class of powerful generative models, with the
+core idea being to learn an accurate, invertible
+transformation that converts a simple base dis-
+tribution into a complex target data distribution.
+This transformation process is typically composed
+of a series of invertible functions, referred to as
+“flows”.
+Traditional flow-based models (Dinh et al.
+2014; Chen et al. 2024b; Dinh et al. 2016; Kingma
+and Dhariwal 2018; Zhang et al. 2025m; Song
+2022; Song et al. 2023; Song and Zhang 2022;
+Chen et al. 2025d) rely on discrete sequences of
+invertible transformations. In contrast, Continu-
+ous Normalizing Flows (CNFs) (Chen et al. 2018)
+generalize this framework by modeling the trans-
+formation as a continuous-time flow governed by
+an Ordinary Differential Equation (ODE):
+d
+dtϕt(x) = vt (ϕt(x)) ,
+ϕ0(x) = x,
+where ϕt is the flow map, describing the trans-
+formation of data from x0 to xt, and vt is a
+time-dependent vector field, typically parameter-
+ized by neural networks, that defines the direction
+and magnitude of change.
+X
+Flow
+f(x)
+Inverse
+𝑓!"(Z)
+Z
+x0
+xt-1
+xt
+xT
+Forward
+Backward
+Forward
+Backward
+Flow matching
+Diffusion
+Autoregressive
+x0
+x2
+x1
+x2
+xt-1
+xT-1
+xt
+xT
+x1
+GAN
+VAE
+X
+E
+Z
+D
+Z
+μ
+σ
+Generator
+Discriminator
+Real
+Fake
+Real?
+Fake?
+X’
+X’
+Autoregressive Model
+Fig. 2: Illustration of various generative
+methods. We show the method of GAN, VAE,
+Flow Matching, Diffusion Models, and Autore-
+gressive Models for video generation.
+4
+
+To improve the efficiency of training CNFs, a
+modern generative approach called Flow Matching
+(FM) (Lipman et al. 2022) has been proposed. It
+offers a new paradigm for learning complex data
+distribution by directly learning the vector field
+that transfers samples from the base to the target
+distribution.
+To learn the vector field vt, Flow Match-
+ing introduces a novel supervision signal based
+on sample pairs (x0, x1) drawn from the base
+and target distributions, respectively. It defines a
+straight-line interpolation between the two:
+xt = (1 −t)x0 + tx1, vgt
+t (xt) = x1 −x0,
+The model is then trained by minimizing the
+squared error between the predicted and ground-
+truth velocity:
+LFM = Ex0∼p0,x1∼p1,t∼u[0,1]
+h
+∥vt (xt) −(x1 −x0)∥2i
+.
+This loss encourages the vector field to match
+the direction and magnitude of the straight-line
+transport from x0 to x1.
+Autoregressive
+Models.
+Autoregressive
+(AR) (Ramesh et al. 2021; Wu et al. 2021; Ding
+et al. 2021; Yu et al. 2022; Gafni et al. 2022;
+Chang et al. 2022; Tian et al. 2024a) Models
+generate data by modeling the conditional distri-
+bution of each element given the previous ones.
+Formally, given a sequence x = (x1, x2, . . . , xT ),
+the joint probability can be factorized as
+P(x) =
+T
+Y
+t=1
+P(xt+1|x≤t).
+In the early stage, AR models like Pixel-
+CNN (Van den Oord et al. 2016) generate pixel
+row by row, to capture local dependencies. While,
+due to their inherently sequential generation pro-
+cess, suffering from efficiency, they were gradu-
+ally replaced by diffusion models. Recently, with
+the growth of video generation and the strong
+temporal correlations between frames, AR mod-
+els have regained attention. Many works adopt
+hybrid designs, integrating autoregressive priors
+with diffusion backbones.
+3 Method
+In this section, we describe the methodology for
+our literature collection and screening process. We
+focused on papers published within the past five
+years (2020–2025), as this period marks the rapid
+evolution of controllable video generation tech-
+niques driven by diffusion models. As illustrated
+in Fig. 3, we followed the PRISMA (Moher et al.
+2009) guideline with a four-phase procedure to
+select and review relevant works. To align with
+our research scope, we established the following
+three inclusion criteria: C1. Controllable Video
+Generation: The paper must present methods,
+frameworks, or systems that enable fine-grained
+control over video synthesis, beyond standard
+text-to-video generation. Acceptable control sig-
+nals include but are not limited to: pose, depth,
+sketches, bounding boxes, motion trajectories,
+camera parameters, audio, identity, or multi-
+modal conditions. C2. Based on Generative
+Foundation Models: The paper should build
+upon widely recognized generative paradigms,
+such as DMs, ARs, GANs, flows, or hybrid archi-
+tectures. C3. Relevant Contributions: We also
+include papers that introduce datasets, evaluation
+benchmarks, systematic analyses, or user-centric
+tools that facilitate controllable video generation,
+even if they do not propose new generative models.
+Phase 1: Identification. To identify influ-
+ential works in controllable video generation,
+we selected a series of publication venues based
+on their impact in computer vision and graph-
+ics: Conference on Computer Vision and Pattern
+Recognition (CVPR), International Conference on
+Computer Vision (ICCV), European Conference
+on Computer Vision (ECCV), Neural Informa-
+tion Processing Systems (NeurIPS), International
+Conference on Learning Representations (ICLR),
+International Conference on Machine Learning
+(ICML), ACM Multimedia (MM), Winter Con-
+ference
+on
+Applications
+of
+Computer
+Vision
+(WACV), International Conference on Acoustics,
+Speech, and Signal Processing (ICASSP), Inter-
+national Conference on Robotics and Automation
+(ICRA), SIGGRAPH/SIGGRAPH Asia, ACM
+Transactions on Graphics (TOG), IEEE Trans-
+actions on Pattern Analysis and Machine Intel-
+ligence (TPAMI), Transactions on Visualization
+and Computer Graphics (TVCG), Transactions
+on Multimedia (TMM), and Transactions on
+5
+
+Machine Learning Research (TMLR). We also
+considered high-impact preprints on arXiv to cap-
+ture the most recent advances. We constructed a
+set of search queries using keywords reflecting the
+two core aspects of our survey: (1) controllability
+and (2) video generation. Example queries used in
+ACM Digital Library and arXiv search are:
+Title/Abstract:
+((controllable
+video)
+OR
+(controlled
+video
+generation)
+OR
+(conditional video synthesis) OR (video
+control) OR (motion control) OR (cam-
+era control) OR (pose-guided video) OR
+(audio-driven
+video)
+OR
+(text-to-video)
+OR
+(image-to-video))
+AND
+(generative
+model OR diffusion OR VAE OR GAN
+OR AR).
+Identification
+Records Identified through 
+database screening (n=708)
+Screening
+Records screened (n=708)
+Records excluded based on title and 
+abstract screening (n=320)
+Eligibility
+Full-text articles assessed for 
+eligibility (n=388)
+Full-text articles excluded based on 
+three criteria (n=142)
+Included
+Papers included in the analysis 
+(n=246)
+Fig. 3: PRISMA (Moher et al. 2009) flow
+diagram of our literature review process.
+We performed a four-phase screening covering
+identification, screening, eligibility assessment,
+and final inclusion, as detailed in Sec. 3. The num-
+ber of papers retained at each stage is denoted by
+N.
+We included papers published between Jan-
+uary 2020 and October 2025, written in English.
+The initial search yielded n=708 candidate papers.
+Phase 2: Screening. We screened the titles
+and abstracts of the 708 papers against criteria
+C1–C3. Papers that clearly did not address con-
+trollable video generation (e.g., focusing solely on
+video recognition, compression, or non-generative
+tasks) were excluded. Additionally, papers that
+introduced generative models without any mech-
+anism for external control were filtered out. After
+this phase, 388 papers remained for full-text
+review. To ensure consistency, two authors inde-
+pendently screened a random subset of 100 papers;
+the inter-rater agreement measured by Cohen’s
+Kappa was 0.87.
+Phase 3: Eligibility. We assessed the full
+text of the 388 papers for eligibility. Exclusion at
+this stage was based on: (a) failure to meet both
+C1 and C2 upon detailed reading, or (b) limited
+relevance to the core theme of controllable video
+generation despite meeting C1 or C2 superficially.
+For instance, papers that only briefly mentioned
+controllability as a future direction without sub-
+stantial technical contribution were excluded. This
+phase removed 142 papers, leaving 246 papers for
+final inclusion.
+Phase 4: Taxonomy. To provide a compre-
+hensive and structured overview of the field, we
+propose a multi-layered framework that captures
+the entire ecosystem of controllable video gen-
+eration, spanning from technical foundations to
+practical applications. As illustrated in Fig. 4, our
+framework encompasses six interconnected dimen-
+sions: Technical Foundations: The generative
+paradigms that form the basis of modern video
+synthesis, including GANs, VAEs, DMs, Flows,
+ARs, and corresponding foundation models. Con-
+trollable Modules: The specialized components
+designed to inject external conditions into pre-
+trained generative models, such as ControlNet,
+adapters, encoders, and other modules. Control
+Modalities: The types of input signals used to
+guide video generation, categorized into seven
+distinct classes based on their semantic and struc-
+tural characteristics. Creative Support: The
+user-centric capabilities that empower creators
+through iterative design, real-time preview and
+adjustment, integrated control, etc. Technical
+Tasks: The core computer vision tasks enabled
+by controllable generation, including video com-
+pletion and inpainting, video composition, video-
+to-4D generation, etc. Practical Applications:
+The real-world domains where these technologies
+demonstrate significant impact, such as film pro-
+duction, autonomous driving, and digital humans.
+Within this comprehensive framework, we
+adopt control modality as our primary taxo-
+nomic dimension for three reasons. First, the type
+of control signal fundamentally determines the
+architectural design choices, conditioning mecha-
+nisms, and technical challenges in video generation
+pipelines. Second, existing research efforts are
+6
+
+Foundation
+Models
+Control 
+modalities
+Practical 
+applications
+Structure Control 
+(Pose, Depth, Landmark, 
+Sketch, Bounding Box)
+ID Control 
+(Person, Subject)
+Image Control 
+(Reference Image)
+Temporal Control 
+(Flow, Trajectory, Camera, 
+Motion)
+Audio Control 
+(Voice, Sound)
+Other Control 
+(Text Rendering, Style, 
+Point, BEV)
+Universal Control 
+(Multi-Condition)
+Technical 
+tasks
+Controllable 
+methods
+Video 
+Completion and 
+Inpainting
+Video 
+Composition
+Video-to-4D 
+Generation
+Autonomous 
+Vehicle
+Generative 
+World Model
+Embodied 
+Artificial 
+Intelligence
+Film & 
+Advertisement
+Autonomous 
+Driving
+Digital Human 
+& Metaverse
+Education & 
+Content 
+Creation
+Robotics
+Creative supports
+(user needs)
+Basic 
+Theories
+Generative 
+Adversarial 
+Networks 
+(GAN)
+Variational 
+Autoencoders 
+(VAE)
+Diffusion 
+Models (DM)
+Flow-based 
+Models (Flow)
+Autoregressiv
+e Models (AR)
+General Control Models
+(e.g., ControlNet, T2I-
+Adapter, Ctrl-Adapter)
+Spatio-Temporal Models 
+(e.g., 3D Convolution, 
+Temporal Attention, Spatio-
+Temporal Transformer)
+Conditional Encoders 
+(e.g., Pose Encoder, Depth 
+Encoder, Sketch Encoder, 
+Audio Encoder (e.g., 
+Wav2Vec, CLAP), Identity 
+Encoder)
+Motion Modules (e.g., 
+Motion Field Predictor, 
+Trajectory Sampler, Optical 
+Flow Warper)
+Camera Control Modules 
+(e.g., Camera Pose 
+Projector, View Synthesis 
+Renderer)
+Technical
+perspective
+Application
+perspective
+UNet-based
+LVDM
+Tune-A-Video
+AnimateDiff
+Stable Video 
+Diffusion
+DiT-based
+Sora
+CogVideoX
+Hunyuan Video
+StepVideo
+Wan
+AR-based
+CausVid
+NOVA
+Cosmos
+UVA
+MAGI-1
+Iterative Design 
+(progressive visualization)
+Real-time Preview & 
+Adjustment (interactive 
+editing, live control)
+Integrated Control 
+(multi-modal control 
+integration)
+Automation & 
+Augmentation (suggestive 
+generation, automatic 
+completion)
+Personalization & 
+Customization (on-demand 
+attribute composition)
+Explainability & 
+Transparency (control 
+mapping, failure diagnosis)
+Accessibility 
+(low-skill creation, cross-
+modal adaptation)
+Fig. 4: An overall framework for controllable video generation. The seven control modalities
+form the primary classification axis. The framework connects basic theories (Sec. 2) and video generation
+foundation models (Sec. 4) with controllable methods and creative supports as key insights (Sec. 5), and
+maps them to downstream technical tasks and practical applications (Sec. 6).
+predominantly organized around specific control
+types such as pose-guided animation or audio-
+driven synthesis, making this classification natu-
+rally align with the current literature structure.
+Third, control modalities serve as the critical
+bridge between user intent (expressed through
+various input forms) and the generated visual
+content. As shown in Fig. 4, we systematically
+categorize controllable video generation methods
+into seven modality classes: (1) Structure Control
+(e.g., pose, depth, sketch, bounding boxes), (2) ID
+Control (person or subject identity), (3) Image
+Control (reference images), (4) Temporal Control
+(flow, trajectory, camera, motion), (5) Audio Con-
+trol (voice and sound), (6) Other Control (text
+rendering, style, points, BEV), and (7) Universal
+Control (multi-condition integration).
+The task of controllable generation with text-
+to-video diffusion models represents a multi-
+faceted and complex field. From the condition
+perspective, we divide this task into seven sub-
+stasks . Most works study how to generate video
+under specific conditions, e.g. pose-guided gen-
+eration, and depth-guided generation. To reveal
+the underlying mechanisms and characteristics
+of these approaches, we further categorize them
+according to their condition types. The primary
+challenge in this feild is enabling pretrained T2V
+diffusion models to handle novel types of condi-
+tions and generate videos that are not only aligned
+with the provided textual prompts but also exhibit
+high visual quality and strong temporal consis-
+tency. Moreover, recent methods inverstagte how
+to generate videos using multiple conditions, such
+as given a reference image, sparse trajectory, and
+motion brush. The main challenge in these tasks
+is the effective integration of multiple, potentially
+interacting, conditions, necessitating the capabil-
+ity to express several conditions simultaneously
+and consistently throughout the generated video
+sequence.
+4 Video Generation
+Foundation Models
+Video generation foundation models have recently
+attracted
+substantial
+attention
+due
+to
+their
+remarkable ability to generate high-fidelity videos.
+These
+models
+are
+typically
+categorized
+into
+two major paradigms: diffusion-based models
+and autoregressive (AR) models. Among them,
+diffusion-based
+methods
+have
+shown
+impres-
+sive performance by modeling data distributions
+through an iterative denoising process, effectively
+capturing complex spatial-temporal dependencies.
+7
+
+Table 1: An overview of notable video generative models. Resolution: The frame count, width
+and height of generated video. f: downsampling factor of autoencoder from pixel space to latent space.
+†: The method uses one-shot data from the Dataset.
+Model
+Venue
+Param.
+Resolution
+f
+Text Encoder
+Training Dataset
+Open Source
+Latency
+UNet-Based Video Diffusion Models
+LVDM (He et al. 2022)
+arXiv 2022
+1.2B
+Multi-Frame(16&1024) × 2562
+4, 8x8
+CLIP ViT-L/14
+WebVid-2M (Bain et al. 2021)
+✓
+114
+Tune-A-Video (Wu et al. 2023)
+ICCV 2023
+983M
+24 × 5122
+1, 8x8
+CLIP ViT-L/14
+DAVIS† (Pont-Tuset et al. 2017)
+✓
+769
+AnimateDiff (Guo et al. 2024c)
+ICLR 2024
+1.4B
+16 × 2562
+1, 8x8
+CLIP-ViT-L/14
+WebVid-10M (Bain et al. 2021)
+✓
+122
+Stable Video Diffusion (Blattmann et al. 2023)
+arXiv 2023
+1.5B
+14 × 576 × 1024
+1, 8x8
+CLIP-ViT-H/14
+Internal Dataset
+✓
+98
+DiT-Based Video Diffusion Models
+CogVideoX (Yang et al. 2025d)
+ICLR 2025
+2B&5B
+49 × 480 × 720
+4, 8x8
+T5
+Internal Dataset
+✓
+180
+HunyuanVideo (Kong et al. 2024)
+arXiv 2024
+13B
+129 × 720 × 1280
+4, 8x8
+Hunyuan-Large
+Internal Dataset
+✓
+3448
+StepVideo (Ma et al. 2025b)
+arXiv 2025
+30B
+204 × 544 × 992
+8, 16x16
+Hunyuan-CLIP, Step-LLM
+Internal Dataset
+✓
+743
+Wan (Wan et al. 2025)
+arXiv 2025
+1.3B&14B
+81 × 720 × 1280
+4, 8x8
+umT5
+Internal Dataset
+✓
+1864
+Video Autoregressive Models
+CausVid (Yin et al. 2025)
+CVPR 2025
+1.4B
+120 × 352 × 640
+4, 8x8
+umT5
+Internal Dataset
+✓
+14
+NOVA (Deng et al. 2024)
+ICLR 2025
+0.3B&0.6B&1.4B
+33 × 768 × 480
+4, 8x8
+Phi-2
+Internal Dataset
+✓
+354
+Cosmos (Agarwal et al. 2025)
+arXiv 2025
+4B&12B
+121 × 704 × 1280
+4, 8x8
+T5-XXL
+Internal Dataset
+✓
+119
+UVA (Li et al. 2025c)
+RSS 2025
+0.5B
+16 × 720 × 1280
+1, 16x16
+CLIP-ViT-B/32
+Libero10 (Liu et al. 2023a), PushT (Chi et al. 2024a), UMI (Chi et al. 2024b), Human Video (Clark et al. 2025)
+✓
+¡1
+MAGI-1 (Teng et al. 2025)
+arXiv 2025
+4.5B&24B
+24 × 720 × 1280
+4, 8x8
+T5
+Internal Dataset
+✓
+1740
+InfinityStar (Liu et al. 2025b)
+arXiv 2025
+8B
+81 × 720 × 1280
+4, 8x8
+T5
+Internal Dataset
+✓
+58
+We introduce the typical frameworks among them
+(see in Table 1). Diffusion-based video generation
+models can be further divided into two architec-
+tural branches: those built on UNet-based frame-
+works and those leveraging the more recent DiT
+(Diffusion Transformer) architecture. We provide
+them in supplementary material.
+5 Controllable Video
+Generation Models with
+Various Conditions
+ID Control
+Image Control 
+Audio Control 
+Temporal Control 
+Universal Control 
+Other Control 
+6
+Structure Control 
+17
+1
+1
+2
+6
+2
+3
+2
+1
+2
+1
+2
+4
+57
+49
+38
+29
+23
+Fig. 5: Venn diagram of controllable video
+generation literature categorized by control
+modalities. The diagram illustrates the distribu-
+tion of surveyed works across seven control cate-
+gories, including Structure, Image, Audio, Tempo-
+ral, ID, Universal, and Other controls. The overlap
+regions highlight methods that support multiple
+control signals simultaneously. The counts in each
+region indicate the number of papers falling into
+the corresponding category intersections, reflect-
+ing current research trends and the degree of mul-
+timodal controllability explored in existing video
+generation models.
+This section forms the core of our survey,
+delving into the diverse methodologies developed
+for controllable video generation. As shown in
+Fig. 6 and Table. 2, we present various visual illus-
+trations and representative works of controllable
+video generation. These approaches are catego-
+rized on the basis of the primary nature of the
+control signal used to guide the synthesis pro-
+cess. Specifically, we will explore methods focusing
+on structure control, ID control, image control,
+temporal control, audio control, other control,
+and universal control. For each category, we will
+review seminal and recent works, highlighting
+their foundational techniques, architectural inno-
+vations, and the specific challenges.
+5.1 Structure Control
+Structure control in video generation refers to the
+ability to dictate the spatial layout, conforma-
+tion of articulated objects (like humans or ani-
+mals), and the geometric properties of the scene.
+This form of control is paramount for producing
+videos that are not only visually coherent but also
+adhere to plausible physical configurations and
+user-specified arrangements. By conditioning the
+generation process on structural cues, models can
+synthesize complex scenes with greater fidelity and
+semantic correctness.
+5.1.1 Pose-Guided Generation
+Pose-guided video generation specifically aims to
+animate subjects, predominantly humans, accord-
+ing to a sequence of predefined poses. This is
+a critical task for applications such as virtual
+avatar animation, character generation for interac-
+tive entertainment, human motion synthesis from
+sparse inputs, and fashion video synthesis (Kar-
+ras et al. 2023; Jin et al. 2024; Wang et al. 2025i;
+8
+
+Gong et al. 2025; Ma et al. 2025c,d; Wang et al.
+2024c). The core challenge lies in generating tem-
+porally coherent video frames where the subject’s
+appearance is preserved while accurately following
+the target pose sequence P = p1, p2, ..., pT , where
+each pt represents the pose in frame t.
+The input pose information pt is typically rep-
+resented as 2D skeletal keypoints (e.g., COCO
+format), 3D skeletal coordinates, or more dense
+representations like DensePose (G¨uler et al. 2018),
+which maps image pixels to 3D surface coordinates
+of the human body. These pose sequences can be
+extracted from existing videos using off-the-shelf
+pose estimators (e.g., OpenPose (Cao et al. 2019)),
+derived from motion capture (MoCap) data, or
+generated algorithmically. The choice of pose rep-
+resentation influences the granularity of control
+and the complexity of the generation task.
+Numerous approaches have been proposed
+to achieve pose-guided generation. Early meth-
+ods (Yang et al. 2018) often rely on GANs, using
+pose information to condition the generator, for
+instance, by rendering pose stick figures and feed-
+ing them as input alongside a latent code. More
+recent work leverages the power of diffusion mod-
+els. For example, MagicAnimate (Xu et al. 2024e)
+and Animate Anyone (Hu 2024) and its successor
+Animate Anyone 2 (Hu et al. 2025a) utilize diffu-
+sion models conditioned on pose sequences and a
+reference image to generate temporally consistent
+animations. Techniques like Champ (Zhu et al.
+2024b) and MimicMotion (Zhang et al. 2024c)
+focus on high-fidelity human motion synthesis.
+DirectorLLM (Song et al. 2025b) employs large
+language models to direct human-centric video
+generation based on pose and textual descrip-
+tions. Follow Your Pose (Ma et al. 2024c) intro-
+duces a two-stage training strategy to create
+high-quality character videos. ControlNet-based
+approaches (Zhang et al. 2023a) have also been
+adapted, where pose maps serve as direct spatial
+conditions for pre-trained text-to-image diffusion
+models, which are then fine-tuned or augmented
+with temporal modules for video tasks (Peng et al.
+2024; Wang et al. 2024e). Disentangling pose from
+appearance is a key strategy, often achieved by
+dedicated appearance encoders and pose encoders,
+with mechanisms like feature warping or atten-
+tion to align appearance features with the target
+pose (Li et al. 2024a). Temporal consistency is
+often enforced through temporal attention mecha-
+nisms across frames or by incorporating temporal
+smoothness losses.
+Despite significant progress, pose-guided gen-
+eration still faces challenges. Handling severe self-
+occlusions, where parts of the subject are hidden
+due to the pose, requires robust inpainting capa-
+bilities. Maintaining fine-grained texture details
+and consistent identity across large pose varia-
+tions remains difficult, especially when appearance
+must be reliably transferred from a reference
+image without explicit identity control. Ensuring
+natural and smooth transitions between poses,
+avoiding jittery or robotic movements, is crucial
+for realism. Furthermore, generalization to unseen
+poses, body shapes, or complex clothing items not
+well-represented in training data can be problem-
+atic, often requiring extensive and diverse datasets
+like those proposed by FCVG (Zhu et al. 2025b),
+which aims for broader character controllability.
+5.1.2 Depth-Guided Generation
+Depth-guided
+video
+generation
+utilizes
+depth
+maps as conditioning signals to control the 3D
+structure of the synthesized scene, object layout,
+and relative distances of elements from the cam-
+era. This form of control is crucial for generating
+videos with a strong sense of three-dimensionality,
+realistic object interactions, and consistent scene
+geometry across frames.
+The primary input for depth-guided control is
+a sequence of depth maps D = d1, d2, ..., dT , where
+each dt ∈RH×W provides per-pixel depth infor-
+mation. These depth maps can be relative or abso-
+lute, estimated from RGB videos using monocular
+depth estimation models, captured using special-
+ized sensors (e.g., LiDAR, ToF cameras), or ren-
+dered from 3D models. Depth conditioning helps
+in maintaining geometric consistency, enabling
+plausible occlusions, and can be used to simulate
+effects like depth-of-field.
+Several works have explored depth-guided
+video synthesis. ControlVideo (Zhang et al. 2023b)
+and Control-A-Video (Chen et al. 2023d) demon-
+strate
+how
+various
+control
+signals,
+including
+depth, could be integrated into large pre-trained
+text-to-image diffusion models to guide video gen-
+eration. SparseCtrl (Guo et al. 2024d) focuses on
+using sparse depth controls. DreamDance (Pang
+et al. 2024) leverages depth for dynamic 3D scene
+9
+
+Table 2: Representative works of controllable generation with video generative model.
+Type
+Method
+Venue
+Model
+Condition
+Training Dataset
+Structure Control
+Follow-Your-Pose Ma et al. (2024c)
+AAAI 2024
+UNet
+Pose, Landmark, Text
+LAION-400M Schuhmann et al. (2021), HDVILA Xue et al. (2021)
+Make-Your-Video Xing et al. (2024b)
+TVCG 2024
+UNet
+Depth, Text
+WebVid-10M Bain et al. (2021)
+ToonCrafter Xing et al. (2024c)
+TOG 2024
+UNet
+sketch, Image, Text
+Self-Construction Datasets
+DriveDreamer Zhao et al. (2025a)
+AAAI 2024
+UNet
+BBox, Image, Text
+nuScenes Caesar et al. (2019)
+EchoMimic Meng et al. (2025a)
+AAAI 2024
+UNet
+Audio, Landmarks, Image
+HDTF Zhang et al. (2021), CelebV-HQ Zhu et al. (2022)
+ID Control
+VideoBooth Jiang et al. (2024b)
+CVPR 2023
+UNet
+Object, Text
+WebVid-10M Bain et al. (2021)
+Vlogger Zhuang et al. (2024)
+CVPR 2024
+UNet
+Object, Text
+WebVid-10M Bain et al. (2021), LAION-400M Schuhmann et al. (2021)
+Phantom Liu et al. (2025d)
+ICCV 2025
+DiT
+Subject, Text
+Panda-70M Chen et al. (2024c), Subject200k Tan et al. (2025), OmniGen Xiao et al. (2025a)
+Image Control
+VideoCrafter1 Chen et al. (2023b)
+arXiv 2023
+UNet
+Image, Text
+LAION-COCO-600M LAI (2025), WebVid-10M Bain et al. (2021)
+Lumiere Bar-Tal et al. (2024)
+SIGGRAPH-Asia 2024
+UNet
+Image, Mask, Style, Text
+Self-Construction Datasets
+ConsistI2V Ren et al. (2024a)
+TMLR 2024
+UNet
+Image, Text
+WebVid-10M Bain et al. (2021)
+Follow-Your-Click Ma et al. (2025e)
+AAAI 2025
+UNet
+Click, Image, Text
+WebVid-10M Bain et al. (2021)
+NOVA Deng et al. (2024)
+ICLR 2025
+Autoregressive
+Image, Text
+Panda-70M Chen et al. (2024c), Pexels Pex (2025)
+Temporal Control
+Motion-I2V Shi et al. (2024b)
+SIGGRAPH 2024
+UNet
+Trajectory, Image, Text
+WebVid-10M Bain et al. (2021)
+MotionBooth Wu et al. (2024a)
+NeurIPS 2024
+UNet
+Motion, Camera, BBox, Image, Text
+Panda-70M Chen et al. (2024c)
+ViewCrafter Wu et al. (2024a)
+TPAMI 2025
+UNet
+Camera, Image
+RealEstate10K Zhou et al. (2018), DL3DV Ling et al. (2023)
+Direct-A-Video Yang et al. (2024b)
+SIGGRAPH 2024
+UNet
+Camera, Text
+MovieShot Rao et al. (2020)
+Audio Control
+DAA2V Yariv et al. (2024)
+AAAI 2023
+UNet
+Audio, Image
+VGGSound Chen et al. (2020), Landscape Lee et al. (2022), AudioSet-Drums Gemmeke et al. (2017)
+MOFA-Video Niu et al. (2024)
+ECCV 2024
+UNet
+Trajectory, Audio, Flow, Image
+WebVid-10M Bain et al. (2021)
+EMO Tian et al. (2024b)
+ECCV 2024
+UNet
+Audio, Image
+HDTF Zhang et al. (2021), VFHQ Xie et al. (2022), CelebV-HQ Zhu et al. (2022)
+MotionCraft Bian et al. (2025b)
+AAAI 2025
+DiT
+Music, Speech, Text
+HumanML3D Guo et al. (2022), BEAT2 Liu et al. (2023b), FineDance Li et al. (2023)
+Other Control
+Panacea Wen et al. (2024)
+CVPR 2023
+UNet
+BEV, Text
+nuScenes Caesar et al. (2019)
+StyleMaster Ye et al. (2025)
+CVPR 2025
+DiT
+Style, Video, Text
+Self-Construction Datasets
+UniVST Song et al. (2024a)
+TPAMI 2025
+DiT
+Style, Mask, Video
+None
+GS-DiT Bian et al. (2025a)
+CVPR 2025
+DiT
+Point, Video, Text
+WebVid-10M Bain et al. (2021)
+Universal Control
+VideoComposer Wang et al. (2023a)
+NeurIPS 2023
+UNet
+Universal Conditions
+WebVid-10M Bain et al. (2021), LAION-400M Schuhmann et al. (2021)
+FullDiT Ju et al. (2025)
+ICCV 2025
+DiT
+Universal Conditions
+MiraData Ju et al. (2024), RealEstate10K Zhou et al. (2018), ConceptMaster Huang et al. (2025c), Panda-70M Chen et al. (2024c)
+VACE Jiang et al. (2025b)
+ICCV 2025
+DiT
+Universal Conditions
+Self-Construction Datasets
+generation. ControlNeXt (Peng et al. 2024) and
+Champ (Zhu et al. 2024b) also support depth
+guidance among other control types. Depth infor-
+mation is typically encoded and injected into
+the diffusion model´s U-Net architecture, often
+concatenated with noisy latents or fed into cross-
+attention layers. Some methods may also use
+depth-based loss functions to further encourage
+geometric fidelity, for instance, by comparing the
+depth map of a generated frame with the target
+depth map.
+Challenges in depth-guided generation include
+the difficulty of obtaining accurate, dense, and
+temporally consistent depth maps, especially from
+monocular RGB videos. Errors or noise in the
+input depth maps can propagate to the generated
+video, leading to distorted geometry. Ensuring
+that the generated RGB frames are consistent
+with the conditioning depth information is non-
+trivial. Dynamic scenes with rapidly changing
+depths or complex non-rigid object deformations
+pose further difficulties. Moreover, incorporating
+3D awareness often increases computational com-
+plexity. Approaches like Make-Your-Video (Xing
+et al. 2024b) and Moonshot (Zhang et al. 2024a)
+aim to improve fidelity and consistency in such
+scenarios.
+5.1.3 Landmark-Guided Generation
+Landmark-guided control focuses on using key-
+points or landmarks (e.g., facial features, body
+joints, or other salient points) to guide video
+synthesis. These landmarks serve as spatial con-
+straints that define the motion or deformation of
+specific regions, enabling fine-grained control over
+facial expressions, gestures, or body poses. This
+approach is particularly valuable for applications
+like portrait animation, emotion-driven synthesis,
+and pose-guided video generation, where subtle
+movements and precise alignment with landmarks
+are critical for achieving natural and expressive
+results.
+Landmark control signals can be provided as
+static or dynamic landmark sequences extracted
+from images or videos, or as high-level descriptions
+that are converted into landmark trajectories.
+For instance, TASTE-Rob (Zhao et al. 2025b)
+uses temporal landmark sequences to guide video
+generation. Follow-Your-Pose (Ma et al. 2024c)
+and Follow-Your-Emoji (Ma et al. 2024d) allow
+pose-based and emoji-driven landmark control,
+respectively, offering users intuitive ways to define
+movements and expressions.
+Recent
+landmark-guided
+methods
+leverage
+landmarks to condition generative models, ensur-
+ing spatial alignment and temporal coherence.
+HunyuanPortrait (Xu et al. 2025) introduces
+implicit conditioning mechanisms to generate
+highly realistic and controllable portrait ani-
+mations. Takin-ADA (Lin et al. 2024b) and
+EchoMimic (Chen et al. 2025f) specialize in
+audio-driven portrait animation, aligning facial
+landmarks
+with
+speech
+dynamics.
+EchoMim-
+icV2 (Meng et al. 2025a) extends this by simplify-
+ing body and facial control for efficient synthesis.
+LivePortrait (Guo et al. 2024a) and IPT2V (Yuan
+et al. 2025) emphasize identity preservation while
+animating portraits, ensuring that synthesized
+videos remain faithful to the input identity.
+Landmark-guided
+methods
+face
+significant
+challenges in maintaining accurate spatial align-
+ment, especially when landmarks are sparse, noisy,
+10
+
+or incomplete. Ensuring smooth and natural tran-
+sitions between frames while adhering to land-
+mark constraints is critical for avoiding artifacts
+and achieving realistic motion. Capturing subtle
+expressions or complex dynamics, such as emotion
+or speech-driven facial movements, can be difficult
+without introducing distortions or losing fidelity.
+5.1.4 Sketch-Guided Generation
+Sketch-guided video generation utilizes single
+sketch frames or combines them with reference
+visual images to improve the performance of tradi-
+tional text-to-video diffusion models. Sketch input
+becomes particularly valuable in applications such
+as quick character animation, where users can
+sketch the key poses or actions to guide the video
+generation process, and scene composition, where
+simple sketches can define object placement and
+movement in a visual story. This approach is espe-
+cially beneficial for colorization applications like
+storytelling, allowing creators to quickly visualize
+and refine their ideas before detailed production.
+In
+previous
+works,
+works
+like
+SketchBe-
+tween (Loftsdottir and Guzdial 2022) introduce a
+VAE-based framework for the sketch-based video
+generation application. Recently, the ControlNet
+structure (Zhang et al. 2023a) has been applied to
+sketch-guided video generation, but directly using
+it does not ensure the frame-to-frame consistency
+essential for coherent video production. As the
+existing control method commonly relies on dense
+temporal maps, SparseCtrl (Guo et al. 2024d) pro-
+posed an auxiliary encoder like ControlNet, which
+utilizes the sparse condition maps to generate
+the target video. Similarly, CTRL-Adapter (Lin
+et al. 2024c) designed a control adapter that sup-
+ports various inputs, including image, depth, and
+sketch, facilitating the performance of controllable
+video generation applications. OpenSoraPlan (Lin
+et al. 2024a) proposed a powerful video generation
+framework with a condition encoder.
+Numerous
+works
+also
+focus
+on
+exploring
+sketch-guided video generation applications, such
+as animation, video colorization, and many other
+tasks. TaleCrafter (Gong et al. 2023), a visual
+storytelling system, designs a controllable text-
+to-image component that generates target images
+based on input conditions and converts them
+into video through a subsequent Image-to-Video
+(I2V) module. ToonCrafter (Xing et al. 2024c)
+proposes a cartoon video interpolation method,
+which designs a sketch encoder to provide effi-
+cient drawing tools. AniDoc (Meng et al. 2025b)
+and LVCD (Huang et al. 2024) also focus on
+the sketch-guided animation application. For gen-
+eral video generation, methods like MakePixels-
+Dance (Zeng et al. 2024), VideoLCM (Wang et al.
+2023b), and TF-T2V (Wang et al. 2024g), these
+methods not only improve the quality and the
+controllability of the video but also optimize
+the consistency for the long-time video genera-
+tion task. Besides, MagicStick (Ma et al. 2025c),
+SketchVideo (Liu et al. 2025a), MotionClone (Ling
+et al. 2025), and CameraCtrl (He et al. 2024a) uti-
+lize the sketch-guided controllable component for
+video editing and camera motion video generation.
+5.1.5 BBox-Guided Generation
+BBox-guided video generation directs the syn-
+thesis of video content by using bounding boxes
+as precise conditional inputs. This guidance can
+range from a static layout defining object place-
+ment in a single frame to a sequence of mov-
+ing boxes dictating an object’s trajectory over
+time. The technique is prominently explored in
+autonomous driving video models, where bound-
+ing boxes are used to control the overall layout of
+the environment, as well as the precise position
+and movement of vehicles within the scene.
+To inject bbox information into generative
+models, researchers have developed various strate-
+gies, which can generally be categorized into
+two main types: cross-attention-based injection
+and
+additive
+encoder-based
+injection.
+Magic-
+Drive (Gao et al. 2023), aiming for fine-grained
+control over 3D geometry, pioneers the separate
+handling of different layout types. Delphi (Ma
+et al. 2024a) also injects layout embeddings
+via cross-attention. Another early work, Drive-
+Dreamer (Zhao et al. 2025a), seeking to build
+a real-world driving model, fuses the representa-
+tions of 3D bounding boxes (Bi ∈RN×NB×16 )
+with visual features using a gated self-attention
+mechanism. To tackle the challenge of learning
+box-object correlations from purely visual cues,
+Boximator (Wang et al. 2024b) and Panacea (Wen
+et al. 2024) introduce the new self-attention layer
+into the existing U-Net blocks, which processes
+control tokens derived from Fourier-encoded box
+coordinates and object IDs. Ctrl-V (Luo et al.
+11
+
+Teddybear is running on a country road.
+A young woman is turning her head.
+A girl in a suit is dancing in the classroom.
+A car is driving on the road.
+A bear is walking by the seaside.
+A cat is walking, a logo that says "welcome".
+BBox-Guided
+A statue wearing a suit.
+A woman standing amidst gently falling cherry blossoms
+Pose-Guided
+Landmark-Guided
+Subject-Guided
+Image-Guided
+Identity-Guided
+Flow-Guided
+Camera-Guided
+Voice-Guided
+Trajectory-Guided
+Style-Guided
+Text Rendering
+BEV-Guided
+A Iron man is dancing on the street
+Sketch-Guided
+Motion-Guided
+So many cars are running on the road in city
+A yellow mushroom cloud in the sky.
+A statue stands in front of the museum.
+A male anime character turns his head.
+A woman is speaking
+A girl is riding a bike on the road
+A cartoon girl is speaking
+Depth-Guided
+Fig. 6: Visual illustration of controllable video generation. We show the cases of controllable
+video generation with specific control. The conditions are marked in red and the prompts are marked in
+blue.
+Table 3: Quantitative comparison of Landmark-guided video generation on 512 × 512 test
+images. LMD multiplied by 10−3, AED multiplied by 10−2, APD multiplied by 10−3 and Identity
+Similarity multiplied by 10−1. ↑indicates higher is better. ↓indicates lower is better. The best results
+are in bold.
+Method
+Self Reenactment
+Cross Reenactment
+LMD ↓
+FID-VID ↓
+FVD ↓
+PSNR ↑
+SSIM ↑
+LPIPS ↓
+AED ↓
+APD ↓
+Identity ↑
+Facial ↑
+Video ↑
+Temporal ↑
+Similarity
+Movements
+Quality
+Smoothness
+LivePortrait (Guo et al. 2024a)
+9.14
+82.71
+483.38
+31.41
+0.72
+0.22
+26.83
+26.97
+8.71
+3.00
+4.11
+4.06
+AniPortrait (Wei et al. 2024a)
+6.67
+81.90
+430.24
+30.54
+0.67
+0.27
+22.42
+21.32
+7.95
+3.83
+4.00
+3.81
+FollowYE (Ma et al. 2024d)
+5.63
+77.15
+417.53
+30.84
+0.68
+0.25
+20.06
+20.95
+8.18
+4.11
+4.23
+3.33
+X-Potrait (Xie et al. 2024)
+6.23
+82.93
+416.41
+30.81
+0.71
+0.19
+20.66
+20.39
+8.03
+3.88
+3.73
+3.49
+HunyuanPortrait (Xu et al. 2025)
+2.02
+75.81
+333.48
+32.98
+0.81
+0.11
+19.45
+19.20
+8.87
+4.55
+4.69
+4.61
+2025a) also utilizes a ControlNet architecture
+but introduces a unique two-stage pipeline. It
+first employs a diffusion-based BBox Generator
+to predict a complete video of the bounding box
+trajectories.
+Moreover, some methods explore different
+injection methods. LLM-Grounded Video Diffu-
+sion (LVD) (Lian et al. 2023) takes a novel
+approach by leveraging a Large Language Model
+(LLM) to generate Dynamic Scene Layouts from
+text prompts. Also operating without training,
+TrailBlazer (Ma et al. 2024b) directly edits spa-
+tial and temporal attention maps during the
+initial denoising steps to guide subjects along
+key-framed bounding box trajectories. Recently,
+architectures based on the DiT have gained atten-
+tion for their excellent scalability. For instance,
+DIVE (Jiang et al. 2024a), aiming to gener-
+ate multi-view consistent videos, integrates a
+ControlNet-Transformer into the DiT architecture
+to process road information and uses a joint cross-
+attention mechanism to fuse scene and instance
+layouts.
+5.1.6 Summary
+In video generation, structural control acts as
+spatial cues, providing the foundational frame-
+work for dynamic visuals. Its core function is
+to precisely translate various abstract spatial
+requirements—from precise joint poses to casual
+user sketches—into natural and plausible visual
+movements. Early GAN-based frameworks (Yang
+et al. 2018) often conditioned the generation pro-
+cess by directly rendering structural skeletons
+together with latent features. And this paradigm
+was subsequently dominated by UNet-based archi-
+tectures which employs Adapter interfaces (e.g.,
+ControlNet (Zhang et al. 2023a))to graft spa-
+tial constraints onto main network. Currently, the
+research focus has clearly shifted towards diffusion
+Transformers(e.g., MagicDrive-DiT (Gao et al.
+2025))due to the scaling limits of CNNs.
+This shift is from the user’s need for finer
+control granularity and temporal coherence, with
+trends leaning toward integrated approaches that
+enable combining multiple structural signals (e.g.,
+pose with depth in DreamDance (Pang et al.
+2024)). Beyond interaction, profound technical
+12
+
+challenges persist in physical awareness and gener-
+alization. Current methods often prioritize visual
+alignment over kinematic plausibility, leading to
+physically impossible deformations, and remain
+limited to specific domains (e.g., humans). Conse-
+quently, future improvement is needed for interac-
+tion simplicity and physics-aware world modeling.
+The ultimate goal is to bridge the gap between
+abstract control and concrete realization, ensur-
+ing outcomes are not only physically consistent
+but also faithfully aligned with the user’s creative
+intent.
+5.2 ID Control
+ID control in video generation refers to the ability
+to preserve and manipulate the visual identity of
+specific entities within the whole video generation,
+such as humans, animals, or objects. This form
+of control is essential for ensuring temporal con-
+sistency in appearance, enabling personalized or
+instance-specific content generation. By condition-
+ing on reference images or identity embeddings,
+models can maintain subject integrity across vary-
+ing poses, motions, and viewpoints.
+5.2.1 Person-Guided Generation
+Person-guided video generation aims to synthesize
+videos of a specific individual while maintaining
+high-fidelity identity consistency throughout the
+video. It enables personalized animation where
+a character—typically provided as one or more
+reference images—is animated according to user-
+defined prompts or motion signals. This form of
+control is essential for digital avatars, identity-
+preserving storytelling, and interactive applica-
+tions, where both visual likeness and behavioral
+alignment must be achieved.
+The primary input for person-guided control
+includes one or more ID images of the target per-
+son. These can be facial portraits or full Face and
+body synthesis. A driving signal—such as a text
+prompt, pose sequence, or audio—is also provided
+to guide motion. The ID images capture static
+visual identity, while the driving signal controls
+dynamics. Some methods, like ID-Animator(He
+et al. 2024b), use a single image, while others, like
+Movie Weaver(Liang et al. 2025) rely on a set of
+images covering both face and body.
+Representative
+diffusion-based
+methods
+explore
+various
+architectures
+and
+identity-
+injection strategies. ID-Animator(He et al. 2024b)
+integrates a ViT-based face adapter via cross-
+attention, while Movie Weaver(Liang et al. 2025)
+leverages a DiT backbone with anchor-concept
+prompts
+for
+tuning-free
+generation.
+Person-
+alVideo(Li et al. 2025a) and Vlogger (Zhuang
+et al. 2024) applie a reward-based objective to a
+frozen LDM for identity-motion alignment. Con-
+sisID (Yuan et al. 2025) and Magic-Me (Ma et al.
+2025g) introduce frequency-aware and dynamic
+attention mechanisms.
+5.2.2 Subject-Guided Generation
+Subject-guided generation (Zhang et al. 2024d;
+Jiang et al. 2024b; Song et al. 2025c,d) refers
+to the process of generating video content where
+the primary focus is on guiding the generation
+with specific subjects, such as particular char-
+acters, objects, or scenes, to ensure that the
+generated video adheres to user-defined subject
+constraints. This method enables the customiza-
+tion of content by explicitly controlling which
+subjects appear, how they interact, and in what
+context, offering more precise control over the
+generated content. Initial research often concen-
+trated on single-subject customization, as exem-
+plified by VideoBooth (Jiang et al. 2024b), which
+utilizes image prompts for enhanced content con-
+trol, and DreamVideo (Wei et al. 2024b), which
+decouples subject learning from motion learn-
+ing. However, the field has rapidly progressed
+to address the more complex challenge of multi-
+subject video generation. Studies such as Disen-
+Studio (Chen et al. 2024a), CustomVideo (Wang
+et al. 2024i), and MovieWeaver (Liang et al.
+2025)are at the forefront of addressing key dif-
+ficulties in multi-subject scenarios. These chal-
+lenges include ensuring the correct co-occurrence
+and temporally consistent appearance of mul-
+tiple subjects, preserving their visual identi-
+ties, avoiding attribute binding issues, and accu-
+rately assigning actions. Such approaches typ-
+ically extend pretrained video diffusion models
+by incorporating several key innovations: novel
+fine-tuning strategies (e.g., VideoDreamer’s (Chen
+et al. 2023a) Disen-Mix Finetuning, DisenStu-
+dio’s (Chen et al. 2024a) motion-preserved dis-
+entangled fine-tuning); advancements in attention
+13
+
+Table 4: Quantitative comparison of landmark-guided video generation on TED-talks
+Dataset. L1 multiplied by 10−4. ↑indicates higher is better. ↓indicates lower is better. The best and
+secondary results are in bold and underline, respectively. MRAA* and TPSMM* proposed these meth-
+ods using real videos as driving signals. Therefore, they are not involved in quantitative comparison.
+Method
+FID ↓
+SSIM ↑
+PSNR ↑
+LPIPS ↓
+L1 ↓
+FID-VID ↓
+FVD ↓
+MRAA*(Siarohin et al. 2021)
+25.76
+0.807
+32.62
+0.216
+0.36
+12.20
+126.28
+TPSMM*(Zhao and Zhang 2022)
+24.69
+0.819
+32.92
+0.205
+0.35
+9.04
+87.76
+MRAA (Siarohin et al. 2021)
+50.36
+0.762
+31.90
+0.266
+0.50
+82.79
+493.02
+TPSMM (Zhao and Zhang 2022)
+23.71
+0.771
+32.30
+0.252
+0.49
+32.12
+260.67
+DisCo (Wang et al. 2024e)
+75.48
+0.575
+27.99
+0.309
+1.21
+66.18
+393.04
+MagicAnimate (Xu et al. 2024e)
+41.58
+0.529
+28.28
+0.310
+1.73
+33.61
+223.54
+MagicPose (Chang et al. 2023)
+23.39
+0.723
+30.08
+0.236
+0.81
+27.53
+214.23
+FollowYourPosev2 (Xue et al. 2024)
+18.21
+0.779
+30.88
+0.198
+0.46
+10.24
+81.73
+mechanisms (e.g., CustomVideo’s (Wang et al.
+2024i) attention control with object segmenta-
+tion); and the development of specialized datasets.
+To further enhance the quality, controllabil-
+ity, and usability of customized videos, researchers
+are exploring various innovative approaches. In
+pursuit of model efficiency and generalization,
+zero-shot or tuning-free methods have emerged,
+exemplified by SUGAR (Zhou et al. 2024b),
+which leverages large-scale synthetic datasets.
+ConsisID (Yuan et al. 2025) offers a tuning-free
+method for identity preservation based on fre-
+quency decomposition. Still-Moving (Chefer et al.
+2024) uniquely facilitates the customization of
+video models using solely image data through
+the training of spatial adapters. Another key
+research area is fine-grained control over motion
+and concepts. For instance, MotionBooth (Wu
+et al. 2024a) focuses on precise object and cam-
+era movement control. CustomTTT (Bi et al.
+2025) employs test-time training to effectively
+combine multiple individually trained concepts
+(e.g., appearance and motion LoRAs), while Cus-
+tomCrafter (Wu et al. 2025b) aims to preserve the
+model’s intrinsic motion generation and concept
+composition capabilities during subject learning.
+5.2.3 Summary
+In this area, ID serves as a pivotal modality, uti-
+lizing conditional encoders and general control
+models (e.g., Adapters) to achieve the core goal of
+personalized customization. While UNet remains
+the dominant backbone (e.g., PersonalVideo (Li
+et al. 2025a)), there is a strategic shift toward
+DiT (e.g., Movie Weaver (Liang et al. 2025)) to
+leverage global attention for improved temporal
+consistency.
+Driven by the user demand for efficiency,
+the technical roadmap is transitioning from slow
+fine-tuning to Tuning-free approaches (e.g., Con-
+sisID (Yuan et al. 2025)), which directly aligns
+with the users’ demand for real-time. However,
+current limitations in multi-subject generation
+reveal a gap in the unified system of creative sup-
+ports, underscoring the future need for advanced
+disentanglement and composition to resolve con-
+flicts between different controllable methods (e.g.,
+conditional encoders and motion modules) with-
+out performance degradation.
+5.3 Image Control
+The image-guided video generation aims to gen-
+erate a video from a given reference image. This
+form of control is crucial for producing videos that
+are not only visually consistent with the refer-
+ence but also maintain coherence across temporal
+frames. By conditioning the generation process
+on reference image features, models can gener-
+ate video content with enhanced visual alignment,
+stylistic fidelity, and semantic relevance to the
+source image. Approaches such as TRIP (Zhang
+et al. 2024f), OmniTokenizer (Wang et al. 2024d),
+Emu Video (Girdhar et al. 2023), and I2V-
+Adapter (Guo et al. 2024b) focus on addressing
+the insufficient consistency between the given
+image and the generated video, constructing a uni-
+fied, high-quality video generation framework. To
+further construct a comprehensive video genera-
+tion model, STIV (Lin et al. 2025c) and Hunyuan
+Video (Kong et al. 2024) are based on the Diffu-
+sion Transformer (DiT) framework with the image
+condition, which perform better in both T2V and
+I2V tasks.
+14
+
+Another challenge is to keep the alignment
+between the reference and the given prompt.
+Specifically, at the start of the generated video,
+the image always plays a more crucial role for the
+details, style, and the object location; however, in
+the later stage, the effects of the reference image
+can easily be weakened by the prompt. To solve
+this problem, DreamVideo (Wang et al. 2025b)
+introduces an Image Retention module, maintain-
+ing both information from the input image and
+prompt. AID (Xing et al. 2025b) incorporates
+an MLLM (Multimodal Large Language Model)
+and DQFormer (Dual Query Transformer) to pre-
+dict future frames based on the given key frame.
+DynamiCrafter (Xing et al. 2024a) utilizes a dual-
+stream image injection paradigm to adapt various
+applications (e.g., animation, storytelling). Tech-
+niques like Cond image leak (Zhao et al. 2024b)
+and EDG (Tian et al. 2025) aim to combat the
+issue of limited motion degrees and the unex-
+pected motion with the prompt in the generated
+video. However, for the multi-object scenarios
+and the long-term video generation, the accuracy
+and consistency of the motion are also a chal-
+lenge. Research like Through-The-Mask (Yariv
+et al. 2025), Lumiere (Bar-Tal et al. 2024), TI2V-
+Zero (Ni et al. 2024), and EasyAnimate (Xu et al.
+2024b) attempt to utilize the powerful basic model
+(e.g., DiT) or improve the computation paradigm
+(e.g., compute all frames once and employ a spe-
+cial inversion strategy) while achieving a superior
+inference efficiency.
+Despite those remarkable achievements, image
+condition can also be easily combined with vari-
+ous conditions such as BBox, motion, and depth.
+Motion-I2V (Shi et al. 2024b) first deduces the
+potential motion from the reference image, and
+then uses both predicted motion and image to
+generate high-quality video. Decoupled I2V (Shen
+et al. 2024) disentangles the motion vector and
+the image to obtain a memory-efficient and consis-
+tent video generation method. Similarly, Motion-
+Stone (Shi et al. 2025a) also models the motion
+by the motion head and injects it into the Diffu-
+sion Transformer. Besides, MoVideo (Liang et al.
+2024) utilizes the motion and keyframe with the
+depth and optical flow for video generation. ST-
+I2V (Zhuo et al. 2023) cropped several areas from
+the reference image, using them to maintain the
+semantic information of the video.
+Differently, PhysGen (Liu et al. 2024d) consid-
+eres the physical properties like mass or elasticity,
+and external factors such as forces and envi-
+ronmental conditions. By giving input force and
+images as conditions, it can generate a video with-
+out a training process. HoloTime (Zhou et al.
+2025) introduces a 360-degree 4D scene generation
+framework to reconstruct high-quality 4D scene
+video. ConsistI2V (Ren et al. 2024a) concatenates
+the input image to the noise and optimizes the
+attention calculation, not only performing better
+in consistency, but also supports various con-
+dition inputs (e.g., layout, camera). To achieve
+more user-friendly video generation, video doo-
+dles (Yu et al. 2023) and Follow-Your-Click (Ma
+et al. 2025e) allow users to insert hand-drawn
+animations and provide a click to select which
+area to move, benefiting from better interactiv-
+ity. Additionally, some work has explored using
+an image as the reference for other model archi-
+tectures or tasks. NOVA (Deng et al. 2024)
+reformulates the video generation task as a non-
+quantized autoregressive modeling of temporal
+and spatial prediction, achieving a superior per-
+formance with fewer parameters. VideoPanda (Xie
+et al. 2025) also introduces a long video gener-
+ation framework using auto-regression. Structure
+and Content-Guided Video Synthesis (Esser et al.
+2023) extends the image condition to the video
+editing and video frame interpolation applications,
+respectively.
+In summary, image control utilizes conditional
+encoders to map visual features into the backbone,
+fulfilling the user need for personalization and cus-
+tomization through high-fidelity visual alignment.
+In terms of the foundation models, the framework
+highlights a dynamic architectural ecosystem. Tra-
+ditional UNet structures (e.g., I2V-Adapter (Guo
+et al. 2024b)) are increasingly being comple-
+mented by DiT (e.g., STIV (Lin et al. 2025c)) and
+Autoregressive models (e.g., NOVA (Deng et al.
+2024)), enabling superior scalability and temporal
+coherence for complex generation tasks. However,
+persistent challenges in multi-object scenarios and
+prompt-image alignment suggest a continued need
+for better explainability to help users understand
+how models balance conflicting inputs during the
+generation process.
+15
+
+5.4 Temporal Control
+Temporal control in video generation refers to the
+ability to regulate the evolution of motion and
+timing across frames, ensuring that the generated
+content follows specific temporal dynamics. This
+form of control is crucial for synthesizing videos
+with coherent motion patterns, realistic pacing,
+and causally consistent frame transitions. By con-
+ditioning the generation process on temporal sig-
+nals such as trajectories, action sequences, flow,
+or camera movements, models can produce videos
+that align with user-defined temporal intent.
+5.4.1 Flow-Guided Generation
+Flow-guided control utilizes optical flow or motion
+field
+representations
+to
+guide
+video
+synthe-
+sis, ensuring realistic temporal consistency and
+smooth object dynamics across frames. By incor-
+porating motion cues, these methods provide finer
+control over movement and transitions, making
+them essential for coherent video generation tasks
+like animation and dynamic scene modeling.
+Flow guidance can be specified through opti-
+cal flow fields, motion trajectories, or displacement
+representations, either explicitly computed or
+implicitly learned. For example, Motion-I2V (Shi
+et al. 2024b) improves visual consistency by con-
+ditioning on motion trajectories, while MOFA-
+Video (Niu et al. 2024) animates static images
+using user-defined motion fields.
+Recent
+approaches
+integrate
+flow-based
+guidance
+into
+generative
+architectures.
+I2VControl (Feng et al. 2025c) ensures temporal
+coherence through disentangled flow representa-
+tions, while MCDiff (Chen et al. 2023c) employs
+motion-conditioned diffusion models for precise
+motion control. MOFA-Video (Niu et al. 2024)
+aligns motion fields for controllable animation,
+and Motion-I2V (Shi et al. 2024b) emphasizes
+flow-based trajectory conditioning to enhance
+consistency.
+Challenges include maintaining motion con-
+sistency in complex scenes, avoiding artifacts
+from inaccurate flow, and efficiently integrating
+flow information without computational overhead.
+Techniques like MCDiff (Chen et al. 2023c) and
+Motion-I2V (Shi et al. 2024b) address these issues
+but highlight the need for further advancements
+in flow-guided video generation.
+5.4.2 Trajectory-Guided Generation
+Trajectory-guided video generation allows users to
+specify the motion paths of one or more objects
+or image regions across video frames. Applica-
+tions include directing character movements along
+a specific route, animating inanimate objects with
+desired kinematics, or ensuring specific interac-
+tions between entities based on their spatial paths.
+Trajectory input can take various forms: a
+sequence of 2D or 3D coordinates {xt, yt, (zt)}T
+t=1
+for a point of interest, bounding box tracks
+{bboxt}T
+t=1 defining the extent and location of an
+object over time (as in Boximator (Wang et al.
+2024b)), user-sketched paths in an initial frame, or
+even textual descriptions of motion (e.g., “move
+object A from left to right”). Drag-based inter-
+faces, as explored in DragAnything (Wu et al.
+2024b) and DragEntity (Wan et al. 2024), allow
+interactive specification of start and end points for
+object parts.
+Many recent methods leverage diffusion mod-
+els for trajectory control. MotionBooth (Wu et al.
+2024a) and Motion-I2V (Shi et al. 2024b) focus
+on generating video from an image based on
+motion prompts or trajectories. TrailBlazer (Ma
+et al. 2024b) and Direct-a-Video (Yang et al.
+2024b) (which also handles camera control) enable
+explicit path following. Peekaboo (Jain et al. 2024)
+controls object appearance and disappearance
+along trajectories. MOFA-Video (Niu et al. 2024)
+focuses on fine-grained trajectory control. Trajec-
+tory information is often encoded as a sequence
+of coordinates or heatmaps and is used to guide
+the cross-attention layers or directly modify the
+latent representations in diffusion models. Warp-
+ing fields or flow-based methods can also be guided
+by trajectories. MCDiff (Chen et al. 2023c) intro-
+duced motion-controlled diffusion. More advanced
+concepts like Perception-as-Control (Chen et al.
+2025e) and Motion Canvas (Xing et al. 2025a)
+provide sophisticated frameworks. LeviTor (Wang
+et al. 2025d) and LayerAnimate (Yang et al.
+2025c) explore layered representations for control-
+lable animation along trajectories.
+Key challenges include generating motion that
+is not only accurate to the specified trajectory
+but also appears natural and physically plausi-
+ble, avoiding jerky or sliding movements. Ensur-
+ing that the guided object interacts realistically
+with other scene elements and the background
+16
+
+Table 5: Quantitative comparison of camera-guided video generation on 3D static and 4D
+dynamic scenes, using public and internet data. We evaluate generation quality (FID, CLIPsim
+for static; FVD, CLIP-Vsim for dynamic) and trajectory accuracy (ATE, RPE-T, RPE-R). All methods
+use official code with identical inputs. ↑indicates higher is better, ↓indicates lower is better. The best
+and secondary results are in bold and underline, respectively.
+Methods
+Generation Quality
+Trajectory Accuracy
+Static
+Dynamic
+Static
+Dynamic
+FID ↓
+CLIPsim ↑
+FVD ↓
+CLIP-Vsim ↑
+ATE ↓
+RPE-T ↓
+RPE-R ↓
+ATE ↓
+RPE-T ↓
+RPE-R ↓
+See3D (Ma et al. 2025a)
+123.26
+0.941
+–
+–
+0.091
+0.089
+0.250
+–
+–
+–
+ViewCrafter (Yu et al. 2025a)
+117.50
+0.930
+–
+–
+0.236
+0.315
+0.728
+–
+–
+–
+ViewExtrapolator (Liu et al. 2024b)
+125.50
+0.930
+108.48
+0.913
+0.183
+0.260
+0.882
+1.040
+1.208
+4.750
+TrajectoryAttention (Xiao et al. 2025b)
+122.37
+0.920
+106.94
+0.911
+0.159
+0.238
+0.532
+0.605
+1.238
+3.560
+TrajectoryCrafter (YU et al. 2025)
+111.49
+0.910
+97.31
+0.923
+0.090
+0.152
+0.267
+0.431
+1.078
+8.950
+NVS-Solver (You et al. 2024)
+118.64
+0.937
+–
+–
+0.224
+0.268
+1.056
+–
+–
+–
+WorldForge(Song et al. 2025a)
+96.08
+0.948
+93.17
+0.938
+0.077
+0.086
+0.221
+0.527
+0.826
+2.690
+is difficult. Handling complex, intersecting, or
+occluded trajectories for multiple objects (as
+in Collaborative Video Diffusion (Kuang et al.
+2024)) requires sophisticated reasoning. Maintain-
+ing long-range temporal consistency of the object´s
+appearance and the trajectory adherence over
+many frames is also crucial. Tora (Zhang et al.
+2025o) and MagicMotion (Li et al. 2025b) aim to
+address some of these complexities, with works
+like I2VControl (Feng et al. 2025c) focusing on
+image-to-video with trajectory control.
+5.4.3 Camera-Guided Generation
+Camera-guided video generation focuses on con-
+trolling the virtual camera’s parameters to dictate
+the viewpoint, motion (e.g., pan, tilt, zoom, dolly,
+crane shots), and potentially intrinsic parame-
+ters (e.g., focal length) during video synthesis.
+This is essential for achieving specific cinematic
+styles, narrative perspectives, and dynamic visual
+effects, offering filmmakers and content creators
+fine-grained control over how a scene is presented.
+Camera control signals can be provided as
+explicit sequences of camera poses (extrinsics:
+rotation Rt and translation Tt, and intrinsics Kt
+if they vary), relative transformations between
+frames, or higher-level textual descriptions of
+camera movements (e.g., “dolly zoom out from
+the character”). Motion Prompting (Geng et al.
+2025) explores textual descriptions for camera
+and object motion. Recent advancements heavily
+leverage diffusion models conditioned on camera
+parameters. CameraCtrl (He et al. 2024a) and its
+successor CameraCtrl II (He et al. 2025) provide
+explicit control over camera trajectories. Direct-
+a-Video (Yang et al. 2024b), also mentioned for
+trajectory control, supports camera path guid-
+ance. ViewCrafter (Yu et al. 2025a) focuses on
+generating novel views based on camera inputs.
+CamCo (Xu et al. 2024a) and Trajectory Atten-
+tion (Xiao et al. 2025b) explore camera control in
+specific contexts. Uni3C (Cao et al. 2025) explores
+the joint control of human motion and camera
+trajectory. The camera parameters are typically
+used to define projection matrices that transform
+latent scene representations or guide the sampling
+of features to render the scene from the speci-
+fied viewpoint. EgoSim (Yu et al. 2025b) focuses
+on egocentric camera simulation. Approaches like
+I2VControl (Feng et al. 2025c) , CamI2V (Zheng
+et al. 2024), and RealCam-I2V (Li et al. 2025d)
+specialize in image-to-video generation with cam-
+era control. More advanced systems like 3DTraj-
+Master (Fu et al. 2024), MotionFlow (list not fully
+provided 2025), and CineMaster (Wang et al.
+2025f) aim for comprehensive 3D-aware camera
+and motion control.
+Challenges include maintaining 3D scene con-
+sistency and avoiding disocclusion artifacts or dis-
+torted geometry when the camera undergoes sig-
+nificant movement or viewpoint changes. Gener-
+ating high-fidelity novel views that are consistent
+with previous frames is difficult. Ensuring smooth
+and natural camera transitions, free from jitter or
+abrupt changes, is crucial for cinematic quality.
+Providing intuitive user interfaces for specifying
+complex 3D camera paths and parameters remains
+an open area. ReCamMaster (Bai et al. 2025)
+aims to improve the quality and control of cam-
+era movements. Techniques like VD3D (Bahmani
+17
+
+et al. 2025b), Aether (Zhu et al. 2025a), and Gen-
+DoP (Zhang et al. 2025k) explore complex 3D
+scene understanding and camera path generation.
+The latest work Voyager (Huang et al. 2025b)
+introduces a world caching scheme and smooth
+video sampling, and Follow-Your-Creation (Ma
+et al. 2025d) utilizes the temporal pack infer-
+ence strategy to keep the long-term consistency,
+respectively.
+5.4.4 Motion-Guided Generation
+Motion-guided video generation is the task of
+generating videos where a predefined motion con-
+cept—such as walking, dancing, waving, or jump-
+ing—is explicitly provided as input and used
+to guide the synthesized motion in the output
+video. This motion concept represents a coherent
+and semantically meaningful behavior, typically
+extracted from one or more reference video clips or
+motion representations. Unlike standard text-to-
+video generation that freely imagines motion from
+prompts, motion-guided methods aim to transfer
+concrete motion trajectories or dynamics—often
+in the form of pose sequences, optical flow, or
+velocity fields—into newly generated visual con-
+tent. This enables fine-grained control of subject
+behavior in applications such as character ani-
+mation, avatar customization, and creative video
+editing.
+The work generally utilizes an explicit motion
+signal as the control anchor, with an optional
+text prompt defining scene semantics. Motion
+control signals vary in format: structured pose
+sequences like MoTrans (Li et al. 2024b) and
+MotionPrompting (Geng et al. 2025), hand mask
+sequences like InterDyn (Akkerman et al. 2025),
+or optical flow fields like OnlyFlow (Koroglu et al.
+2025) provide dense or sparse motion descrip-
+tors. Some works directly use reference videos
+as motion priors, including DreamMotion (Jeong
+et al. 2025a), DreamRelation (Wei et al. 2025),
+Customize-A-Video (Ren et al. 2024b), Dual-
+Real (Wang et al. 2025g), and VideoMage (Huang
+et al. 2025a). Other works encode abstract fields,
+such as velocity maps (Liao et al. 2025) or rela-
+tional cues. Even in motion-guided settings, text
+prompts are retained to define the appearance,
+layout, or objects involved in the scene. Further-
+more, a growing subset of works supports zero-
+shot or training-free transfer, including Motion-
+Clone (Ling et al. 2025) and VMC (Jeong et al.
+2024), by leveraging alignment in latent spaces or
+score distillation techniques.
+To realize controllable generation, a range
+of architectural designs and mechanisms have
+been introduced, often combining motion-aware
+modules with large-scale diffusion backbones.
+DreamActor-M1 (Luo et al. 2025b) injects motion
+tokens into DiT transformers for coherent spa-
+tiotemporal control. InterDyn (Akkerman et al.
+2025) performs targeted gesture synthesis via
+attention-guided injection of hand masks. Dream-
+Motion (Jeong et al. 2025a) distills score maps
+from reference videos to enforce temporal behav-
+ior. DreamRelation (Wei et al. 2025) models tra-
+jectory consistency using relation fields between
+appearance
+regions.
+Methods
+like
+MotionA-
+gent (Liao et al. 2025) and MotionPrompt-
+ing (Geng et al. 2025) formulate motion as fields or
+anchor prompts for fine control, while SMA (Park
+et al. 2025) and Diffusion as Shader (Gu et al.
+2025) propose spectral and 3D-aware condition-
+ing mechanisms. Meanwhile, MotionMatcher (Wu
+et al. 2025d), Motionbooth (Wu et al. 2024a),
+and MotionDirector (Zhao et al. 2025c) align
+motion tokens in latent space, and Customize-
+A-Video (Ren et al. 2024b) learns a one-shot
+controller from minimal supervision.
+Despite these advances, motion-guided gener-
+ation still faces significant challenges. Motion sig-
+nals can be noisy, ambiguous, or misaligned with
+the model’s internal representation, often causing
+motion artifacts or flicker. Recent work Motion-
+Pro (Zhang et al. 2025p) proposes a region-wise
+trajectory and motion mask to alleviate misinter-
+pretation and achieve better motion control.
+Furthermore, generalization to unseen motions
+or subjects remains limited, particularly in one-
+shot or zero-shot settings (e.g., MotionClone (Ling
+et al. 2025), VMC (Jeong et al. 2024)). Evaluation
+also lags behind: although SST-EM (Biyyala et al.
+2025) introduces metrics for semantic, spatial, and
+temporal fidelity, widely accepted benchmarks and
+interpretability tools are under development.
+18
+
+Table 6: Quantitative comparisons of camera-guided video generation on T2V setting across
+RealEstate10K and DL3DV. Frame Consistency and Motion Strength are denoted as FC and MS.
+In addition. The rotation and translation error are denoted as RE and TE.
+Method
+RealEstate10K
+DL3DV
+FVD ↓CLIPSIM ↑
+FC ↑
+MS ↑
+RE ↓TE ↓FVD ↓CLIPSIM ↑
+FC ↑
+MS ↑
+RE ↓TE ↓
+MotionCtrl (Wang et al. 2024h)
+506.9
+0.2744
+0.9471 0.9734
+2.90
+1.06
+746.7
+0.2033
+0.9448 0.9462
+1.17
+3.23
+CameraCtrl (He et al. 2024a)
+426.8
+0.2734
+0.9526 0.9750
+2.68
+0.98
+675.5
+0.2027
+0.9518 0.9610
+1.01
+4.00
+AC3D (Bahmani et al. 2025a)
+415.6
+0.3044
+0.9496 0.9811
+2.67
+0.38
+452.8
+0.2078
+0.9529 0.9869
+1.06
+2.11
+DualCamCtrl (Zhang et al. 2025a)
+408.1
+0.3154
+0.9540 0.9918
+1.23
+0.25
+427.4
+0.2090
+0.9544 0.9807
+0.83
+1.53
+5.4.5 Summary
+Temporal Control activates the dynamic layer of
+the framework, employing motion modules (e.g.,
+Trajectory Samplers) and camera control modules
+to translate static concepts into coherent narra-
+tives. This modality is central to satisfying the
+user needs for automation and augmentation, as it
+replaces manual keyframing with semantic guid-
+ance like flow fields or drag-based interactions
+(e.g., DragAnything (Wu et al. 2024b)), thereby
+streamlining the creation of complex scenes.
+Regarding the architecture, while UNet mod-
+els (e.g., Motion-I2V (Shi et al. 2024b)) excel at
+short-term pixel-level flow dynamics, the complex-
+ity of Video-to-4D generation is necessitating a
+move towards DiT (e.g., DreamActor-M1 (Luo
+et al. 2025b)) and AR backbones. These archi-
+tectures are favored not just for size, but for
+their ability to model long-term causal depen-
+dencies and 3D geometric consistency (e.g., Voy-
+ager (Huang et al. 2025b)), which are critical
+when coordinating sophisticated camera paths
+with object interactions over extended durations.
+In the future, the trend of temporal control
+is moving towards integrated control where tem-
+poral signals (Trajectories/Flow) need to coex-
+ist with spatial controls (Structure/ID). Cur-
+rent general control models often struggle to
+merge these distinct signals seamlessly, highlight-
+ing a user demand for better interactive editing
+tools (e.g., drag-based interfaces like DragAny-
+thing (Wu et al. 2024b)) that provide real-time
+preview of motion paths before generation. Future
+frameworks will likely prioritize universal control
+mechanisms to unify these diverse motion inputs
+into a single interface.
+5.5 Audio Control
+Audio control in video generation refers to the
+ability to synthesize videos from audio signals
+such as speech, music, or general sound. This
+form of control enables models to generate tem-
+porally aligned and semantically coherent videos
+based on audio cues. A subdomain is voice control,
+which focuses on generating talking face videos or
+personalized portrait animations conditioned on
+speech input. Another direction is sound control,
+which utilizes broader forms of audio (e.g., music
+or ambient sound) to guide the generation with
+more general content beyond facial animation.
+5.5.1 Voice-Guided Generation
+Voice-guided video generation aims to use both
+audio and image as conditions to create real-
+istic videos, especially for the talking portrait
+video generation tasks, which is considered one
+of the most crucial trends in the applications of
+the human-computer interaction field. The input
+embeddings of the sound condition sequences St
+firstly are extracted commonly by the pretrained
+encoder like wav2vec (Schneider et al. 2019). In
+order to acquire richer semantic information from
+the input audio, several works (Xu et al. 2024c;
+Wang et al. 2024a; Tian et al. 2024b) have con-
+catenated features from different encoder layers
+for the f-th frame Sf and injected them into the
+diffusion processes by the cross-attention layers.
+The core issue in talking portrait video gen-
+eration tasks is capturing and estimating the
+actual face expressions from the various voice
+inputs, such as the movements of lips, head
+poses, and eyebrows, which influence the quality
+of the video significantly. Recently,
+(Sun et al.
+2025), (Wei et al. 2024a) propose a two-stage
+architecture based on 3D mesh as the interme-
+diate representation. EDTalk (Tan et al. 2024a)
+19
+
+Table 7: Quantitative comparison with state-of-the-art methods averaging on ambient
+sound-video, speech-video, and complex scene-video generation.↑indicates higher is better, ↓
+indicates lower is better.
+Method
+Video Quality & Coherence
+Audio Fidelity & Quality
+Audio-Visual Synchronization
+AQ ↑
+IQ ↑
+DD ↑
+MS ↑
+ID ↑
+PQ ↑
+PC ↓
+CE ↑
+CU ↑
+WER ↓
+IB-A ↑
+Sync-C ↑
+Sync-D ↓
+DeSync ↓
+IB ↑
+MM-Diffusion (Ruan et al. 2023)
+0.32
+0.43
+0.13
+0.99
+-
+5.37
+4.07
+4.27
+5.89
+-
+-
+-
+-
+-
+0.12
+JavisDiT (Liu et al. 2025c)
+0.34
+0.53
+0.38
+0.99
+0.38
+5.46
+2.24
+3.19
+4.54
+1.00
+0.14
+0.89
+11.62
+1.13
+0.18
+UniVerse-1 (Wang et al. 2025c)
+0.52
+0.67
+0.24
+0.99
+0.89
+5.52
+2.13
+3.63
+4.84
+0.24
+0.07
+0.97
+10.71
+1.10
+0.12
+Ovi (Low et al. 2025)
+0.57
+0.65
+0.34
+0.99
+0.90
+6.19
+2.13
+4.44
+5.84
+0.49
+0.12
+4.04
+9.62
+1.14
+0.18
+Harmony (Hu et al. 2025b)
+0.59
+0.65
+0.36
+0.99
+0.91
+6.39
+2.05
+4.73
+5.67
+0.15
+0.12
+5.61
+7.53
+0.92
+0.19
+has disentangled the motion space into three
+distinct latent spaces and designs an audio-to-
+motion module to predict different expressions.
+EMO (Tian et al. 2024b) designs the audio feature
+extractor, face locator, and speed layers, combin-
+ing with the ReferenceNet (Hu 2024) and motion
+frame module, which ensures the performance of
+generated videos. EchoMimic (Chen et al. 2025f)
+and EchoMimicV2 (Meng et al. 2025a) also use
+the ReferenceNet to extract the features from the
+input image, generating a better portrait video.
+Different from other conditions like images,
+layouts, and sketches, the strength of sound is
+weaker, hindering the control effectiveness dur-
+ing the inference process. Therefore, address-
+ing the conflict between various conditions is
+another challenge for voice-guided video gen-
+eration. V-Express (Wang et al. 2024a) pro-
+poses a progressive training strategy and condi-
+tional dropout operations, which are beneficial for
+those weak control conditions. MOFA-Video (Niu
+et al. 2024) designs a MOFA-Adapter to ani-
+mate a reference image into a video under var-
+ious control conditions. To balance the control
+strength between different conditions, MegActor-
+Σ
+(Yang et al. 2025a) proposes a mixed-modal
+DiT, ACTalker (Hong et al. 2025) introduced
+a mask-drop strategy, while MotionCraft (Bian
+et al. 2025b) and OmniHuman-1 (Lin et al. 2025b)
+optimize the training strategy of the multimodal
+generation framework.
+Besides those challenges, there are still some
+issues, such as limitations in style variation gener-
+ation on efficiency. For the former one, SVP (Tan
+et al. 2024b) models the intrinsic style of the
+source video to alleviate this problem. For the
+latter one,
+(Ki et al. 2024; Xu et al. 2024d;
+Lin et al. 2025a) improve the real-time perfor-
+mance for the video-chat application. Finally,
+as for the consistency in long-term video gen-
+eration, MCDM (Shen et al. 2025) designs two
+clip-motion-prior modules and a memory-efficient
+attention mechanism. In contrast, TexTalker (Li
+et al. 2025e) focuses on the dynamic texture for
+the high-fidelity talking heads generation.
+5.5.2 Sound-Guided Generation
+Sound-guided video generation involves creating
+videos where visual elements are synchronized
+with general sound inputs like music, speech, or
+ambient noises. This method leverages temporal
+and emotional properties of the sound to guide
+the visual content, creating videos that reflect not
+just the overall semantics of the audio but also its
+dynamic features. In this approach, sound serves
+as a critical modality for determining the motion,
+scene structure, and pace of the generated video.
+In
+sound-guided
+video
+generation,
+sound
+inputs range from specific sounds like animal calls
+and music to general audio cues. Various audio
+feature extraction methods, such as Mel frequency
+cepstral coefficients (MFCCs), Mel spectrograms,
+BEATs, and CLAP, are used to capture texture,
+pitch, rhythm, and emotional tones. For instance,
+AV-Link (Haji-Ali et al. 2025) and ASVA (Zhang
+et al. 2024b) synchronize visuals with audio
+by extracting rhythmic, spectral, and emotional
+properties using BEATs, CLAP, and MFCCs or
+Mel-Spectrograms. TA2V (Zhao et al. 2024a) fur-
+ther integrates text, using BEATs to guide video
+generation, showcasing how audio dynamics shape
+visual output.
+Recent advancements in sound-guided video
+generation, such as AV-Link (Haji-Ali et al. 2025)
+and ASVA (Zhang et al. 2024b), have shifted
+toward diffusion models for more accurate syn-
+chronization, using temporally-aligned activations
+and audio features to ensure better alignment.
+20

@@ -1,0 +1,1288 @@
+LanguageMPC: Large Language Models as Decision Makers for
+Autonomous Driving
+Hao Sha1*, Yao Mu2*, Yuxuan Jiang1, Guojian Zhan1, Li Chen2, Chenfeng Xu3, Ping Luo2, Shengbo Eben Li1,
+Senior Member, IEEE, Masayoshi Tomizuka3, Life Fellow, IEEE, Wei Zhan3, Member, IEEE, Mingyu Ding3, Member, IEEE
+It is going straight ahead,
+….It may conflict with me.
+I am not allowed to rush
+and need to stop and wait.
+I should rely heavily on 
+action bias for guidance.
+LLM
+observation
+(𝑶𝒕)
+action bias
+(෩𝑨𝒕)
+weight matrix
+(𝑾𝒕)
+MPC
+prompt
+common
+sense
+rules
+Agent
+Fig. 1: For a left turn at an unsignalized intersection, the LLM makes a human-like decision to direct the MPC to slow
+down and wait, adhering to the traffic rule that left-turning vehicles must yield to oncoming traffic.
+Abstract— Existing learning-based autonomous driving (AD)
+systems face challenges in comprehending high-level informa-
+tion, generalizing to rare events, and providing interpretability.
+To address these problems, this work employs Large Language
+Models (LLMs) as a decision-making component for complex
+AD scenarios that require human commonsense understand-
+ing. We devise cognitive pathways to enable comprehensive
+reasoning with LLMs, and develop algorithms for translating
+LLM decisions into actionable driving commands. Through
+this approach, LLM decisions are seamlessly integrated with
+low-level controllers by guided parameter matrix adaptation.
+Extensive experiments demonstrate that our proposed method
+not only consistently surpasses baseline approaches in single-
+vehicle tasks, but also helps handle complex driving behaviors
+even multi-vehicle coordination, thanks to the commonsense
+reasoning capabilities of LLMs. This paper presents an initial
+step toward leveraging LLMs as effective decision-makers for
+intricate AD scenarios in terms of safety, efficiency, gener-
+alizability, and interoperability. We aspire for it to serve as
+inspiration for future research in this field.
+Index Terms— Autonomous Vehicle Navigation; Autonomous
+Agents; Language-based Decision-Making
+I. INTRODUCTION
+Imagine you are behind the wheel, approaching an
+unsignalized intersection and planning to turn left, with an
+oncoming vehicle straight ahead. Human drivers instinctively
+know to slow down and yield according to traffic rules, even
+if it is possible to accelerate through the intersection. How-
+ever, existing advanced learning-based Autonomous Driving
+1H. Sha, Y. Jiang, G. Zhan, and S. Li are with Tsinghua University.
+2Y. Mu, L. Chen, and P. Luo are with the University of Hong Kong.
+3C. Xu, M. Tomizuka, W. Zhan, and M. Ding are with the University of
+California, Berkeley.
+*These authors contributed equally. Corresponding author: Mingyu Ding.
+(AD) systems typically require complex rules or reward
+function designs to handle such scenarios effectively [1],
+[2]. This reliance on predefined rule bases often limits their
+ability to generalize to various situations.
+Another challenge facing existing learning-based AD sys-
+tems is the long-tail problem [3]. Both limited datasets and
+sampling efficiency [4] can present challenges for existing
+learning-based AD systems when making decisions in rare
+real-world driving scenarios. Chauffeurnet [5] demonstrated
+such limits where even 30 million state-action samples were
+insufficient to learn an optimal policy that mapped bird’s-eye
+view images (states) to control (action).
+Furthermore, the lack of interpretability [6] is a pressing
+issue for existing learning-based AD systems. A mature
+AD system must possess interpretability to gain recognition
+within society and regulatory entities, allowing it to be
+subject to targeted optimization and iterative improvements.
+Nevertheless, existing learning-based AD systems inherently
+resemble black boxes, making it challenging to discern their
+decision-making processes or understand the rationale behind
+their actions [4]. This lack of transparency can pose obstacles
+to the practical implementation of AD systems.
+Considering the aforementioned challenges, a fundamental
+question arises: Can we equip AD systems with the capability
+to think and drive like humans? Our proposed solution
+involves employing a Large Language Model (LLM) to serve
+as the ”brain” of the AD system.
+Recent introductions of models like ChatGPT [7], have
+positioned LLMs as having a certain level of human-like rea-
+soning capabilities, owing to their innovative techniques such
+as Instruct Following and In-Context Learning (ICL) [8].
+arXiv:2310.03026v3  [cs.RO]  15 Apr 2025
+
+Weight Adjustment
+Scenario Encoding
+Action Guidance
+observation
+(𝑶𝒕)
+weight matrix
+(𝑾𝒕)
+action bias
+(෩𝑨𝒕)
+MPC
+Controller
+Large Language Model
+Prompt Generator
+System Prompts
+Environment
+Fig. 2: Pipeline of our system with LLM as the core of high-level decision-making. The LLM processes environment and
+system descriptions from the prompt generator to perform 1) scenario encoding, 2) action guidance, and 3) confidence
+adjustment, which dynamically adjust observation matrices Ot, action bias ˆ
+At, and cost function weights Wt, guiding the
+MPC to execute appropriate control behaviors.
+LLMs can think like humans [9], and reason about new
+scenarios by combining common sense, and the visible
+thinking process makes them somewhat interpretable. These
+features make LLMs a powerful solution to the problems
+faced by AD systems described above.
+In this paper, we leverage LLMs to analyze and reason
+about various scenarios, enabling it to provide high-level
+decisions, and by tuning parameter matrix, we convert high-
+level decisions into mathematical representations to guide
+the bottom-level controller, Model Predictive Control (MPC).
+Fig. 1 illustrates the reasoning capabilities of our system for
+rare and complex scenarios, demonstrating its superiority in
+understanding high-level information, commonsense reason-
+ing, and interpretability. Through quantitative experiments,
+we showcase that our system significantly surpasses existing
+learning-based and optimization-based methods for single-
+vehicle decision-making tasks, with Overall Cost decreasing
+by 18.1% and 16.4%. Additionally, through qualitative ex-
+periments, we demonstrate the capabilities of our system in
+addressing complex tasks, such as multi-vehicle joint control
+and driving behavior modulation guided by textual input. The
+main contributions of this paper are as follows:
+1) We developed LanguageMPC, an end-to-end system
+that processes observations and outputs driving actions,
+guided by high-level, human-like decisions from the
+LLM. This integration enhances the understanding of
+complex scenarios and improves interpretability.
+2) We develop a method that translates high-level textual
+decisions from the LLM into precise driving actions
+for the bottom-level controller, integrating the LLM’s
+decision-making capabilities with the real-time control
+and robustness of the bottom-level controller.
+3) We demonstrate through quantitative experiments that
+LanguageMPC outperforms existing methods in key met-
+rics. Additionally, it effectively manages complex tasks
+such as multi-vehicle coordination and driving behavior
+adjustment based on textual inputs.
+II. RELATED WORK
+Autonomous Driving Autonomy. Modularity [10] plays
+an important role in many autonomous driving systems. It
+divides the complex autonomous driving task into multiple
+subproblems, including perception [11], planning [12], and
+control [13], making each module relevant and somewhat in-
+terpretable. However, it also presents challenges in areas such
+as compatibility, error accumulation and inefficiency[14].
+Recently, there was a large progress in end-to-end deep
+learning methods for autonomous systems [15], [16], [17].
+Though autonomous driving systems have achieved remark-
+able successes in planning and decision-making [12], [18],
+there are still problems in terms of interpretability [6],
+[14]. At the same time, limitations in data and sampling
+efficiency [4] make it vulnerable to dealing with long-
+tail situations, especially interaction scenarios, in real-world
+environments [19].
+Large Language Models for Autonomous Driving. The
+remarkable achievements of LLMs are undeniably captivat-
+ing, demonstrating LLM’s human-like reasoning skills and
+generalization of human commonsense [20], [21]. In the
+autonomous driving industry, LLMs have the potential to rev-
+olutionize the paradigm of perception and decision-making.
+On the perceptual side, researchers combine visual encoders
+with LLM [22] to enhance the AD system’s understanding
+of visual high-level concepts contained in images [23] and
+videos [24]. Recent works such as DriveGPT4 [25], HiLM-
+D [26], and Talk2BEV [27] have even demonstrated the pow-
+erful environment perception capabilities of LLMs enabled
+by vectorized visual embedding techniques. In planning and
+decision-making, extensive research has shown that pre-
+trained LLMs integrate human common sense and help make
+human-like decisions [28], [29], [30]. Also, the involve-
+ment of LLMs greatly enhances interpretability and safety,
+providing the potential to comprehend the transparency of
+the decision process. [25], [29], [31] showed that LLMs
+can reason about the transportation environment under the
+guidance of prompt and explain the decision process. In
+
+Predictor
+Attention Allocator
+Text Description
+Environment
+History & Current
+𝑩𝒓𝒆𝒇
+𝑷𝒕
+𝑴𝒕
+Dynamic Observation 𝑶𝒕
+𝒅𝒚
+𝑀𝑡
+𝐻𝑡
+𝑃𝑡
+Fig. 3: Scenario encoding. The yellow vehicle is the agent.
+Given three potential future trajectories for each vehicle,
+the LLM first selects the most likely trajectory to predict,
+representing it as Pt using Bessel Curve control points. It
+then identifies the relevant traffic participants, setting those
+needing no attention to 0 via a binary mask Mt.
+addition, LLMs show the potential to address interoperability
+challenges [32], [33]. [34], [35], [36] uses language as
+a bridge between multimodal data, enabling the union of
+perception and decision-making, demonstrating powerful un-
+derstanding and reasoning. However, the above work mainly
+focuses on demonstrating the perception, reasoning and high-
+level decision-making capabilities of LLMs, which are still
+lacking in generating final control actions. While [9], [34]
+can generate planning trajectories, [9] relies on predefined
+fixed rules, and [34] still requires the output of LLMs to
+be decoded into trajectories using a deep learning model,
+and the decoder still faces the problem of being limited by
+the training set. In this work, we combine the LLM directly
+with the controller MPC and use the powerful reasoning
+and decision-making capabilities of the LLM to guide the
+generation of the final control actions, allowing the system
+to drive like a human.
+III. METHODOLOGY
+We present an AD system that integrates the LLM with
+MPC to enhance decision-making in complex traffic scenar-
+ios. As illustrated in Fig. 2, the LLM serves as the core
+component for high-level reasoning and decision-making,
+while the MPC acts as the low-level controller to execute
+decisions in real time.
+The decision-making process begins with a prompt gen-
+erator that translates real-time scenario data into descriptive
+text. This text includes details about static road elements,
+dynamic information about vehicles, and system prompts like
+traffic rules. The LLM processes information through three
+sequential stages: 1) scenario encoding, 2) action guidance,
+and 3) weight adjustment. These stages collectively enable
+the system to accomplish scene understanding, reasoning,
+and high-level decision-making. Once these textual decisions
+are made, they are converted into mathematical representa-
+tions: the observation matrix, action bias, and weight matrix.
+These elements guide bottom-level controller, the MPC, to
+give specific driving actions.
+This framework integrates the advanced reasoning and
+decision-making capabilities of the LLM with the robustness
+and real-time control efficiency of the MPC:
+1) The LLM functions as the ”brain” of the AD system,
+enabling high-level reasoning and decision-making.
+Weight Pool
+…
+LLM
+MPC
+Selected Weight
+Fixed Weight
+𝑪𝒂𝒄𝒕> 𝑪𝒕𝒓𝒌
+𝑪𝒂𝒄𝒕< 𝑪𝒕𝒓𝒌
+rush
+wait
+Action
+𝑾𝒔
+Track
+{𝑾𝒙, 𝑾𝒗, 𝑾𝜽}
+Smooth
+{𝑾𝒈, 𝑾𝒍}
+Safety
+𝒘𝒔𝒂𝒇
+Action
+Track
+Smooth
+Safety
+{𝑾𝒙, 𝑾𝒗, 𝑾𝜽}
+𝑾𝒔
+{𝑾𝒈, 𝑾𝒍}
+𝒘𝒔𝒂𝒇
+Fig. 4: Weight Adjustment. The LLM selects weights from
+the weight pool to balance the four components: tracking, ac-
+tion penalty, smoothness, and safety. In the example shown,
+the LLM selects a larger Ws, making Cact > Ctrk, which
+prompts the MPC to prioritize following the LLM’s decision
+to stop and wait over tracking the reference trajectory.
+2) The MPC implements the LLM’s decisions under soft
+constraints, ensuring robust yet flexible control.
+3) Together, the LLM and MPC form a dual-frequency
+system that balances the longer inference time of the
+LLM with the real-time execution capabilities of the
+MPC, achieving effective real-time control.
+A. MPC Controller
+The MPC solves a finite-time open-loop optimization
+problem online at each time step, based on the current
+measurement information obtained, and applies the initial
+control action from the optimal sequence to the vehicle.
+The cost function of MPC is defined in the context
+of Markov Decision Process (MDP), which is commonly
+used to formulate vehicle control problems: (S, A, C, P, p0),
+where S represents the state space, A the action space,
+C : S × A 7→R the cost function, P : S × A 7→S the
+state transition function, and p0 the initial state distribution.
+The objective of the MPC is to find a sequence of actions
+u1:H = u1, . . . , uH that minimizes the expected cumulative
+cost J(u1:H) = PH
+t=1 C(st, ut).
+The cost function takes the following form:
+C(s, u) =
+M
+X
+i=0
+wi · ni
+ ri(s, u, ζi)
+,
+(1)
+where w ∈R+ are non-negative weights, n(·) : R →R+
+is a twice-differentiable norm that reaches its minimum
+value at 0, and ri are residual terms parameterized by ζi.
+Designing a universal set of weights and residual terms for
+all driving scenarios is impractical due to the diversity of
+conditions encountered in real-world driving. Additionally,
+increasing the complexity of the cost function may reduce
+robustness [37]. Therefore, we use a simplified set of residual
+terms that incorporate action biases, adapting the weight
+matrices W = {Wi} based on LLM’s high-level decisions.
+The overall cost function is constructed as:
+C(s, u) = Ctrk(s, u) + Cact(s, u) + Csaf(s, u)
+(2)
+
+We first generate a reference trajectory without considering
+signals and other traffic participants and then aim to follow
+that trajectory:
+Ctrk = XT WxX + V T WvV + ΘT WθΘ,
+(3)
+where X = (x, y)T represents the location, V = (vx, vy)T
+the velocity, Θ = (θ, ψ)T with θ being the steering angle
+and ψ the yaw angle.
+To ensure smooth control, we impose limits on accelera-
+tion a and steering angle θ:
+Cact = A
+T WsA + ∇AT Wg∇A + ∇2AT Wl∇2A
+(4)
+where A = (a, θ)T and A = A−ˆA, with ˆA being the action
+bias given by LLM.
+Lastly, we include a safety cost to maintain a safe distance
+from other vehicles:
+Csaf = wsaf · PN
+i=0(di −ˆdi)2,
+(5)
+where di represents the actual distance to other vehicles, and
+ˆdi is the desired safety distance.
+All weight matrices Wi are diagonal. The LLM adapts the
+parameters st, W, and ˆA for complex driving scenarios to
+guide the MPC controller.
+B. Scenario Encoding
+After the processing of the prompt generator, the LLM
+obtains current and short-term historical information about
+the scenario. This information is structured into an observa-
+tion matrix, Ot = {Ost
+t , Ody
+t }, for the MPC to compute cost
+function, where Ost
+t represents static environmental elements
+and Ody
+t
+represents dynamic information about surrounding
+vehicles. In this section, we will describe how the LLM
+optimizes and modifies Ot to improve planning of MPC.
+Effective decision-making requires not only understanding
+the current and historical states but also predicting future
+states. To generate these predictions, we first create potential
+reference trajectories based on Ost
+t for the ego vehicle using
+a Bessel curve:
+Bref =
+n
+X
+i=0
+pi
+i
+n
+
+γi(1 −γ)n−i
+(6)
+where pi represent the control points, including waypoint
+locations and the vehicle’s position, and γ ∈[0, 1]. We use
+the points on the center lines of the three nearest lanes as
+control points and generate three Bessel curves. These three
+reference trajectories provide potential paths for the vehicle
+without considering other signals and traffic participants.
+Given these control points, the LLM then acts as a predictor
+to select the most suitable reference trajectory based on
+the scenario context. This selected trajectory is used as the
+tracking target, as discussed in section III-A. Next, the same
+process is applied to generate predicted trajectories for all
+traffic participants. The dynamic observation matrix is then
+represented as a combination of historical data Ht and these
+predicted trajectories Pt ∈RN×2n, as Ody
+t
+= (Ht, Pt) ∈
+RN×C, where N is the number of traffic participants. In
+complex traffic scenarios, it is crucial to focus attention
+on relevant vehicles to avoid unnecessary computation and
+potential logical conflicts. To achieve this, as shown on the
+TABLE I: Evaluation of single-vehicle decision-making in
+various scenarios. SI: Signalized Intersection, USI: Unsignal-
+ized Intersection, RAB: Roundabouts, EOA: Emergency Ob-
+stacle Avoidance. Lower values indicate better performance.
+Scenario
+Method
+Col.
+Fail
+Ineff
+Time
+Penalty
+O.C.
+Acc
+Dist
+SI
+MPC
+2
+4
+25.5
+17.7
+3.14
+3.05
+160.2
+DQN
+6
+0
+34.0
+14.3
+3.90
+2.98
+173.6
+PPO
+7
+0
+33.8
+11.8
+3.18
+3.47
+168.6
+SAC
+6
+0
+30.1
+11.7
+3.66
+3.51
+172.8
+ADP
+6
+0
+34.1
+14.1
+3.78
+3.38
+179.6
+Ours
+0
+0
+13.9
+25.7
+1.31
+1.20
+96.1
+USI
+MPC
+2
+4
+74.0
+30.7
+4.30
+2.55
+235.6
+DQN
+7
+1
+58.3
+28.6
+6.06
+3.53
+262.7
+PPO
+8
+0
+59.1
+31.6
+5.66
+2.99
+251.2
+SAC
+7
+1
+80.8
+30.8
+4.71
+3.21
+261.9
+ADP
+9
+0
+67.5
+29.4
+5.27
+3.22
+255.1
+Ours
+0
+1
+33.7
+42.2
+1.94
+0.98
+145.7
+Lane
+MPC
+0
+0
+4.1
+6.8
+0.20
+0.08
+18.9
+DQN
+0
+0
+2.5
+7.9
+0.12
+0.08
+17.7
+PPO
+0
+0
+2.0
+7.6
+0.15
+0.10
+17.7
+SAC
+0
+0
+2.1
+7.3
+0.18
+0.09
+17.6
+ADP
+0
+0
+2.3
+6.8
+0.15
+0.09
+16.5
+Ours
+0
+0
+1.1
+6.7
+0.08
+0.03
+13.0
+RAB
+MPC
+1
+3
+29.3
+30.4
+1.61
+0.68
+112.7
+DQN
+6
+0
+31.6
+31.2
+1.58
+0.67
+115.5
+PPO
+4
+0
+30.5
+33.3
+1.93
+0.82
+125.8
+SAC
+5
+0
+30.2
+32.5
+1.81
+0.79
+121.9
+ADP
+5
+0
+29.3
+30.3
+1.64
+0.71
+113.6
+Ours
+0
+0
+26.8
+31.9
+1.51
+0.65
+110.3
+EOA
+MPC
+8
+4
+33.4
+17.3
+3.34
+2.06
+150.7
+DQN
+10
+2
+35.6
+18.3
+3.22
+2.29
+157.2
+PPO
+10
+1
+30.3
+16.8
+3.13
+2.13
+145.1
+SAC
+7
+2
+37.2
+17.5
+2.67
+1.84
+140.3
+ADP
+11
+0
+32.3
+16.9
+2.99
+1.96
+141.7
+Ours
+3
+2
+28.8
+16.7
+2.60
+1.79
+128.7
+right side of Fig. 3, the LLM functions as an attention allo-
+cator. It identifies the vehicles that need to be prioritized and
+generates a binary mask Mt ∈RN×1. This mask effectively
+filters out irrelevant vehicles by setting their corresponding
+data to zero in the observation matrix. The final dynamic
+observation matrix for the MPC is computed as:
+Ody
+t
+= MtJT (Ht, Pt),
+(7)
+where J
+∈RN×1 is a vector of ones. This approach
+ensures that the MPC focuses only on the relevant traffic
+participants, enabling efficient and effective decision-making.
+The MPC will then use the LLM-selected trajectory of the
+ego vehicle to calculate Ctrk for tracking and Csaf using
+Ody
+t , optimizing the decision.
+After the scenario encoding stage, LanguageMPC will
+further give action guidance. Since most LLMs have limited
+sensitivity to precise numerical values [38], we discretize
+the action A = (a, θ)T into a set of intervals. The midpoint
+of the LLM-selected interval is then used as action bias ˆA,
+which guides the MPC to generate control actions that align
+with the high-level decisions of the LLM.
+One challenge with MPC is its limited ability to gen-
+eralize across diverse scenarios, as it relies on prede-
+fined weights W
+=
+Wi
+[37]. In our approach, as
+detailed in Section III-A, the weight matrices W
+=
+{Wx, Wv, Wθ, Ws, Wg, Wl, wsafe} are categorized into four
+components: tracking {Wx, Wv, Wθ}, action panelty Ws,
+
+LLM: vehicle_32 is turning left and stopping to wait for the 
+straight-ahead convoy to pass due to traffic rules, so it's 
+unlikely to affect the movement of the ego vehicle.
+LLM: vehicle_17 is traveling straight ahead of me and slow, 
+so it is very likely to affect the movement of the ego vehicle.
+LLM: Traffic rules prohibit overtaking in intersections, so I
+should follow vehicle_17 through the intersection and then
+overtake it.
+LLM: This decision is based on traffic rules that I must 
+comply with, so the MPC should rely heavily on my decisions.
+Ours
+vehicle_17
+vehicle_32
+agent
+Wait too long!
+Overtake at  intersection!
+Follow and overtake in lane!
+ADP
+MPC
+Fig. 5: The ego vehicle is traveling straight through an unsignalized intersection. The red vehicle(s) in the last row represent
+those to which the LLM assigns attention, meaning information about these vehicles appears in the MPC dynamic observation
+matrix Ody
+t . This example demonstrates the LLM’s ability to interpret high-level information, recognizing that ”vehicle 32”
+is yielding and focusing on the vehicle ahead to safely and compliantly navigate the intersection.
+smoothness {Wg, Wl}, and safety wsaf. Unlike fixed weight
+matrices designed for all scenarios, LanguageMPC dynami-
+cally selects weights from a predefined pool for each specific
+scenario, as shown in Fig. 4. These weights directly influence
+the cost function, guiding the MPC to adjust the trade-offs
+among the four components. This approach allows the MPC
+to adapt to different situations while ensuring robust control
+without relying on direct action commands from the LLM.
+C. Dual-frequency System
+The decision-making speed of the LLM in LanguageMPC
+is relatively slow due to its large number of parameters. To
+address this, we implement a dual-frequency system inspired
+by DriveVLM [39]. In this system, we separate decision-
+making into two levels: low-frequency for high-level deci-
+sions and high-frequency for trajectory planning and con-
+trol. At the low-frequency level, the LLM makes strategic
+decisions every few seconds. These strategic decisions are
+sufficient to adapt to changes in driving conditions that occur
+over a longer timescale. In contrast, the MPC operates at
+the high-frequency level, performing fine-grained trajectory
+planning and control between LLM decisions. It generates
+real-time control actions based on the high-level guidance
+provided by the LLM. This dual-frequency approach bal-
+ances the slower, computationally intensive inference of the
+LLM with the real-time demands of vehicle control, allowing
+LanguageMPC to achieve robust performance in dynamic
+driving scenarios.
+IV. EXPERIMENTS
+In this section, we evaluate the performance of Lan-
+guageMPC, using GPT-3.5 as the base LLM model and
+LangChain as the manager of LLM text output. We assess its
+reasoning and decision-making capabilities through a series
+of experiments designed to test its effectiveness in single-
+vehicle decision-making and its adaptability to complex
+scenarios, such as driving behavior modulation and multi-
+vehicle coordination. We conduct quantitative experiments to
+measure its performance on various driving tasks and quali-
+tative analyses to showcase its ability to handle challenging
+situations, including rare corner cases and coordinated ac-
+tions between multiple vehicles.
+A. Settings
+Simulator. We conduct simulation experiments using the
+SUMO simulator [40] with IDSim [41] to generate dy-
+namic traffic scenarios, including vehicles, bicycles, and
+pedestrians. Five distinct driving scenarios are evaluated:
+Signalized Intersections, Unsignalized Intersections, Lanes,
+Roundabouts, and Emergency Obstacle Avoidance. Each
+scenario is initialized with varying road structures, traffic
+densities, and participant behaviors to simulate challenging
+conditions. Traffic parameters (densities, positions, speeds,
+target positions, aggressiveness) are randomly initialized and
+simulated with the IDSim agent. From these generated sce-
+narios, we exclude straightforward situations, such as driving
+straight within a lane, and instead focus on complex corner
+cases, with 25 different scenes reserved for each scenario.
+For Emergency Obstacle Avoidance, low-speed vehicles are
+randomly placed in front of the ego vehicle to simulate
+sudden obstacles.
+Baselines. We compare LanguageMPC against two base-
+
+TABLE II: Ablation experiments. Ody indicates the use of
+the scenario encoder to modify the MPC observation matrix,
+while ˆA&W indicates the use of the LLM for action bias ˆA
+and weight matrix W generation.
+Scenario
+Ody
+ˆ
+A&W
+Coll.
+Fail
+Ineff
+Time
+Penalty
+O.C.
+Acc
+Dist
+USI
+×
+×
+2
+4
+74.0
+30.7
+4.30
+2.55
+235.6
+✓
+×
+2
+3
+69.8
+28.7
+3.95
+2.32
+218.5
+×
+✓
+0
+2
+42.0
+44.0
+2.37
+1.21
+167.8
+✓
+✓
+0
+1
+33.7
+42.2
+1.94
+0.98
+145.7
+RAB
+×
+×
+1
+3
+29.3
+30.4
+1.61
+0.68
+112.7
+✓
+×
+1
+3
+29.4
+30.3
+1.61
+0.69
+112.8
+×
+✓
+0
+0
+27.8
+30.9
+1.53
+0.67
+110.5
+✓
+✓
+0
+0
+26.8
+31.9
+1.51
+0.65
+110.3
+lines: 1) Model Predictive Control (MPC) [42]: We use a
+traditional MPC system with a fixed weight matrix, consis-
+tent with the control module in LanguageMPC. The dynamic
+observation matrix Ody
+t
+incorporates all traffic participants
+within the sensing range. To predict the movement of these
+participants, all waypoints are used as control points for
+generating reference trajectories. The trajectory closest to
+each participant’s current path is chosen as the predicted
+trajectory. This baseline has been finely tuned and validated
+using real-world vehicle experiments conducted at iDLab,
+Tsinghua University. 2) Reinforcement Learning-Based
+Planning (RL): We employ four RL methods: Deep Q-
+Network (DQN) [43], Proximal Policy Optimization (PPO)
+[44], Soft Actor-Critic (SAC) [45], and Finite-Horizon Ap-
+proximate Dynamic Programming (ADP)[42], [46]. For all
+RL methods, the MPC observation matrix Ot is used as
+input to produce the control action A = (a, θ)T . Training
+is performed on IDSim across the five types of randomly
+generated scenarios, with a total of 2 × 105 epochs.
+B. Metrics
+Failure and Collision Cases (Fail/Col.): We track failure
+cases where the ego vehicle fails to reach its target area
+within a 200-second time frame. Collision cases are recorded
+separately to monitor safety incidents.
+Inefficiency (Ineff): We measure traffic flow efficiency by
+calculating the average speed difference between the ego
+vehicle’s maximum speed and its current speed:
+Peff = 1
+N
+PN
+i=1(vmax
+i
+−vi)
+(8)
+This metric focuses on the lead vehicle within each convoy,
+as it is most affected by the ego vehicle’s driving behavior.
+Vehicles stopped at red lights are excluded.
+Time Efficiency (Time): This metric records the time taken
+by the ego vehicle to reach its target area, reflecting the
+overall driving efficiency.
+Safety Penalty (Penalty): The penalty metric assesses the
+safety of the ego vehicle’s driving behavior.It considers
+both the distance between the ego vehicle and surrounding
+vehicles, and the deceleration of those vehicles. Smaller
+distances and higher deceleration rates indicate more unsafe
+driving and contribute to a higher penalty score:
+Pacc =
+N
+X
+i=1
+ReLU(di −d0), Pdist =
+N
+X
+i=1
+dif(a0 −ai) (9)
+User: … Please drive 
+CONSERVATIVELY. 
+LLM: ... vehicle_11 in 
+front of me is slow, 
+but 
+vehicle_7 
+and 
+vehicle_25 behind me 
+may affect overtaking. 
+Out of the order of 
+conservative driving, I 
+should slow down and 
+follow the vehicle_11 
+without overtaking.
+User: … Please drive 
+AGGRESSIVELY 
+while 
+staying safe. 
+LLM: ... vehicle_11 in 
+front of me is slow, 
+and vehicle_7 behind 
+me 
+on 
+the 
+left 
+is 
+relatively far away and 
+slow. Out of the order 
+of aggressive driving, I 
+should overtake from 
+the left.
+
+
+vehicle_11
+vehicle_7
+vehicle_25
+agent
+Fig. 6: The ego vehicle adjusts its driving style based on
+user instructions. When directed to drive conservatively, it
+slows down and follows the vehicle ahead. Under aggressive
+driving commands, it safely overtakes the slower vehicle.
+where f is a step function from 0 to 1 with a0 −ai = 0 as
+the cutoff.
+Overall Cost (O.C.): To provide a comprehensive evalu-
+ation, we combine the above metrics into an overall cost
+function using weighted values:
+O.C. = Peff + 1.5t + 15Pacc + 20Pdist
+(10)
+These weights balance the influence of each metric, ensuring
+that each contributes equally by matching their magnitudes.
+C. Single-vehicle Decision-making
+The quantitative results in Table I show significant reduc-
+tions in overall cost across all scenarios, including Emer-
+gency Obstacle Avoidance, highlighting our system’s supe-
+rior driving performance. It reports minimal failures and no
+collisions, demonstrating safety and reliability.
+In intersection and roundabout scenarios, our method
+slightly increases travel time but improves traffic flow ef-
+ficiency and reduces safety penalties, reflecting cautious,
+regulation-compliant driving. In lane-changing and Emer-
+gency Obstacle Avoidance scenarios, it outperforms RL and
+MPC across all metrics, excelling in complex and dynamic
+situations.
+Ablation Study. To gain deeper insights into the system’s
+capabilities, we performed ablation experiments in two chal-
+lenging driving scenarios: unsignalized intersections and
+roundabouts, as shown in Table II. These ablations highlight
+the contributions of each component of LanguageMPC.
+When using only the scenario encoder, significant improve-
+ments are observed in intention prediction and attention
+allocation compared to baseline MPC. In contrast, using
+only action bias and weight matrix adjustments leads to
+substantial improvements in all metrics except time. The full
+configuration, integrating both components, achieves the best
+performance, showcasing the synergistic effect of scenario
+understanding and high-level decision-making.
+Fig. 5 illustrates how LanguageMPC components work
+together. The ego vehicle navigates an unsignalized intersec-
+tion, showcasing the system’s ability to predict surrounding
+vehicles’ intentions, allocate attention effectively, and make
+decisions aligned with traffic regulations.
+1) Intention Prediction and Attention Allocation. The left
+side of Fig. 5 highlights LanguageMPC’s scenario encoding.
+Unlike the MPC, which fails to anticipate ”vehicle 32”
+yielding, LanguageMPC correctly interprets its intent and
+focuses on the vehicle ahead that affects the ego vehicle’s
+
+User: There are two 
+lanes of road being 
+constructing 
+ahead 
+and information about 
+them is … . You need 
+to go around these 
+two lanes.
+LLM: … The lane I was 
+in and to the right was 
+occupied 
+and 
+close 
+enough that I should 
+chang lanes to the 
+left immediately.
+agent
+Fig. 7: The LanguageMPC changes lanes under textual guid-
+ance to safely navigate a road construction zone, showcasing
+the system’s ability to follow user instructions and handle
+complex driving scenarios effectively.
+path. This demonstrates the LLM’s ability to understand
+traffic dynamics and allocate attention for rational driving
+behavior.
+2) High-level Reasoning. In the same scenario, the RL
+method incorrectly overtakes within the intersection, violat-
+ing traffic rules. LanguageMPC, however, understands traffic
+regulations and chooses to follow the vehicle until exiting
+the intersection before overtaking, as shown in the dialogue
+box. This demonstrates the LLM’s ability to reason about
+high-level constraints and make rule-compliant decisions in
+complex scenarios.
+D. Text-modulated Driving
+Driving Style Adjustment. Users often wish to customize
+AD systems to match their preferences for efficiency and
+comfort. Traditional systems require complex rule or reward
+function designs [47], while our approach simplifies this by
+enabling users to provide simple textual descriptions. As
+shown in Fig. 6, when instructed to drive conservatively, Lan-
+guageMPC slows down and follows the car ahead, whereas
+an aggressive style leads to safe overtaking.
+Textual Guidance for Complex Scenarios. Complex driv-
+ing situations, such as road construction, pose challenges for
+many AD systems [1]. Our approach addresses this by en-
+abling users to provide textual instructions to guide decision-
+making. As shown in Fig. 7, the LLM used textual guidance
+to change lanes and avoid the blocked area, allowing the
+system to adapt effectively to unusual or dynamic scenarios.
+E. Multi-vehicle Joint Control
+Multi-vehicle joint control enhances transportation ef-
+ficiency and safety in dynamic environments. Traditional
+centralized and distributed methods struggle in unpredictable
+scenarios [48]. To address this, we propose a hybrid solution:
+each vehicle is controlled by a distributed LLM, while a
+central LLM coordinates the convoy. Each distributed LLM
+shares its local status with the central LLM, which then
+issues coordinated commands for adaptive decision-making.
+Fig. 8 illustrates a corner case: a narrow road encounter
+between two vehicles. For a single-vehicle AD system, this
+scenario requires complex decision-making. However, our
+approach simplifies it by leveraging both centralized and dis-
+tributed LLMs. In this case, the distributed LLMs recognize
+the situation, report their statuses to the central LLM, which
+Agent_1
+Agent_2
+LLM_1: … I think I'm in a 
+MEETING situation.
+LLM_2: … I think I'm in a 
+MEETING situation. 
+Agent_1
+LLM_central: In a MEETING 
+situation, one vehicle should 
+yield to the other. Agent_1 is 
+slower, so it should slow 
+down to its right to yield, 
+and Agent_2 should slow 
+down to its right to pass.
+Fig. 8: Two vehicles meet on a narrow road. Distributed
+LLMs detect the situation and inform the central LLM, which
+coordinates their actions, with one yielding and the other pro-
+ceeding, demonstrating effective multi-vehicle coordination.
+then coordinates actions—one vehicle decelerates while the
+other proceeds. This showcases the effective collaboration
+between centralized decision-making and distributed control
+for optimized multi-vehicle coordination.
+F. LLM Inference Delay
+We evaluated the inference delay of LLMs and its impact
+on decision-making performance. In our test scenario, the
+number of tokens inferred by the LLM for a single decision
+ranged from 2k to 4k, resulting in an average inference delay
+of approximately 2.5 seconds. Notably, we implemented a
+rule-based pre-evaluation process to assess emergency situ-
+ations, where the LLM bypasses the scenario encoding step
+and directly provides action guidance and adjusts weights.
+This modification significantly reduced the inference time
+during emergencies. Specifically, the number of tokens for
+Emergency Obstacle Avoidance dropped to under 1.5k, and
+the reasoning delay was reduced to less than 1.5 seconds. In
+practice, high-level driving decisions typically evolve slowly
+and coherently, meaning the inference speed of the LLM is
+sufficient for most scenarios. Furthermore, LLM constraints
+on MPC are soft constraints that affect the cost function,
+rather than directly modifying actions. This ensures that the
+MPC remains robust despite the low-frequency decisions
+made by the LLM.
+V. CONCLUSION
+This paper demonstrates the effectiveness of LLMs as
+a core component for high-level decision-making in AD
+systems. By integrating LLMs with MPC, our approach
+significantly improves performance in key areas such as
+safety, efficiency, and adaptability, particularly in complex
+and dynamic driving scenarios. The advanced reasoning
+capabilities and interpretability of LLMs help address limita-
+tions found in traditional learning-based methods, enhancing
+both transparency and flexibility. However, a limitation of our
+approach is that LLMs may not be able to respond quickly
+enough to sudden and highly time-critical events that occur
+on sub-second timescales. Addressing this challenge is a
+key direction for future work. We hope this work inspires
+continued exploration and innovation in applying LLMs to
+autonomous driving, paving the way for safer, more efficient,
+and adaptable transportation solutions.
+
+REFERENCES
+[1] L. Chen, Y. Li, C. Huang, Y. Xing, D. Tian, L. Li, Z. Hu, S. Teng,
+C. Lv, J. Wang, D. Cao, N. Zheng, and F.-Y. Wang, “Milestones in
+autonomous driving and intelligent vehicles—part i: Control, com-
+puting system design, communication, hd map, testing, and human
+behaviors,” IEEE Transactions on Systems, Man, and Cybernetics:
+Systems, vol. 53, no. 9, pp. 5831–5847, 2023.
+[2] B. R. Kiran, I. Sobh, V. Talpaert, P. Mannion, A. A. A. Sallab, S. Yo-
+gamani, and P. P´erez, “Deep reinforcement learning for autonomous
+driving: A survey,” IEEE T-ITS, vol. 23, no. 6, pp. 4909–4926, 2022.
+[3] T. Buhet, E. Wirbel, and X. Perrotton, “Conditional vehicle trajectories
+prediction in carla urban environment,” in 2019 IEEE/CVF ICCVW,
+2019, pp. 2310–2319.
+[4] S. Atakishiyev, M. Salameh, H. Yao, and R. Goebel, “Explainable arti-
+ficial intelligence for autonomous driving: A comprehensive overview
+and field guide for future research directions,” 2023.
+[5] M. Bansal, A. Krizhevsky, and A. Ogale, “Chauffeurnet: Learning to
+drive by imitating the best and synthesizing the worst,” Advances in
+neural information processing systems, vol. 31, 2018.
+[6] P. Gohel, P. Singh, and M. Mohanty, “Explainable ai: current status
+and future directions,” 2021.
+[7] OpenAI,
+“Introducing
+chatgpt,”
+https://openai.com/blog/chatgpt/,
+2023.
+[8] Q. Dong, L. Li, D. Dai, C. Zheng, Z. Wu, B. Chang, X. Sun, J. Xu,
+L. Li, and Z. Sui, “A survey on in-context learning,” 2023.
+[9] D. Fu, X. Li, L. Wen, M. Dou, P. Cai, B. Shi, and Y. Qiao, “Drive like a
+human: Rethinking autonomous driving with large language models,”
+2023.
+[10] N. Akai, L. Y. Morales, T. Yamaguchi, E. Takeuchi, Y. Yoshihara,
+H. Okuda, T. Suzuki, and Y. Ninomiya, “Autonomous driving based
+on accurate localization using multilayer lidar and dead reckoning,”
+in 2017 IEEE 20th ITSC, 2017, pp. 1–6.
+[11] X. Li, T. Ma, Y. Hou, B. Shi, Y. Yang, Y. Liu, X. Wu, Q. Chen,
+Y. Li, Y. Qiao, et al., “Logonet: Towards accurate 3d object detection
+with local-to-global cross-modal fusion,” in CVPR, 2023, pp. 17 524–
+17 534.
+[12] C. Zhang, R. Guo, W. Zeng, Y. Xiong, B. Dai, R. Hu, M. Ren, and
+R. Urtasun, “Rethinking closed-loop training for autonomous driving,”
+in ECCV.
+Springer, 2022, pp. 264–282.
+[13] X. B. Peng, M. Andrychowicz, W. Zaremba, and P. Abbeel, “Sim-to-
+real transfer of robotic control with dynamics randomization,” in 2018
+IEEE ICRA.
+IEEE, 2018, pp. 3803–3810.
+[14] P. S. Chib and P. Singh, “Recent advancements in end-to-end au-
+tonomous driving using deep learning: A survey,” 2023.
+[15] S. Casas, A. Sadat, and R. Urtasun, “Mp3: A unified model to map,
+perceive, predict and plan,” in CVPR, 2021, pp. 14 403–14 412.
+[16] Y. Hu, J. Yang, L. Chen, K. Li, C. Sima, X. Zhu, S. Chai, S. Du,
+T. Lin, W. Wang, et al., “Planning-oriented autonomous driving,” in
+CVPR, 2023, pp. 17 853–17 862.
+[17] A. Sadat, S. Casas, M. Ren, X. Wu, P. Dhawan, and R. Urtasun, “Per-
+ceive, predict, and plan: Safe motion planning through interpretable
+semantic representations,” ECCV, pp. 414–430, 2020.
+[18] B. Jin, X. Liu, Y. Zheng, P. Li, H. Zhao, T. Zhang, Y. Zheng, G. Zhou,
+and J. Liu, “Adapt: Action-aware driving caption transformer,” in 2023
+IEEE International Conference on Robotics and Automation (ICRA),
+2023, pp. 7554–7561.
+[19] L. Kong, Y. Liu, X. Li, R. Chen, W. Zhang, J. Ren, L. Pan, K. Chen,
+and Z. Liu, “Robo3d: Towards robust and reliable 3d perception
+against corruptions,” arXiv preprint arXiv:2303.17597, 2023.
+[20] N. Bian, X. Han, L. Sun, H. Lin, Y. Lu, and B. He, “Chatgpt
+is a knowledgeable but inexperienced solver: An investigation of
+commonsense problem in large language models,” 2023.
+[21] L. Ouyang, J. Wu, X. Jiang, D. Almeida, and et al., “Training language
+models to follow instructions with human feedback,” 2022.
+[22] A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal,
+G. Sastry, A. Askell, P. Mishkin, J. Clark, G. Krueger, and I. Sutskever,
+“Learning transferable visual models from natural language supervi-
+sion,” 2021.
+[23] H. Liu, C. Li, Q. Wu, and Y. J. Lee, “Visual instruction tuning,” 2023.
+[24] H. Zhang, X. Li, and L. Bing, “Video-llama: An instruction-tuned
+audio-visual language model for video understanding,” 2023.
+[25] Z. Xu, Y. Zhang, E. Xie, Z. Zhao, Y. Guo, K.-Y. K. Wong, Z. Li, and
+H. Zhao, “Drivegpt4: Interpretable end-to-end autonomous driving via
+large language model,” 2024.
+[26] X. Ding, J. Han, H. Xu, W. Zhang, and X. Li, “Hilm-d: Towards
+high-resolution understanding in multimodal large language models
+for autonomous driving,” 2023.
+[27] T. Choudhary, V. Dewangan, S. Chandhok, S. Priyadarshan, A. Jain,
+A. K. Singh, S. Srivastava, K. M. Jatavallabhula, and K. M. Krishna,
+“Talk2bev: Language-enhanced bird’s-eye view maps for autonomous
+driving,” 2023.
+[28] W. Huang, C. Wang, R. Zhang, Y. Li, J. Wu, and L. Fei-Fei, “Voxposer:
+Composable 3d value maps for robotic manipulation with language
+models,” 2023.
+[29] C. Cui, Y. Ma, X. Cao, W. Ye, and Z. Wang, “Drive as you
+speak: Enabling human-like interaction with large language models
+in autonomous vehicles,” 2023.
+[30] L. Wen, D. Fu, X. Li, X. Cai, T. Ma, P. Cai, M. Dou, B. Shi, L. He, and
+Y. Qiao, “Dilu: A knowledge-driven approach to autonomous driving
+with large language models,” 2024.
+[31] L. Chen, O. Sinavski, J. H¨unermann, A. Karnsund, A. J. Willmott,
+D. Birch, D. Maund, and J. Shotton, “Driving with llms: Fusing object-
+level vector modality for explainable autonomous driving,” in 2024
+IEEE International Conference on Robotics and Automation (ICRA),
+2024, pp. 14 093–14 100.
+[32] ——, “Driving with llms: Fusing object-level vector modality for
+explainable autonomous driving,” 2023.
+[33] A. Kamath, P. Anderson, S. Wang, J. Y. Koh, A. Ku, A. Waters,
+Y. Yang, J. Baldridge, and Z. Parekh, “A new path: Scaling vision-
+and-language navigation with synthetic instructions and imitation
+learning,” in CVPR, 2023, pp. 10 813–10 823.
+[34] J. Mao, Y. Qian, J. Ye, H. Zhao, and Y. Wang, “Gpt-driver: Learning
+to drive with gpt,” 2023.
+[35] Y. Jin, X. Shen, H. Peng, X. Liu, J. Qin, J. Li, J. Xie, P. Gao,
+G. Zhou, and J. Gong, “Surrealdriver: Designing generative driver
+agent simulation framework in urban contexts based on large language
+model,” 2023.
+[36] A. Keysan, A. Look, E. Kosman, G. G¨ursun, J. Wagner, Y. Yao, and
+B. Rakitsch, “Can you text what is happening? integrating pre-trained
+language encoders into trajectory prediction models for autonomous
+driving,” 2023.
+[37] I. Askari, B. Badnava, T. Woodruff, and S. Zeng, “Sampling-based
+nonlinear mpc of neural network dynamics with application to au-
+tonomous vehicle motion planning,” 05 2022.
+[38] J. Ahn, R. Verma, R. Lou, D. Liu, R. Zhang, and W. Yin, “Large lan-
+guage models for mathematical reasoning: Progresses and challenges,”
+2024.
+[39] X. Tian, J. Gu, B. Li, Y. Liu, C. Hu, Y. Wang, K. Zhan, P. Jia, X. Lang,
+and H. Zhao, “Drivevlm: The convergence of autonomous driving and
+large vision-language models,” 2024.
+[40] SUMO, “Sumo,” https://sumo.dlr.de/docs/index.html/, 2000.
+[41] Y. Jiang, G. Zhan, Z. Lan, C. Liu, B. Cheng, and S. E. Li, “A
+reinforcement learning benchmark for autonomous driving in general
+urban scenarios,” IEEE T-ITS, pp. 1–11, 2023.
+[42] Y. Guan, Y. Ren, Q. Sun, S. E. Li, H. Ma, J. Duan, Y. Dai, and
+B. Cheng, “Integrated decision and control: Toward interpretable and
+computationally efficient driving intelligence,” IEEE Transactions on
+Cybernetics, vol. 53, no. 2, pp. 859–873, 2023.
+[43] V. Mnih, K. Kavukcuoglu, D. Silver, A. Graves, I. Antonoglou,
+D. Wierstra, and M. Riedmiller, “Playing atari with deep reinforcement
+learning,” 2013. [Online]. Available: https://arxiv.org/abs/1312.5602
+[44] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov,
+“Proximal policy optimization algorithms,” 2017. [Online]. Available:
+https://arxiv.org/abs/1707.06347
+[45] T. Haarnoja, A. Zhou, P. Abbeel, and S. Levine, “Soft actor-critic: Off-
+policy maximum entropy deep reinforcement learning with a stochastic
+actor,” 2018. [Online]. Available: https://arxiv.org/abs/1801.01290
+[46] Y. Ren, J. Jiang, G. Zhan, S. E. Li, C. Chen, K. Li, and J. Duan, “Self-
+learned intelligence for integrated decision and control of automated
+vehicles at signalized intersections,” IEEE T-ITS, vol. 23, no. 12, pp.
+24 145–24 156, 2022.
+[47] W.-J. Chang, C. Tang, C. Li, Y. Hu, M. Tomizuka, and W. Zhan,
+“Editing driver character: Socially-controllable behavior generation for
+interactive traffic simulation,” 2023.
+[48] J. Wang, Y. Zheng, K. Li, and Q. Xu, “Deep-lcc: Data-enabled predic-
+tive leading cruise control in mixed traffic flow,” IEEE Transactions
+on Control Systems Technology, pp. 1–17, 2023.

@@ -1,0 +1,1309 @@
+A Survey of Reinforcement Learning from Human Feedback
+Timo Kaufmann
+timo.kaufmann@ifi.lmu.de
+LMU Munich, MCML Munich
+Paul Weng
+paul.weng@dukekunshan.edu.cn
+Digital Innovation Research Center, Duke Kunshan University
+Viktor Bengs
+viktor.bengs@dfki.de
+German Research Center for Artificial Intelligence (DFKI)
+Eyke Hüllermeier
+eyke@lmu.de
+LMU Munich, MCML Munich, DFKI Kaiserslautern
+Abstract
+Reinforcement learning from human feedback (RLHF) is a variant of reinforcement learning
+(RL) that learns from human feedback instead of relying on an engineered reward function.
+Building on prior work on the related setting of preference-based reinforcement learning
+(PbRL), it stands at the intersection of artificial intelligence and human-computer inter-
+action. This positioning provides a promising approach to enhance the performance and
+adaptability of intelligent systems while also improving the alignment of their objectives
+with human values. The success in training large language models (LLMs) has impressively
+demonstrated this potential in recent years, where RLHF has played a decisive role in direct-
+ing the model’s capabilities towards human objectives. This article provides an overview of
+the fundamentals of RLHF, exploring how RL agents interact with human feedback. While
+recent focus has been on RLHF for LLMs, our survey covers the technique across multiple
+domains. We provide our most comprehensive coverage in control and robotics, where many
+fundamental techniques originate, alongside a dedicated LLM section. We examine the core
+principles that underpin RLHF, how algorithms and human feedback work together, and
+the main research trends in the field. Our goal is to give researchers and practitioners a
+clear understanding of this rapidly growing field.
+Contents
+1
+Introduction
+3
+1.1
+Why Human Feedback? . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+3
+1.2
+The Origins of RLHF
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4
+1.3
+Scope of the Survey
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5
+1.4
+Outline
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6
+2
+Preliminaries
+7
+2.1
+Reinforcement Learning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7
+2.2
+Preference-Based MDPs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9
+2.3
+Reward Learning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9
+2.4
+Reinforcement Learning from Human Feedback . . . . . . . . . . . . . . . . . . . . . . . . . .
+10
+2.5
+Active Learning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11
+3
+Feedback
+12
+1
+arXiv:2312.14925v3  [cs.LG]  28 Dec 2025
+
+3.1
+Attributes of Feedback Types . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12
+3.2
+Common Classes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+14
+3.3
+Initializations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+19
+3.4
+Choice of Feedback Type
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+20
+3.5
+Combination of Feedback Types
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+20
+4
+Label Collection
+21
+4.1
+Active Learning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+21
+4.2
+Challenges of Human Labeling
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+25
+5
+Reward Model Training
+28
+5.1
+Human Feedback Model . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+28
+5.2
+Utility Learning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+33
+5.3
+Evaluating Learned Reward Functions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+37
+5.4
+Reward Model Inputs
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+38
+5.5
+Increasing Feedback Efficiency
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+38
+6
+Policy Learning
+41
+6.1
+Adaptation of RL Algorithms . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+41
+6.2
+Framing RLHF for Generative Models as a Bandit Problem . . . . . . . . . . . . . . . . . . .
+42
+6.3
+Direct Policy Optimization
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+43
+7
+Theory
+44
+7.1
+Policy Learning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+44
+7.2
+Preference-Based vs. Reward-Based Learning . . . . . . . . . . . . . . . . . . . . . . . . . . .
+49
+7.3
+Nash Learning from Human Feedback
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+50
+8
+Applications and Benchmarks
+50
+8.1
+Applications . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+50
+8.2
+Supporting Libraries . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+51
+8.3
+Benchmarks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+51
+8.4
+Datasets . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+52
+8.5
+Evaluation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+53
+9
+Discussion and Conclusion
+53
+9.1
+Extensions and Related Approaches
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+53
+9.2
+Current Limitations
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+54
+9.3
+Conclusion
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+55
+A RLHF for Language Models
+86
+B Prior Surveys
+88
+B.1
+Human-in-the-Loop RL
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+89
+B.2
+PbRL and RLHF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+90
+2
+
+1
+Introduction
+In reinforcement learning (RL), an agent navigates an environment and learns through trial and error.
+The optimality of these decisions is determined solely by reward signals, which must be carefully designed
+based on performance measurements to ensure the agent learns the desired behavior. However, designing
+effective reward functions presents significant challenges. In real-world applications, success is often difficult
+to formally define and measure. Moreover, sparse success signals are not well suited for agent learning, often
+necessitating reward shaping (Ng et al., 1999), where the reward signal is transformed into one that is more
+suitable for learning. Unfortunately, this transformation can introduce spurious correlations – rewarding
+behaviors that correlate with desired outcomes without directly achieving the true objective. This can lead
+to reward hacking (Skalse et al., 2022), where agents exploit such correlations to maximize rewards while
+producing undesired outcomes.
+Reinforcement learning from human feedback (RLHF) has emerged as a practical solution to these challenges
+by incorporating human feedback directly into the learning process. Unlike traditional RL, where objectives
+are fixed a priori, RLHF allows humans to define and iteratively refine objectives during training. This
+approach addresses the limitations of classical RL while promoting better alignment between agent behavior
+and human values and objectives, enabling the development of more ethically sound, socially responsible,
+and practically useful AI systems.
+RLHF has seen a number of successful applications, methodological advances, and theoretical insights since
+the last comparable survey (Wirth et al., 2017). The applications span various domains, including large
+language model (LLM) fine-tuning (OpenAI, 2022), image generation (Lee et al., 2023), music genera-
+tion (Cideron et al., 2024), continuous control (Christiano et al., 2017), games (Ibarz et al., 2018), and
+robotics (Hejna & Sadigh, 2022). Alongside these applications, significant methodological advances have
+emerged. These include fusing multiple feedback types to leverage their relative strengths (Section 3.5),
+enhancing query efficiency through active learning and query synthesis (Section 4.1.1), incorporating psy-
+chological insights to improve feedback quality (Section 4.2.1), using techniques such as meta-learning to
+quickly adapt learned preferences to new tasks using prior data (Section 5.5.1), and using available pref-
+erence data more efficiently through approaches such as data augmentation and semi-supervised learning
+(Section 5.5.2). Finally, novel theoretical results (Section 7) have provided insights as well as new questions
+about the fundamental mathematical problems underlying RLHF.
+While we focus on the core principles underlying RLHF, LLM fine-tuning requires additional considerations
+due to the unique characteristics of LLMs and their operational scale.
+We address these considerations
+without delving deeply into LLM-specific details. Notably, applying RLHF to LLMs is not our primary focus.
+While RLHF for LLMs remains in scope, we survey RLHF broadly, examining techniques and applications
+across domains with particular attention to control applications. Nonetheless, many techniques and insights
+discussed herein apply to LLMs, and we address some unique aspects of LLM fine-tuning.
+For readers
+primarily interested in LLM fine-tuning, Section A provides an LLM-focused introduction that complements
+this survey and guides the application of the insights presented here to LLM fine-tuning. Note that the
+literature focused on RLHF for LLMs in particular is vast and rapidly growing, and we cannot provide a
+comprehensive overview of this area.
+This survey therefore provides an overview of current RLHF research, classifies existing approaches, describes
+their main characteristics, and briefly surveys application areas. In the remainder of this section, we begin
+by examining the motivation (Section 1.1) and origins (Section 1.2) of RLHF, defining the scope of this
+survey (Section 1.3), and outlining the structure of subsequent sections (Section 1.4).
+1.1
+Why Human Feedback?
+In conventional RL, the agent’s objective is defined by a reward function that it aims to maximize (Sut-
+ton & Barto, 2018). Specifying this reward function can be challenging, particularly in complex domains:
+What would be a suitable reward function for a robot assisting humans in a household environment or for
+autonomous vehicles navigating through a busy urban environment? Moreover, even reward functions that
+initially seem well-defined can lead to unexpected behaviors due to distributional shifts or over-optimization,
+3
+
+raising practical and safety concerns. Learning the agent’s objective from human feedback circumvents re-
+ward engineering challenges and fosters robust training, with the reward function being dynamically refined
+and adjusted to distributional shifts as the agent learns.
+Interactive Feedback vs. Demonstrations
+The field of inverse RL aims to infer reward functions
+from human demonstrations (Arora & Doshi, 2021). While this can partially resolve reward engineering
+challenges, it faces inherent difficulties: (i) it is generally not possible to robustly identify rewards from
+demonstrations (Cao et al., 2021a; Mindermann & Armstrong, 2018), (ii) it is only applicable in scenarios
+where good demonstrations can be obtained, (iii) it struggles to outperform the demonstrator, and (iv)
+humans often do not demonstrate the behavior they would prefer a machine to adopt (Basu et al., 2017).
+Interactive feedback, by contrast, can use active queries to differentiate between aspects relevant or irrelevant
+to the human preference, is much easier to provide than demonstrations, does not require near-optimal
+performance from human evaluators, and elicits preferences about the behavior that a human would prefer
+from the machine. Interactive feedback also complements demonstrations effectively, refining capabilities
+learned through initial training methods like behavioral cloning and preventing overfitting to demonstrated
+behavior (Abramson et al., 2022).
+Avoiding Reward Engineering
+Reward engineering in RL presents significant challenges, as accurately
+specifying reward functions is notoriously difficult (Amodei et al., 2016; Knox et al., 2023). These challenges
+can be mitigated by using human feedback, which enables training agents for tasks that are hard to define
+manually and represents a step towards addressing safety issues arising from misaligned rewards (Skalse et al.,
+2022). Safety issues related to a misalignment between the agent’s and the human’s objectives are studied
+as the AI alignment problem (Gabriel, 2020), in particular agent alignment and value alignment (Kirchner
+et al., 2022).
+Excessive optimization of poorly specified rewards frequently produces unintended behaviors. Examples of
+such behaviors include exploiting flaws in the environment simulation for higher rewards (Lehman et al.,
+2020; Baker et al., 2020) or engaging in more general reward hacking (Skalse et al., 2022), where the behavior
+maximizes the specified reward but deviates from the intended objective. This is evident in cases where agents
+focus on intermediate rewards without achieving the actual goal (Clark & Amodei, 2016) or prematurely exit
+games to avoid negative rewards (Saunders et al., 2018). The root of these issues is that the reward function
+does not properly reflect the actual learning task. While such problems appear trivial in game environments,
+they become critical in safety-critical contexts such as healthcare and autonomous driving, where misaligned
+rewards could lead to care robots causing injuries or self-driving cars compromising road safety.
+RLHF presents a promising approach to enhance alignment (Leike et al., 2018) by enabling agents to learn
+from human feedback, which is often more closely aligned with the true objective than manually specified
+rewards. Nonetheless, the effectiveness of RLHF in resolving these alignment issues is debated (Christiano,
+2023). Examples of possible pitfalls raised in this debate are that an agent may be incentivized to manipulate
+the human teacher to provide feedback that is easier to optimize (Armstrong et al., 2020; Carroll et al., 2023)
+or that the agent may learn to exploit errors in human judgment (Ngo et al., 2024). We refer the interested
+reader to the survey by Casper et al. (2023) for a more detailed discussion of these issues. Despite these
+concerns, RLHF represents an important early step towards aligning agents with human values and serves
+as a foundation to build on to further improve agent alignment.
+1.2
+The Origins of RLHF
+Learning behavior from human feedback has long been studied as a subfield of RL, but methods and ter-
+minology have evolved over time. Early methods focused on learning directly from human rewards (Knox,
+2012; Isbell et al., 2001; Knox & Stone, 2009), from action advice (Maclin et al., 2005), or from action
+critique (Judah et al., 2010). Notable examples include TAMER (Knox & Stone, 2009; Warnell et al., 2018),
+which interprets human feedback as samples of the optimal action-value function, and COACH (MacGlashan
+et al., 2017; Arumugam et al., 2019), which interprets human feedback in a policy-dependent way, i.e., as
+samples of the advantage function. This survey, however, focuses on more indirect approaches to inferring
+the objective from human feedback.
+4
+
+Table 1: Feedback types classified as belonging to PbRL, SSRL, and RLHF as defined in this survey.
+Feedback Type
+PbRL
+SSRL
+RLHF
+Binary trajectory comparisons
+✓
+✗
+✓
+Trajectory rankings
+✓
+✗
+✓
+State preferences
+✓
+✗
+✓
+Action preferences
+✓
+✗
+✓
+Binary critique
+✗
+✓
+✓
+Scalar feedback
+✗
+✓
+✓
+Corrections
+✗
+✗
+✓
+Action advice
+✗
+✗
+✓
+Implicit feedback
+✗
+✗
+✓
+Natural language
+✗
+✗
+✓
+Modern reinforcement learning from human feedback (RLHF) originates from preference-based reinforcement
+learning (PbRL), independently introduced by Akrour et al. (2011) and Cheng et al. (2011). PbRL infers the
+objective from qualitative feedback, such as pairwise preferences between behaviors or between actions given
+states, instead of quantitative feedback in the form of numerical rewards. The term RLHF was later coined
+as an alternative (Askell et al., 2021; Ouyang et al., 2022; OpenAI, 2022), competing with the short-lived
+term reinforcement learning from human preferences (RLHP) (Menick et al., 2022), though initially referring
+to the same concept of learning behavior from relative feedback.
+Disentangling PbRL and RLHF is challenging due to their overlapping usage in the literature. For instance,
+Christiano et al. (2017) themselves are using the term PbRL, yet are often cited as a seminal reference
+for RLHF (Daniels-Koch & Freedman, 2022; Ouyang et al., 2022). This demonstrates that the terms are
+often used interchangeably. Practically, RLHF is often associated with reward modeling and deep RL, while
+PbRL is often linked to direct policy optimization in traditional RL settings. This is underlined by Jeon
+et al. (2020), who characterize PbRL as limited to direct policy learning from preferences. This is in contrast
+with other sources, however, who include reward learning within the scope of PbRL (Christiano et al., 2017;
+Wirth et al., 2017). Additionally, PbRL is rarely used in the language modeling domain, while RLHF is
+common in both language modeling and classical RL domains such as continuous control.
+Despite overlapping and sometimes conflicting usage, in this work we view RLHF as a generalization of
+PbRL. While both involve human feedback to define RL objectives, PbRL primarily focuses on relative
+feedback, such as binary comparisons and rankings. RLHF not only includes these aspects but also extends
+to a wider range of feedback types (Metz et al., 2023; Yuan et al., 2024). Table 1 gives an exemplary overview
+of our interpretation of these terms.
+Another concept, semi-supervised reinforcement learning (SSRL), introduced by Christiano (2016) and dis-
+cussed by Amodei et al. (2016), refers to an RL setting where an agent receives feedback on a subset of its
+experiences. The initial discussions of SSRL focused on absolute feedback on subsets of the agent’s experi-
+ences, making the concept complementary to PbRL. In contrast to PbRL and RLHF, the term SSRL seems
+to be used less in the recent literature.
+We adopt the view that RLHF broadly encompasses all approaches using human feedback to define RL
+objectives, including both PbRL and SSRL. As the definitions and distinctions between these terms are not
+universally agreed upon, these distinctions are based on our interpretation of the current predominant usage
+of these terms in the literature.
+1.3
+Scope of the Survey
+This section outlines the criteria guiding our selection of RLHF approaches we cover. We concentrate on
+methods where a learned reward model serves as the sole source of objective information, learned through
+interactive, online, scalable, and asynchronous human feedback. We describe each of these criteria in more
+detail below.
+5
+
+Reward Modeling We focus on approaches that learn a reward model from human feedback and then
+use this model to train a policy. Although it is possible to directly optimize a policy from human
+feedback (Wirth et al., 2017), thereby performing RLHF without reward learning, this approach
+was rarely practiced for a long time and has only recently gained renewed interest, especially in the
+domain of language model fine-tuning (see Section 6.3). The decomposition into reward learning and
+policy training offers many conceptual and practical benefits. These include the direct applicability
+of supervised learning techniques for the reward model and the ability to evaluate the reward model
+in isolation. Additionally, the decomposition naturally leads to a form of semi-supervised learning,
+enabling the agent to use labeled episodes for reward model training while leveraging unlabeled
+episodes to refine its behavior and explore the environment.
+Human Defined While many approaches include humans in the RL loop, we focus on approaches where
+human feedback is the only source of truth about the objective. This excludes approaches to reward
+shaping, feature engineering, and other forms of human guidance that are supplementary to a given
+objective.
+Interactive and Online Our scope encompasses methods that collect human feedback interactively during
+the learning process, rather than relying solely on pre-collected demonstrations. This excludes pure
+imitation learning, learning from demonstration, and standalone inverse RL approaches. However,
+hybrid methods that combine inverse RL with interactive reward refinement fall within our scope,
+as discussed in Sections 3.3 and 5.5.1.
+Scalable and Asynchronous We consider methods that incorporate human feedback without requiring
+synchronous human-agent interaction. The agent must be capable of continuing its learning process
+while awaiting human input, and humans need not provide continuous supervision. This distin-
+guishes RLHF from more direct methods of incorporating a human into the RL loop, and we believe
+that this is key for practicality and efficiency.
+Beyond these methodological criteria, we primarily cover works from 2017 through 20241, building upon the
+comprehensive treatment of earlier works by Wirth et al. (2017). We selectively revisit earlier foundational
+contributions that continue to inform current practice or have fundamentally shaped the field.
+While RLHF has recently gained prominence through LLM applications, this survey adopts a broader per-
+spective, examining RLHF across multiple domains with particular depth in control and robotics.
+We
+dedicate Section A to LLMs, addressing domain-specific challenges including large action spaces, distribu-
+tion shift, and KL regularization. Many techniques from control domains transfer naturally to the LLM
+setting, which is frequently constrained to a single turn, though not all techniques are equally applicable.
+Given the rapidly evolving nature of LLM research, our coverage of techniques specific to this domain is less
+exhaustive than our treatment of control and robotics applications.
+This survey can be seen as the canonical continuation of Wirth et al. (2017), examining the evolution from
+PbRL to RLHF and the accompanying methodological advances. We provide both a thorough description of
+the basics and an in-depth discussion of current advances and trends. We refer to Section B for an overview
+of prior and related surveys and their relation to this work.
+1.4
+Outline
+In the next section, we begin with an introduction to the basics by revisiting the most important concepts
+from the standard RL setting, which are also naturally important in RLHF (Section 2). We then dive into
+the RLHF topic by outlining the most studied scenario of reward model learning from pairwise preferences.
+Using this introductory and illustrative example scenario, we explain the basic framework of RLHF alongside
+its three main components of (human) feedback, label collection (feedback acquisition), and reward model
+learning.
+These three main components will essentially form the structure of our survey.
+In Section 3,
+we turn our attention to the human feedback component and provide an overview of the different types
+of feedback as well as their key attributes. The important concepts in terms of label collection are then
+1We updated preprints to their peer-reviewed versions where applicable, leading to references outside this window.
+6
+
+explained in Section 4, followed by learning the reward model in Section 5. We also discuss policy learning in
+Section 6, since some RLHF methods adapt standard RL training methods to the RLHF setting. Section 7
+is devoted to an overview of recent progress on the theoretical side of RLHF, including approaches involving
+a theoretical guarantee, as well as theoretical insights into the relationship between standard RL and RLHF.
+Finally, Section 8 highlights some interesting practical applications of RLHF and the existing benchmarks
+before Section 9 concludes the survey by pointing out some possible avenues for future work.
+2
+Preliminaries
+In this section, we review the basic setting and the most important concepts of RL and RLHF. In the course of
+this review, we will establish the notation that will be used throughout the survey. We first introduce what is
+probably the most studied RLHF scenario, i.e., learning a reward model from binary trajectory comparisons.
+Based on this introductory and illustrative example scenario, we explain the basic framework of RLHF with
+its main components and briefly discuss the respective roles of these components in the learning process. We
+will also briefly touch on active learning, which strongly connects to the feedback collection component.
+Notation
+For any integer n ∈N, we denote by [n] the set {1, 2, . . . , n}. For any set S, ∆(S) denotes the
+set of probability distributions over S. We use P(E) for denoting the probability of some event E, while E[X]
+is used to denote the expected value of a random variable X. In some cases, we will write EP [·] or similar
+variants to emphasize that the distribution for the expected value is governed by the probability distribution
+P ∈∆(S). Moreover, we will write X ∼P if a random variable X is distributed according to a probability
+distribution P.
+2.1
+Reinforcement Learning
+Reinforcement learning (RL) (Sutton & Barto, 2018) is the setting of learning behavior from rewarded
+interaction with an environment. Such a learning environment is formalized as an Markov decision process
+(MDP), which is a model for sequential decision-making. In an MDP, an agent iteratively observes its current
+state, takes an action that causes the transition to a new state, and finally receives a reward that depends
+on the action’s effectiveness. Formally, an MDP is defined as a tuple (S, A, P, R, d0, γ) where
+• S is a set of states (the state space),
+• A is a set of actions (the action space),
+• P : S × A →∆(S) is a transition function (the transition dynamics),
+• R : S × A →R is a reward function,
+• d0 ∈∆(S) is a distribution over initial states,
+• and γ ∈[0, 1] is a discount factor.
+The transition function P defines the dynamics of the environment: For any state s and action a, the value
+P(s, a)(s′), also sometimes denoted P(s′ | s, a), is the probability of reaching the state s′ after executing a in
+s. In light of this, we will also sometimes refer to the transition function simply as the transition dynamics.
+For a given state and action, the transition is conditionally independent of all previous states and actions,
+which is known as the Markov property and the reason for the naming as an MDP. The value R(s, a) ∈R
+provides an immediate evaluation after performing action a in state s, which is also called the (instantaneous)
+reward. It is also possible that the instantaneous reward is 0 for some states, and one only receives a reward
+in specific states, for example, in so-called terminal states for which the transition function is zero. When
+both the state space S and the action space A are finite, we call the MDP a tabular MDP.
+In an MDP, an H-step trajectory τ is a sequence of H ∈N \ {0} state-action pairs ending in a terminal
+state. Formally, it is given by τ = (s0, a0, s1, a1, . . . , sH). A trajectory τ’s return R(τ) is the accumulated
+7
+
+Environment
+Dynamics
+Objective
+Agent
+Action at
+State st+1
+Reward rt+1
+(a) The standard RL setting.
+Agent
+Policy
+Reward Model
+Environment
+Dynamics
+Action at
+State st+1
+st
+Reward ˆrt+1
+Action at
+Labeler
+Query qi
+Label li
+(b) RLHF with reward modeling.
+Figure 1: Contrasting the standard RL setting with RLHF in its most common formulation, using a reward
+model. In each step, the policy commits to an action at and receives the next state st+1 and either the true
+reward rt+1 or an estimate ˆrt+1 in return. In contrast to the standard RL setting, the true reward function
+is not known in the RLHF setting but instead learned from human feedback. This reward learning process is
+decoupled from policy learning and can happen fully asynchronously. The dataset consists of a set of queries
+qi (e.g., pairs of trajectory fragments) and their labels li (e.g., a preference for one of the fragments).
+(discounted) rewards collected along this trajectory:
+R(τ) =
+H−1
+X
+h=0
+γhR(sh, ah) .
+(1)
+Note that we here use the same notation for the return and the reward function; however, both have different
+signatures (trajectory vs. state-action pair). We can also define the return R(σ) of a segment σ in a similar
+manner. The return is well defined even if the horizon H is infinite as long as γ < 1. If the MDP is a tabular
+MDP and any trajectory has finite length, i.e., H is necessarily finite, we call the MDP finite and otherwise
+infinite.
+A policy specifies how to select actions in a state, either deterministically or stochastically. In the former
+case, a policy is simply a mapping π : S →A from states to actions, while in the latter, it is a mapping
+π : S →∆(A) from states to probability distributions over actions. Since the deterministic case is a special
+case of the stochastic one, we assume the latter case in the following.
+The basic interaction loop is depicted in Fig. 1a: The agent chooses an action at ∼π(st) based on its policy
+and the current state. As a consequence, the environment transitions to the new state st+1 ∼P(st, at),
+governed by the transition dynamics. The agent observes this new state and the reward rt+1 = R(st, at),
+after which the interaction cycle repeats.
+In this setting, the RL agent aims at learning a policy that maximizes the expected return
+J(π) = Ed0,P,π[R(τ)] ,
+where the expectation is with respect to policy π, transition function P, and initial distribution d0. To solve
+this problem, two families of RL approaches have been considered: model-based RL and model-free RL. The
+methods in the first family learn a model (i.e., P, R) of the underlying MDP to help solve the RL problem,
+while the methods in the second directly try to obtain a good policy without learning an MDP model. The
+second family can be further decomposed into two main categories: value-based methods and policy search
+methods. In deep RL, both value functions and policies are approximated with neural networks.
+Value-based methods (e.g., DQN and its variants (Mnih et al., 2015; Hessel et al., 2018)) aim at learning
+the Q-function Q∗of an optimal policy. The Q-function of a policy π is defined by:
+Qπ(s, a) = EP,π
+"H−1
+X
+h=0
+γhR(sh, ah)
+#
+,
+where s0 = s and a0 = a, and in the expectation, ah ∼π(· | sh) as well as sh ∼P(· | sh−1, ah−1) for
+h ∈[H −1].
+A policy can be naturally designed from a Q-function by choosing an action in a greedy
+8
+
+manner in each state: π(s) = arg maxa Q(s, a). Note that for a deterministic optimal policy π∗it holds that
+J(π∗) = Ed0[Q∗(s, π∗(s))].
+Similar to the action-value function Q, we can also define the state-value function
+Vπ(s) = EP,π
+"H−1
+X
+h=0
+γhR(sh, ah) | s0 = s
+#
+.
+Its value for some state s is the expected return when starting in that state and then always using the policy
+π. It is related to the Q-function by means of
+Vπ(s) = Ea∼π(s) [Qπ(s, a)]
+for any state s ∈S.
+In contrast, policy search methods directly aim at finding a good policy in some parametrized policy space.
+The most data-efficient algorithms in this class of methods follow an actor-critic scheme where both an
+actor (i.e., a policy) and a critic (i.e., usually its Q-value function) are learned at the same time. Typical
+representative methods here are PPO (Schulman et al., 2017), TD3 (Fujimoto et al., 2018), or SAC (Haarnoja
+et al., 2018).
+RL algorithms can further be classified as either on-policy or off-policy. In an on-policy algorithm, such as
+PPO, only the recently generated transitions are used for training. In contrast, in an off-policy algorithm,
+such as DQN (or its variants), TD3, or SAC, the agent can be updated with transitions not necessarily
+generated by its current policy. While on-policy training is usually more stable, off-policy training enables
+more data-efficient learning by reusing samples from a replay buffer that stores past transitions.
+2.2
+Preference-Based MDPs
+In contrast to standard RL as described in the previous section, RLHF does not assume that a reward signal
+is available. It instead assumes the existence of an oracle (e.g., human labeler) that can provide information
+about the reward in a specific indirect manner. More precisely, in RLHF, the agent can make queries qi to
+the oracle, which in practice means asking for human feedback, and in response, the agent receives a label
+li, which in general gives a hint about the reward. In principle, the query can be made asynchronously to
+the actual conventional RL cycle. See Fig. 1b for an illustration.
+In the most common setting, the oracle can compare two (segments of) trajectories, but various other cases
+have been considered, as we shall see later on.
+For the former case, RLHF is based on the setting of
+preference-based MDPs (Gilbert et al., 2017; Wirth et al., 2017), which can be defined as an MDP model
+without reward function, but where comparisons of trajectories are available.
+2.3
+Reward Learning
+RLHF approaches can be divided into two categories, depending on whether a utility-based approach is
+used for reward modeling or whether an alternative criterion that is detached from a utility concept is
+used (Gilbert et al., 2016; Gilbert & Weng, 2016; Wirth et al., 2017). Most works fall into the first category,
+on which this overview focuses. Such approaches assume a human-dependent utility function that can be
+used as a reward function in order to apply standard RL methods. Next, we will describe the commonly
+used approach for reward learning for the common setting of binary trajectory comparisons.
+The prevalent approach to learning a utility function from observations of pairwise comparisons is based
+on the Bradley-Terry model (Bradley & Terry, 1952), which stipulates a probabilistic model for the oracle
+(human labeler):
+P(τ1 ≻τ2) =
+1
+1 + exp(R(τ2) −R(τ1)) ,
+where ≻means “preferred to” and R(τ) corresponds to the utility (i.e., return in the context of RL) of
+τ. Note that this utility function is a kind of surrogate function for the true reward function, which is
+9
+
+(tacitly) assumed to induce the same optimal policy as the true reward function.
+For a given data set
+D = {τ i
+1 ≻τ i
+2 | i ∈[N]}, a utility function Rψ parameterized by ψ can then be learned by the maximum
+likelihood principle (or equivalently using a cross-entropy loss):
+max
+ψ
+N
+Y
+i=1
+1
+1 + exp(Rψ(τ i
+2) −Rψ(τ i
+1)) .
+(2)
+In the context of RL, since Rψ(τ) = PH−1
+h=0 γhRψ(sh, ah), (2) can then directly be used to train a function
+approximator (e.g., single or ensemble of neural networks) to approximate R.
+This approach accommodates the case of a noisy or unreliable oracle, in which case the Bradley-Terry model
+can be understood as the generative model of the oracle’s answers (or labels provided by the human labeler).
+When the oracle is reliable, more direct methods based on preference elicitation for recovering the reward
+function have been studied (Regan & Boutilier, 2009; 2011; Weng & Zanuttini, 2013; Gilbert et al., 2015;
+Sadigh et al., 2017; Wilde et al., 2018). In this survey, we will focus on the general case where the oracle
+may be noisy.
+Note that, in contrast to the typical way of preference learning, the learned reward function is used to train
+an RL agent and not directly to compare trajectories. This discrepancy between the objective function used
+in reward learning and how the learned rewards are actually used may lead to suboptimal policies (Lindner
+et al., 2021b).
+2.4
+Reinforcement Learning from Human Feedback
+In the RLHF setting as illustrated in Fig. 1b, the learning agent needs to solve an RL task without having
+access to a reward function.
+To this end, the agent usually simultaneously learns an approximation of
+the reward function (via the assumed utility function) and an RL policy.
+Therefore, a generic RLHF
+algorithm consists of repeating two phases: (1) reward learning and (2) RL training.
+The first phase
+can itself be decomposed into two main steps: (i) generate queries to ask the oracle, (ii) train a reward
+function approximator with the answers provided by the oracle. The RL training part is more conventional
+and is usually directly based on running a deep RL algorithm using the currently trained reward function
+approximator.
+Algorithm 1 Generic RLHF Algorithm in an Actor-Critic Scheme.
+1: Initialize parameters θ (policy), ϕ (critic), and ψ (reward)
+2: Initialize replay buffer B with randomly-generated trajectories
+3: for i = 1, . . . , N do
+4:
+// Reward learning
+5:
+Generate queries from B
+6:
+Update D with answers to queries from the oracle
+7:
+Update ψ using D (e.g., to maximize Eq. (2))
+8:
+// RL training
+9:
+Update B with new trajectories generated with πθ
+10:
+Update θ (actor) using B and Rψ
+11:
+Update ϕ (critic) using B and Rψ
+12: end for
+This basic generic algorithm is summarized in Algorithm 1, where an off-policy actor-critic scheme is assumed
+to be used for the RL training part, but other RL policy learning approaches can, of course, also be used here.
+For an on-policy algorithm, such as PPO (Schulman et al., 2017), only the recently generated transitions are
+used for training. For a DQN-like algorithm, lines 9 to 11 would be replaced by a loop where transitions are
+generated by a behavior policy based on the current estimate of the Q-function (e.g., ε-greedy algorithm)
+and the Q network is updated using mini-batches of transitions sampled from the replay buffer B.
+An efficient RLHF algorithm needs to overcome several difficulties which are specific to this setting:
+10
+
+• The oracle may provide various types of feedback (see Section 3). The questions of what information
+some given feedback provides and how observed feedback can be exploited need to be answered (see
+Section 5).
+• Informative queries need to be generated to minimize the efforts of the oracle, which is crucial when
+it is a human (see Section 4). Active learning techniques (see next subsection) can be adapted to
+face this challenge.
+• The RL agent is actually trained in a non-stationary environment since the reward approximator is
+concurrently updated. The RL training part therefore needs to account for this factor, e.g., using
+non-vanishing learning rates (see Section 6).
+• There is also the question of how the agent’s performance can be meaningfully evaluated, especially
+if the reward function is not known (see Section 8).
+• Collecting feedback directly from humans introduces its own challenges, such as the question of a
+suitable user interface and the associated issues of delay between query and feedback observation, or
+the feedback variability and reliability (see Section 4). This may explain why many studies evaluate
+novel RLHF algorithms with simulated feedback.
+A standard RL algorithm can be run in the RL training part, as done in most previous work in RLHF
+(although this may not be the best approach). This suggests that any improvements in a standard deep
+RL method (e.g., auxiliary losses (Gelada et al., 2019), planning in learned model (Hafner et al., 2020),
+curriculum learning (Narvekar et al., 2020), or data augmentation (Laskin et al., 2020; Lee et al., 2020;
+Lin et al., 2020b)) may potentially be transferred to the RLHF setting. In addition, most previous work
+in RLHF directly uses trajectories stored in replay buffer B to synthesize queries. An interesting research
+direction to explore in RLHF would be to specifically generate trajectories in order to be able to synthesize
+more informative queries (instead of only generating trajectories that are beneficial for RL training). This
+would lead to tackling a novel exploration-exploitation dilemma: Shall we visit state-action pairs that may
+be bad but may help better learn the reward function, or shall we visit state-action pairs that we currently
+think are good? This is further discussed in Section 5.5.3.
+In RLHF, since the oracle is a human or a group of humans, reducing the number of queries is crucial to
+limit the labeling cost. Therefore, the reward learning part requires techniques similar to those proposed in
+active learning, which we recall next.
+2.5
+Active Learning
+In active learning (Settles, 2012), the task is to strategically select data points for labeling to minimize the
+amount of labeled data required to achieve a desired level of performance, which is particularly valuable in
+scenarios like RLHF where labeling is costly. Unlike batch learning, where labeled data is predetermined,
+active learning empowers the learner to actively select the most informative unlabeled instances for labeling,
+maximizing the learning process with limited labeled data. We will only briefly introduce the active learning
+task here and then discuss the strategies for creating informative queries considered thus far in Section 4.
+For RLHF with pairwise comparisons, this setting can be formally described as follows. Suppose there is
+a set of N pairs of trajectories {(τ i
+1, τ i
+2) | i = 1, . . . , N}, where each pair (τ i
+1, τ i
+2) can be interpreted as an
+unlabeled instance. To efficiently learn a reward function to explain observed pairwise comparisons, an agent
+can select a set of unlabeled pairs (possibly a singleton) to query an oracle to obtain their labels.
+At a high level, the main idea in active learning is to query data points to quickly reduce the epistemic (i.e.,
+reducible) uncertainty about the predictions of the learned model, although other aspects can be important,
+such as the representativeness of the queried data points (see Wang et al. (2024b) for a survey). Two main
+representations are considered to describe this epistemic uncertainty: either using an ensemble of models
+or using a Bayesian representation. In both cases, a first basic approach selects queries using uncertainty-
+based criteria in order to focus on instances with high prediction uncertainty as measured by, e.g., variance
+or entropy computed over predictions. In contrast to the first approach, where the selection criteria are
+11
+
+instance-based, a second approach considers criteria that may depend on all instances. Possible options
+are, for instance, expected model change, expected error reduction, or density-weighted uncertainty-based
+criteria. Here, the weights in the expectation or density allow us to take into account the distributional
+information about the instances and, therefore, to focus on the higher-density regions.
+3
+Feedback
+Agent
+Policy
+Reward Model
+Environment
+Dynamics
+Action at
+State st+1
+st
+Reward ˆrt+1
+Action at
+Labeler
+Query qi
+Label li
+Figure 2: RLHF diagram highlighting components discussed in this section.
+Feedback mechanisms are fundamental to the success of any RL system. In the standard setting as described
+in Section 2.1, RL agents expect feedback in the form of scalar immediate rewards. These rewards are most
+commonly determined by a hand-engineered reward function, which can be used to evaluate any state-action
+combination. As discussed in Section 1.1, it is desirable to allow humans to refine behavior interactively
+through feedback instead of requiring them to pre-specify a reward function.
+While a human could, in principle, assign rewards to each of the agent’s actions directly, thereby taking the
+role of the reward function, this is usually impractical for multiple reasons. The main challenge is the human
+effort required to provide rewards on a sufficiently regular basis, i.e., at least once per episode. In addition to
+that, directly integrating human rewards into the RL loop would require these rewards immediately, which
+would impede the learning pace while waiting for human feedback. Finally, the standard RL setting expects
+numeric state-action rewards, which are challenging to provide in a consistent manner.
+In contrast to directly rewarding each of the agent’s actions, RLHF as discussed in this survey (see Section 1.3)
+harnesses indirect and asynchronous feedback methods. Such methods avoid the challenges of immediate
+numeric rewards and are also better aligned with human interaction patterns, resulting in improved learning
+progress and human user experience.
+A feedback type is a kind of interaction in which a human conveys some information about their preferences.
+Examples include pairwise comparisons and direct critiques. This section is concerned with the many ways
+in which human feedback can be expressed and used.
+Several previous works have already studied and
+sorted feedback types by listing the most common ones (Jeon et al., 2020; Yuan et al., 2024) and discussing
+their attributes and dimensions (Metz et al., 2023; Lindner & El-Assady, 2022). The attributes and classes
+described in this section build upon this prior work and can be considered a synthesis and extension of it.
+The remainder of this section will start by discussing relevant attributes of feedback types that can be used
+to classify them (Section 3.1). We will then discuss common classes and examples of interactive feedback
+types (Section 3.2) as well as some non-interactive types that can serve as initializations (Section 3.3).
+3.1
+Attributes of Feedback Types
+Feedback types may differ in many dimensions, some of which relate to the way feedback is given (arity,
+involvement), others to the form of the query instance it is given on (granularity, abstraction), and yet others
+to features of the human interaction (intent, explicitness). The attributes we discuss in this section are based
+on the framework proposed by Metz et al. (2023). We have adjusted and added terminology where it aids
+clarity, generalized the distinction between relative and absolute feedback to ‘arity’, and added the categories
+of co-generative involvement and literal intent. Furthermore, we systematically analyze a set of exemplary
+12
+
+feedback types in the next section, expanding on the initial examination of a smaller set of abstract classes
+by Metz et al. (2023). In the following, we will introduce each of the six attributes in more detail.
+Arity This attribute describes whether a single instance is evaluated in isolation (unary) or relative to other
+instances (binary, n-ary). Unary feedback, e.g., an absolute score for an observed behavior, is often
+convenient for detailed and descriptive feedback but lacks any grounding and therefore puts a great
+burden on the human to provide consistent feedback. Non-unary feedback always has an implicit
+grounding but requires the instances to be comparable. While n-ary feedback, such as a ranking
+over multiple observed behaviors, can provide more information than binary feedback, it also puts
+a higher cognitive burden on the labeler.
+Involvement The labeler may either passively observe an instance, actively generate it, or coactively par-
+ticipate in its generation (co-generation). Passive involvement, exemplified by an evaluator that
+observes, but does not intervene in a robot’s behavior, poses the smallest challenge to the labelers
+since it does not require the ability to demonstrate the task. It can also easily be directed at the
+most informative examples with active learning techniques. Unfortunately, passive feedback often
+cannot match the information density of active feedback such as a human steering a robot to gen-
+erate a demonstration. It is, therefore, common to combine both types to first initialize the reward
+model from (possibly very suboptimal) active feedback and then refine it from passive feedback.
+Between these two extremes is co-generative feedback, in which a human can share control with
+the agent. This can be less demanding than active feedback and makes it possible to direct the
+human’s attention to the most informative samples, but it is still more taxing than purely passive
+involvement.
+Granularity Feedback may also differ on the granularity of the instances being evaluated. This ranges
+from feedback over whole episodes over partial segments to feedback on individual steps (i.e., states,
+actions, or state-action pairs). A more coarse-grained granularity has the advantage of giving humans
+more context and getting feedback for larger sections of behavior but also poses credit assignment
+problems. Finer-grained feedback is much easier to learn from and simplifies credit assignment, but
+is often impractical or tedious for humans to provide. It is also possible to strike a compromise,
+as demonstrated by Guan et al. (2021) who propose to use queries on step granularity, but batch
+queries within an episode to provide additional context and make it easier to give feedback. Note
+that we only classify a type of feedback as “episode” granularity if it requires entire episodes. If it
+is compatible with partial segments as well, we classify it as “segment” even if the discussed source
+paper uses entire episodes.
+Abstraction This describes whether feedback is given directly on raw instances, e.g., behavior recordings
+(see granularity), or on abstract features of the instances, such as an autonomous car’s speed and the
+forces experienced by the passengers. While feature-level information can be easier to learn from,
+extracting useful features is challenging. In some contexts, it may also be harder for a human to
+make abstract judgments rather than more intuitive instance-level judgments. Note that this always
+refers to the level of abstraction that the user sees, which may differ from the features used as inputs
+for the reward model. Types of feedback that depend on active generation (see involvement), such
+as improvements, generally work on a raw instance level.
+Explicitness Humans may communicate explicitly for the purposes of feedback, e.g., by responding to a
+pairwise comparison query, or implicitly as a side-effect of actions directed at other purposes such
+as interventions in the agent’s behavior. While explicit information is easiest to learn from, im-
+plicit information is often much more readily available and can possibly communicate more detailed
+preferences.
+Intent The assumed human intent can be important for feedback processing. A human may be evaluative,
+instructive, or descriptive in their explicit feedback, while they are generally literal in their implicit
+feedback. Evaluative, instructive, and descriptive feedback is pedagogical in nature, aiming to teach
+a reward function, whereas literal feedback is a byproduct of a human actor’s efforts to optimize the
+reward function directly. Descriptive feedback is often given on the level of the task, e.g., through
+13
+
+Table 2: An overview of the common classes and their defining attributes. The feedback classes are grouped
+into primary classes, which can be used on their own to learn a reward model, supplementary (sup.) classes,
+which can be used in conjunction with a primary class, and representation-focused (rep.) classes, which can
+be used to learn a representation prior to learning a reward model. When ✚is specified for an attribute,
+this indicates that it is not a defining feature of the class and may vary in different instantiations.
+Class
+Granularity
+Involvement
+Arity
+Abstr.
+Intent
+Expl.
+Primary
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Critique
+✚
+Observed
+Unary
+✚
+Evaluative
+Explicit
+Comparisons
+✚
+Observed
+2+
+✚
+Evaluative
+Explicit
+Inter-Temporal
+Segment
+Observed
+Unary
+✚
+Evaluative
+Explicit
+Proxy Rewards
+Episode
+Observed
+✚
+Feature
+Descriptive
+Explicit
+Social Behavior
+Segment
+Observed
+Unary
+Instance
+Literal
+Implicit
+Improvements
+Episode
+Co-generative
+Unary
+Instance
+✚
+✚
+Natural Language
+✚
+Observed
+Unary
+✚
+Descriptive
+Explicit
+Sup.
+ E-Stops
+Episode
+Observed
+Unary
+Instance
+Literal
+Implicit
+Importance
+✚
+Observed
+✚
+✚
+Descriptive
+Explicit
+Rep.
+ Feature Traces
+Segment
+Active
+Unary
+Instance
+Descriptive
+Explicit
+Similarity Queries
+✚
+Observed
+Ternary
+✚
+Descriptive
+Explicit
+a partial reward function. The other types of intent, in contrast, are generally given within the
+context of a particular instance of behavior.
+The distinction between literal and pedagogical feedback was introduced by Milli & Dragan (2020).
+They argue that humans with pedagogical intent (i.e., evaluative, instructive, or descriptive) may act
+differently compared to humans with literal intent. Even though they find that assuming the (wrong)
+literal intent can still lead to better reward inference, it still indicates that it can be important to
+know this intent to choose the right human model (see Section 5.1.5).
+3.2
+Common Classes
+Even though the concrete types of feedback used in the literature are rarely exactly the same, they can
+generally be sorted into a set of common classes. We will describe a selection of those classes, their defining
+attributes, and examples of concrete instances in the literature in the following.
+Table 2 gives an overview
+of the classes and their attributes as described in Section 3.1.
+3.2.1
+Primary Feedback Classes
+This section introduces common feedback classes which can be used on their own to learn a reward model.
+The classes are critique, comparisons, inter-temporal feedback, proxy rewards, social behavior, improvements,
+and natural language.
+Critique
+Critique is arguably the most direct type of feedback. In this setting, the human expresses their
+preference by directly critiquing an instance of agent behavior, often in the form of binary feedback. Note
+that critique, as considered in this survey, is distinct from directly supplying a reward signal since it is given
+in an asynchronous and indirect manner (see Section 1.3). In the critique setting, a labeler may for example
+observe recordings of agent behavior and give their approval or disapproval. The defining features of critique
+are that the human passively observes the behavior (involvement), gives feedback on a single instance
+(arity), and does so explicitly (explicitness) with an evaluative intent. The feedback may be given for
+any granularity and on any level of abstraction.
+There are many examples of critique feedback in the literature. Xiao et al. (2020) employ binary feedback on
+individual state and action pairs. Although they learn a shaping reward that complements an environment
+reward signal, the same technique could be used without environment reward. Huang et al. (2023) extend
+14
+
+this to multi-label feedback, allowing the user to distinguish between a regular good or bad action and a
+terminal action that achieves the goal or fails to do so. They map these classes to scalar values and then
+learn a reward model by regression. Wang et al. (2020) present an approach to learning a reward model
+from noisy critiques in the form of human physiological signals (brain signals) using active querying. In
+contrast to this action-level feedback, Fu et al. (2018b); Singh et al. (2019) rely on binary outcome success
+labels. Fu et al. (2018b) introduce the basic approach, which Singh et al. (2019) extend by moving to an
+off-policy setting and including online queries, thereby reducing the reliance on many positive examples by
+interactively correcting false positives.
+In addition to learning the main reward function, critique can also be used for safety evaluation. Cosner et al.
+(2022) train a secondary reward model focused on safety from binary action critiques. This is in addition
+to the main reward model, which is trained from comparisons in their approach. Note that this secondary
+safety model could, in principle, be trained with any of the feedback types discussed here, using methods
+identical to the ones used for reward learning.
+Comparisons
+Binary comparisons and rankings are among the most common types of feedback. The
+defining features of comparisons are that the human passively observes the behavior (involvement), gives
+relative feedback on multiple instances (arity), and does so explicitly (explicitness) with an evaluative
+intent. It is most commonly given on a segment (granularity), but other granularities such as individual
+actions are also possible (Cosner et al., 2022). Similarly, comparisons are commonly requested on an instance
+level (abstraction), but this is not a requirement.
+Comparisons were first used for direct policy learning (Akrour et al., 2011; Cheng et al., 2011), but were
+later extended to the reward-learning setting (Wirth et al., 2016; Christiano et al., 2017). The most common
+setting (Christiano et al., 2017) relies on pairwise comparisons of trajectory segments, but comparisons
+of individual states or actions were also considered in early PbRL works (Fürnkranz et al., 2012) and
+comparisons can even be extended to more abstract trajectory features (Pinsler et al., 2018).
+This basic setting has been extended and modified in various ways. To reduce noise in the labels, it is
+common to extend the binary choice by giving the labelers the option to avoid the hard choice and instead
+indicate incomparability, uncertainty, or perceived similarity (Holladay et al., 2016). This option is commonly
+interpreted as “equally preferable”, e.g., as if each trajectory had an equal probability of being preferred in
+the preference predictor. It is also common, however, to additionally provide an “incomparable” option
+which results in simply omitting the query from the data set (Christiano et al., 2017; Ibarz et al., 2018).
+In contrast to this, Verma et al. (2023) explicitly state that they do not allow for the equally preferred
+option, arguing that these cases are rare enough not to matter very much. Another line of research suggests
+that more precision in the expression of pairwise preferences, such as softening the hard binary choice to
+scalar feedback indicating the strength of a preference (Wilde et al., 2021; Touvron et al., 2023), can be
+beneficial for preference learning.
+Other extensions change the pairwise setting to choices among larger
+choice sets (Ziegler et al., 2020) or even full rankings (Myers et al., 2021; Ouyang et al., 2022). Jain et al.
+(2015) compare different kinds of re-ranking feedback (select first which is better than top, choose best from
+top-5, choose best from random set). Their study suggests that the first two are roughly equivalent, while
+the latter is much less informative. Askell et al. (2021) evaluate binary comparisons as well as ranking, but
+find that binary comparisons (even if extracted from a ranking) perform better. Ziegler et al. (2020) note
+that for language tasks, a larger choice set can amortize the time needed for a labeler to get acquainted with
+the context necessary to understand a query. Basu et al. (2019) propose to use hierarchical queries, i.e., a
+sequence of pairwise comparisons that build up on each other.
+Pairwise comparisons are generally easier to supply than ratings, even when the feedback is given by a
+foundation model (Wang et al., 2024c). While absolute feedback is generally dependent on a policy serving
+as an implicit baseline (MacGlashan et al., 2017), the explicit baseline in pairwise comparisons can be more
+easily controlled.
+Therefore, comparisons provide many benefits over absolute ratings, such as reduced
+bias, inconsistencies, and subjectivity (Yannakakis & Martínez, 2015). On the flip-side, comparisons convey
+relatively little information per label. Tien et al. (2023) study the weaknesses of pairwise-comparison-based
+reward learning. Since the amount of information provided for each label is small, these models are prone
+to causal confusion, i.e., misattributing reward to noise and misidentifying the reward function.
+15
+
+Inter-Temporal Feedback
+One limitation of trajectory comparisons is that they require a set of roughly
+comparable trajectories. In many real-world environments, starting conditions or even the agent’s current
+task may vary between episodes. In these cases, it is hard for human labelers to compare trajectories from
+these episodes, limiting the usefulness of comparison feedback. One way to remedy this limitation is to
+provide feedback within a single trajectory. Instead of comparing a set of instances with each other as in
+regular comparative feedback, inter-temporal feedback conveys relative judgments over different states in
+time within a single instance, e.g., by comparing a robot’s behavior at the start and the end of a trajectory.
+The defining features of inter-temporal feedback are that it is given explicitly (explicitness) on a segment
+(granularity) while passively observing (involvement) a single instance (arity) of the agent’s behavior
+with evaluative intent.
+It is most commonly given on raw instances, but any level of abstraction is
+possible in principle. There are two main ways to convey this feedback: Reward sketching and inter-temporal
+preferences.
+Reward sketching, as introduced by Cabi et al. (2020), involves users sketching a visual representation of the
+reward function over time. This type of feedback, which can be given by sketching a graph with the mouse
+while watching a behavior recording, provides intuitive reward annotations for each time step. Rahtz et al.
+(2022) also adopted this approach, referring to it as “one of the highest-bandwidth feedback mechanisms
+currently available”.
+Inter-temporal preferences were introduced by Abramson et al. (2022). In this setting, humans give feedback
+on multiple points of a trajectory, indicating whether an agent makes progress towards or regresses from a
+goal. This is then interpreted as preferences relative to the other labeled and unlabelled points. The authors
+note that one potential downside of this feedback type is that labelers may tend to give preferences on
+short-term actions that are easy to judge, failing to communicate long-horizon preferences. Cui & Niekum
+(2018) propose a similar type of feedback, in which humans segment a trajectory into good and bad parts.
+This makes it possible to derive many state-action labels from a few segmentation points.
+Proxy Rewards
+Proxy rewards are partial or inaccurate reward functions that convey information about
+the task the agent is supposed to complete but may not induce optimal behavior. An example of this is a
+reward function that only rewards the agent for reaching the goal state but does not penalize negative side-
+effects. This form of feedback does not generally refer to any particular behavior instance but instead gives
+global direction for the entire task. However, in line with our selection criteria (Section 1.3), we only consider
+proxy reward feedback that is interactive and online within the context of one or multiple observations to fill
+holes in the initial description. The defining features of proxy reward feedback is that the labeler passively
+observes the agent’s behavior (involvement) and gives feedback explicitly (explicitness) on a feature-level
+(abstraction) with descriptive intent (intent). Proxy reward feedback may be given with respect to a
+single or multiple instances (arity), although it generally refers to multiple instances. It is most commonly
+given on an episode (granularity), but other granularities are possible in principle.
+The work by He & Dragan (2021) exemplifies this form of feedback through an iterative process where de-
+signers provide proxy reward functions on training environments. The method maintains a belief distribution
+over reward functions consistent with behaviors that achieve high proxy reward on training environments,
+then actively proposes new environments that maximize information gain about the true reward function,
+helping designers refine their reward specifications. Alternatively, Mindermann et al. (2018) suggest querying
+about the reward function, extending the inverse reward design framework of Hadfield-Menell et al. (2017b),
+which treats proxy reward functions as observations to infer the designer’s true intent. The active approach
+by Mindermann et al. (2018) allows users to choose from a set of understandable, linear proxy rewards or
+to specify which features are more critical in the linear reward structure. In a related setting, Guan et al.
+(2023) lets the user specify changes to a current symbolic reward function in the form of changes to target
+attributes (e.g., walking speed).
+Social Behavior
+Humans give rich implicit social feedback in the form of facial reactions and gestures
+when interacting with agents. The defining attributes of this type of feedback are that it is given implic-
+itly (explicitness) on passively observed (involvement) segments (granularity) with respect to a single
+instance (arity) and literal intent.
+16
+
+Cui et al. (2021) propose a framework to learn reward functions from such social behavior. They suggest a
+two-phase training setup. In the first phase, they ground the implicit feedback by use of incentives, i.e., they
+incentivize humans to have a known objective. After learning a mapping from feedback to reward, they use
+regular RL techniques to learn a policy. Note that the learned reward function can be seen as conditional
+on human implicit feedback and, therefore, they require a human in the loop throughout training.
+Improvements
+Improvements are a form of feedback in which the human improves on the agent’s behavior,
+either by intervening as the agent acts or by providing a corrected behavior after the agent acts.
+To
+improve an episode, it is usually necessary to observe the entire episode (granularity) at the instance level
+(abstraction). In this type of feedback, the human both observes and demonstrates behavior, resulting in
+co-generative involvement. Improvements generally relate to a single reference trajectory being improved
+(unary arity), although an improvement could also be interpreted as a binary comparison between the
+improved and the non-improved trajectory.
+Improvements are most commonly provided explicitly with
+instructive intent.
+We distinguish between post-facto improvements, calling them corrections, and improvements made while
+the agent is acting, calling them interventions.
+The key difference is that the uncorrected trajectory is
+available in the case of corrections, while it can only be estimated in the case of interventions.
+Interventions can be considered to be an instance of the shared autonomy setting since the agent and the
+user share autonomy to reach a common goal. There are two main ways to leverage interventions: One is
+to learn from the occurrence of an intervention itself that the prior behavior was suboptimal, as done, e.g.,
+by Luo et al. (2024) by directly inferring negative rewards from interventions without learning a reward
+model, and the other is to learn from the corrected trajectory. The latter setting is studied by Abramson
+et al. (2022), who ask humans to intercede on agent failure. They use this to collect targeted demonstrations
+where the agent is the weakest and to identify challenging situations for their evaluations. The gathered
+data is then used for behavior cloning and reward model training. The fact that a correction occurred is
+not directly used as feedback. In addition to the above distinction, interventions can come in two main
+formats: Either by overtaking control from the agent to correct its behavior or by physically correcting the
+agent’s movements. Losey et al. (2022) proposes to learn a reward model from such physical corrections, a
+method that was later extended (Losey & O’Malley, 2018) to incorporate uncertainty for active learning and
+risk-sensitive deployment. Li et al. (2021) further extend this setting to learn from a sequence of correlated
+physical corrections without needing to wait until the trajectory is completed.
+The correction case is closely related to the setting of coactive learning (Shivaswamy & Joachims, 2015),
+in which a learning system repeatedly proposes a solution which a user may correct to reach a common
+goal. Jain et al. (2015) treat corrections as a demonstration while Jeon et al. (2020) propose (but do not
+evaluate) an alternative interpretation of inferring implicit preferences from comparisons by assuming the
+corrected trajectory is preferred over the original one. Corrections are also commonly used in the LLM
+fine-tuning setting to incorporate AI feedback: By prompting a language model with a set of principles, it
+can critique and revise a generated response according to those principles. This can then be used to generate
+demonstrations (Bai et al., 2022b) or targeted pairwise preferences (Castricato et al., 2024) and to internalize
+these principles with further training on this data.
+Natural Language
+Natural language is a versatile form of feedback that can be used to convey a wide
+range of information. It cannot only be used to express preferences, but also to suggest concrete changes.
+Natural language feedback may be given on any granularity, at any level of abstraction. Its defining
+features are that it is given explicitly (explicitness) in the context of a single (arity) observed behavior or
+policy (involvement) with descriptive intent.
+While much work in language for RL focuses on the problem of learning a policy that follows natural-language
+instructions in a non-interactive setting (Hermann et al., 2017; Nair et al., 2021), we focus on works where
+language is used as feedback, not for task definition. Note, however, that RLHF can be a useful tool for
+learning a language-conditioned policy, regardless of whether or not the feedback itself is in the form of
+natural language. As an example of this, Abramson et al. (2022) use RLHF in an interactive agents setting,
+where one agent (responsible for solving problems) is controlled by the learned policy and another agent
+17
+
+(responsible for setting tasks) is controlled by the human. RLHF for LLMs can also be viewed as language-
+conditioned RL, although Shen et al. (2024) find that reward models in this context often fail to distinguish
+nuances in task descriptions.
+Language may be interpreted as a form of feedback in the reward-rational choice setting (Jeon et al., 2020),
+where an utterance implies a set of trajectories compatible with the utterance (grounding) and the human
+can choose an utterance that maximizes the probability of a desired action (i.e., the human is assumed to be
+specific which leads to pragmatic reasoning). This can be used to infer a reward which may have caused the
+human to provide the utterances they did provide. A similar approach is followed, e.g., by (Sumers et al.,
+2022b).
+An alternative way of incorporating language feedback is by extracting more structured forms of feedback
+from the language. An example is to use sentiment analysis to extract information about the reward function
+from language feedback, as proposed by Sumers et al. (2021).
+Language feedback can also be interpreted by an LLM directly, without learning a reward model. This is
+demonstrated in the concurrent works by Ma et al. (2024b) and Xie et al. (2024) who propose to learn a
+symbolic reward model in the form of a language-model written piece of (Python) code. They use natural
+language feedback to improve the reward model based on observations of the agent’s behavior induced by
+the previous version of the reward model.
+In addition to the way language feedback is used, the way it is elicited can also have an impact on the learning
+process. Sumers et al. (2022a) study the relative merits of natural language instructions and descriptions
+of the desired outcome. They find that instructions tend to work better for low-autonomy settings, while
+descriptions are more effective in high-autonomy settings.
+3.2.2
+Supplementary Classes
+This section introduces two feedback classes, e-stops and importance, that can be used in conjunction with
+a primary class to learn a reward model. These classes are not sufficient to learn a reward model on their
+own but can supplement a primary feedback type.
+E-Stops
+Emergency stops (e-stops) (Ghosal et al., 2023) are an active type of feedback. In this type of
+feedback, the human may intervene with the agent’s behavior by stopping it, i.e., they may choose to stop
+the agent’s current trajectory at any point, for example to prevent the agent from causing harm. This is
+closely related to interventions but, in contrast to those, e-stops do not suggest an alternative action. The
+defining features of e-stops are that the human passively observes the agent’s behavior (involvement), gives
+absolute feedback on a single instance (arity) on the instance level (abstraction), and does so implicitly
+(explicitness) as a side-effect of regular interaction.
+The intent is literal due to the implicit nature.
+For the purposes of intervention, the human usually observes the full episode (granularity). Due to the
+small amount of infrequent information they provide, e-stops should only be considered as a supplementary
+feedback type.
+E-stops are primarily intended to prevent bad behavior and only implicitly convey information about the
+correct behavior. This interaction and the arising incentives have been formalized in the form of the “off-
+switch game” by Hadfield-Menell et al. (2017a). Jeon et al. (2020) propose to interpret this as a form of
+reward-rational feedback, where the ‘off’ choice maps to the trajectory with the robot remaining still after
+the off switch has been triggered (see Section 5.1.1). Kahn et al. (2021) demonstrate that a robot can learn
+to navigate using such feedback.
+Importance
+Another form of supplementary feedback may come in the form of importance labels, commu-
+nicating which parts of the observation are important for the objective, e.g., by marking salient regions in an
+image representing the agent’s final state or important words in the language model’s response. Its defining
+features are that the importance information itself does not contribute towards generating behavior samples
+(observed involvement), is of descriptive intent, and is given explicitly (explicitness). Granularity,
+arity, and abstraction may vary depending on the primary feedback type. Since importance feedback
+18
+
+needs a base task with respect to which the importance is defined, it cannot be used on its own but is rather
+a supplementary type of feedback.
+One way to convey this information is by labeling salient parts of a visual input. This is explored by Guan
+et al. (2021), who augment pairwise comparisons with manually annotated visual saliency maps, informing
+the algorithm which parts of the visual input contributed to the decision. They leverage these annotations for
+data augmentation by assuming that random perturbations to irrelevant (non-salient) regions do not impact
+the human preferences. Basu et al. (2018) take an even more direct approach by combining comparative
+feedback with direct feature queries, i.e., asking the user which feature is important for inferring the reward.
+3.2.3
+Representation-Specific Classes
+While the previous classes of feedback types are all aimed at directly learning a reward function, there are
+also classes of feedback types that do not directly learn a reward function but rather help to learn a better
+representation.
+Feature Traces
+While many approaches either rely on hard-coded features or learn a model entirely end-
+to-end, it is also possible to actively elicit new features from human feedback. Feature traces were proposed
+by Bobu et al. (2022) as an approach to actively learn new relevant features. This type of feedback relies
+on a human operator to demonstrate a behavior in which a certain feature of interest, such as the distance
+to a sensitive object, monotonically increases or decreases, e.g., by moving a robot arm closer to the object.
+They make it possible to extend the set of features once the current set can no longer adequately explain the
+human feedback supplied through another type of feedback. The defining characteristics of feature traces are
+that they are of descriptive (intent) and explicitly (explicitness) given in an active manner (involvement)
+for a single (arity) segment (granularity) on an instance-level abstraction.
+Feature traces are strongly related to inter-temporal preferences (Section 3.2.1) since both types rely on
+changes in feature or reward values in the course of a single trajectory.
+Bobu et al. (2022) propose to
+learn from feature traces by leveraging a Bradley-Terry model to learn the feature values, similar to other
+approaches that use such a model to learn reward values. Similar to importance feedback, feature traces
+rely on another type of feedback to actually make use of the learned features and is, therefore, a purely
+supplementary form of feedback.
+For instance, Bobu et al. (2022) use intervention feedback to train a
+reward model on the set of features derived using feature traces.
+Similarity Queries
+Similarity queries are a feedback type aimed at learning a representation conforming
+to a notion of similarity and difference in the trajectory space. That aim is closely aligned with that of
+feature queries, though the actual queries are more similar to comparisons. The queries consist of triples of
+trajectories, with one anchor and two alternatives, for which the human has to decide which pair is more
+similar. Responses to similarity queries are given on observed behavior (involvement) with ternary arity,
+descriptive intent, and explicit feedback (explicitness), while the granularity and abstraction may vary.
+This type of feedback was first introduced by Bobu et al. (2023), who used it to learn representations for
+reward learning.
+3.3
+Initializations
+Some modes of communicating reward functions are not interactive nor online and, therefore, do not directly
+fit within the scope of this survey (Section 1.3). However, since these are often used to initialize a reward
+function for later refinement with some of the previously discussed interactive feedback types, they are still
+worth mentioning.
+Initializations are most commonly given by examples of successful task completions, either in the form of
+terminal or goal states (Xie et al., 2018), expert demonstrations (Ibarz et al., 2018; Fu et al., 2018a; Palan
+et al., 2019; Lee et al., 2021b; Bıyık et al., 2022a; Abramson et al., 2022; Huang et al., 2023), demonstrations
+with success labels (Du et al., 2023), or ranked demonstrations (Brown et al., 2019). It is even possible to
+infer some human preferences by the state of the environment alone, e.g., assuming the parts of the initial
+environment that are under the user’s control are largely set up in accordance with the user’s preferences
+19
+
+(Shah et al., 2019; Lindner et al., 2021a). Since offline initialization is not the main focus of our survey,
+we do not cover these works in detail. We refer the interested reader to literature on inverse RL (Arora &
+Doshi, 2021) for further details on learning from demonstrations in particular.
+3.4
+Choice of Feedback Type
+The best feedback type is not always clear and may depend on the task, the user, or the agent. It may also
+change over time as the agent learns more about the task. Table 2 may serve as a starting point to select
+a set of feedback types which may be applicable based on the possible user interaction and expertise, e.g.,
+by the desired granularity, level of abstraction or involvement. This choice may be informed, among other
+features, by the task complexity or time horizon: Jain et al. (2015) compare purely passive (re-ranking based)
+with active (slight trajectory improvements) feedback and conclude that the former is usually preferred by
+humans when the action space is large while the latter is preferred for complex tasks. Similarly, Sumers et al.
+(2023) empirically demonstrate that language is a more effective teaching modality than demonstrations for
+complex concepts. The relevance of the time horizon is highlighted in the work by Sumers et al. (2022b),
+which suggests that instructive feedback is more efficient for short time horizons and descriptive feedback
+for longer horizons.
+In addition to these static choices, Section 4.1.2 will discuss how to choose a feedback type adaptively. It is
+also possible to let the user choose the feedback type, as demonstrated by Jain et al. (2015) who let the user
+choose between re-ranking and improvement. Jeon et al. (2020) propose to use this choice of feedback type
+itself as a source of information (“meta-choice”).
+3.5
+Combination of Feedback Types
+In addition to using any of the previously described feedback types in isolation, combining multiple feedback
+types is both possible and often advantageous. There are three main ways to combine feedback types: (a) a
+two-phase setup, consisting of initialization and refinement, (b) integrating a primary feedback type with a
+supplementary one; and (c) merging multiple primary feedback types.
+The two-phase setup can be used to either initialize the reward model from offline data or to learn a
+representation that improves later reward learning. A common approach involves using one feedback type,
+typically demonstrations (see Section 3.3), to initialize the reward model, subsequently fine-tuning this model
+with another type, such as comparisons. This method is exemplified by Ibarz et al. (2018), who combined
+demonstrations and pairwise comparisons. For a more detailed discussion on feedback types suitable for
+initialization, we refer to Section 3.3. Alternatively, a representation-focused type of feedback might be
+employed initially (Section 3.2.3) to cultivate a superior representation, followed by the application of a
+primary feedback type for reward model learning.
+Combining a primary feedback type with a supplementary one can be beneficial to make the most of the
+available user interactions. Supplementary feedback, while not sufficient for reward model training by itself,
+can often be collected cheaply or as a side-effect of other interactions, making it a valuable addition to the
+primary feedback type. We refer to Section 3.2.2 for a discussion on supplementary feedback types.
+Finally, combining multiple primary feedback types can be beneficial to capitalize on the strengths of each.
+For instance, Koppol et al. (2020) combine informative and demanding queries with less-informative and
+less-demanding ones to achieve a balance between cognitive load and informativeness.
+Similarly, to en-
+hance expressivity, Mehta & Losey (2023) combines demonstrations, pairwise comparisons, and corrections,
+allowing users to select their preferred type of feedback.
+20

@@ -1,0 +1,816 @@
+The Emergence of Reproducibility and Generalizability in
+Diffusion Models
+Huijie Zhang1, Jinfan Zhou∗1, Yifu Lu1, Minzhe Guo1, Peng Wang1,
+Liyue Shen1, and Qing Qu1
+1Department of Electrical Engineering & Computer Science, University of Michigan
+June 11, 2024
+Abstract
+In this work, we investigate an intriguing and prevalent phenomenon of diffusion models
+which we term as “consistent model reproducibility”: given the same starting noise input and
+a deterministic sampler, different diffusion models often yield remarkably similar outputs. We
+confirm this phenomenon through comprehensive experiments, implying that different diffu-
+sion models consistently reach the same data distribution and score function regardless of dif-
+fusion model frameworks, model architectures, or training procedures. More strikingly, our
+further investigation implies that diffusion models are learning distinct distributions affected by
+the training data size. This is supported by the fact that the model reproducibility manifests
+in two distinct training regimes: (i) “memorization regime,” where the diffusion model over-
+fits to the training data distribution, and (ii) “generalization regime,” where the model learns
+the underlying data distribution. Our study also finds that this valuable property generalizes
+to many variants of diffusion models, including those for conditional generation, solving in-
+verse problems, and model fine-tuning. Finally, our work raises numerous intriguing theoret-
+ical questions for future investigation and highlights practical implications regarding training
+efficiency, model privacy, and the controlled generation of diffusion models.
+Key words: diffusion model, reproducibility, memorization and generalization, interpretability
+∗The first two authors contributed to this work equally.
+A short version of this work has been recognized by the best paper award in NeurIPS Diffusion Model Workshop 2023.
+1
+arXiv:2310.05264v4  [cs.LG]  10 Jun 2024
+
+Contents
+1
+Introduction
+3
+2
+Consistent Model Reproducibility
+5
+2.1
+Measures of Reproducibility and Generalizability
+. . . . . . . . . . . . . . . . . . . .
+6
+2.2
+Model Reproducibility Manifests in Two Regimes
+. . . . . . . . . . . . . . . . . . . .
+6
+2.3
+Reproducibility is Rare in Generative Models . . . . . . . . . . . . . . . . . . . . . . .
+7
+3
+Analyzing Reproducibility in Two Regimes
+8
+3.1
+Reproducibility in Memorization Regime
+. . . . . . . . . . . . . . . . . . . . . . . . .
+9
+3.2
+Reproducibility in Generalization Regime . . . . . . . . . . . . . . . . . . . . . . . . .
+10
+3.2.1
+Reproducibility & Distribution Learning
+. . . . . . . . . . . . . . . . . . . . .
+10
+3.2.2
+Prevalence of Reproducibility . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12
+3.2.3
+Reproducibility from Noise Hyperplane to Image Manifold
+. . . . . . . . . .
+13
+4
+Beyond Unconditional Diffusion Models
+15
+4.1
+Conditional Diffusion Models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+15
+4.2
+Diffusion Models for Solving Inverse Problems . . . . . . . . . . . . . . . . . . . . . .
+16
+4.3
+Model Reproducibility in Fine-tuning Diffusion Models.
+. . . . . . . . . . . . . . . .
+18
+5
+Related Works
+19
+6
+Conclusions and Implications
+20
+Appendices
+28
+A Unconditional Diffusion Model
+28
+B
+Theoretical Analysis
+30
+C Experiment setting for Section 3.2.1
+37
+C.1
+Learning score functions of a mixture of Gaussian . . . . . . . . . . . . . . . . . . . .
+37
+C.2
+Model Recovery of Diffusion Models . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+37
+D Conditional Diffusion Models
+37
+E
+Stable Diffusion Models
+38
+F
+Diffusion Model for Solving Inverse Problem
+39
+G Fine-tuning Diffusion Model
+41
+2
+
+Figure 1: Visualization of generation samples from different diffusion models. We utilized de-
+noising diffusion probabilistic models (DDPM) [1, 13], consistency model (CT) [14], U-ViT [15]
+trained on CIFAR-10 [16] dataset. Samples in the corresponding row and column are generated
+from the same initial noise with a deterministic ODE sampler.
+1
+Introduction
+Recently, diffusion models have emerged as a powerful new family of deep generative models
+with remarkable performance in many applications, including image generation [1, 2, 3] , image-
+to-image translation [4, 5, 6], text-to-image synthesis [3, 7, 8], and solving inverse problem [9, 10,
+11, 12]. These models learn an unknown data distribution generated from the Gaussian noise dis-
+tribution through a process that imitates the non-equilibrium thermodynamic diffusion process
+[1, 2]. In the forward diffusion process, the noise is continuously injected into training samples;
+while in the reverse diffusion process, a model is learned to remove the noise from noisy sam-
+ples parametrized by a noise-predictor neural network. Then guided by the trained model, new
+samples (e.g., images) from the target data distribution can be generated by transforming random
+noise instances through step-by-step denoising following the reverse diffusion process. Despite the
+remarkable data generation capabilities, the fundamental mechanisms driving their performance
+are largely under-explored.
+In this work, we study an intriguing while prevalent phenomenon that sets diffusion models
+apart from most other generative models. We refer to this phenomenon as “consistent model repro-
+ducibility”. More precisely, as illustrated in Figure 1, when different diffusion models are trained
+on the same dataset, and sampled from the same noises when using a deterministic ODE sampler.1
+Different diffusion models consistently converge to nearly identical image contents, which is
+irrespective of network architectures, training and sampling procedures, and perturbation kernels.
+This phenomenon implies that different diffusion models are learning nearly identical map-
+1We employ a deterministic sampler to ensure model reproducibility, but stochastic samplers can also achieve repro-
+ducibility when they generate consistent noise across different models.
+3
+
+(a) Reproducibilty
+(b) Generalizability
+Figure 2: “Memorization” and “Generalization” regimes for unconditional diffusion models.
+We utilize DDPMv4 and train them on the CIFAR-10 dataset, adjusting both the model’s size and
+the size of the training dataset. In terms of model size, we experiment with UNet-64, UNet-128, and
+UNet-256, where, for instance, UNet-64 indicates a UNet structure with an embedding dimension
+of 64. As for the dataset size, we select images from the CIFAR dataset, ranging from 26 to 215.
+Under each dataset size, different models are trained from the same subset of images. The figure
+on the left displays the reproducibility score as we compare various models across different dataset
+sizes, while the figure on the right illustrates the generalizability score of the models as the dataset
+size changes.
+ping and distributions, as further discussed in Section 3. More interestingly, through studying the
+reproducibility under different regimes of training data size, we further find that diffusion models
+are learning different types of data distributions depending on the size of training data. As illus-
+trated in Figure 2, this is corroborated by our findings that the consistent model reproducibility
+emerges in two distinct regimes: (i) “Memorization regime”: the model has the capacity to mem-
+orize the training data but no ability to generate new samples. The co-existence of reproducibility
+and memorization implies that the diffusion model is learning the empirical multi-delta distribu-
+tion of the training samples. (ii) “Generalization regime”: the model regains reproducibility while
+it gains the ability to produce new data. The co-emergence of reproducibility and generalizability
+indicates that the diffusion model is learning the underlying distribution of the data.
+Summary of contributions.
+In summary, we briefly highlight our contributions below:
+• A comprehensive study of model reproducibility. We present the first comprehensive and
+systematic study of the reproducibility in diffusion models. Our findings are consistent under
+various network architectures, noise perturbation kernels, training and sampling settings.
+• Two regimes of model reproducibility and distribution learning. Our analysis reveals that
+reproducibility manifests in two regimes. We demonstrate that diffusion models learn different
+4
+
+types of distributions (i.e., empirical vs. underlying distribution) in different regimes.
+• Model reproducibility beyond unconditional diffusion models. Under various different set-
+tings, we show that reproducibility manifest in different but structured ways, including condi-
+tional diffusion models, inverse problem solving, fine-tuning.
+Theoretical and practical implications of our work.
+Understanding model reproducibility within
+diffusion models could carry significant implications for both theoretical and practical aspects.
+Theoretically, understanding the question will shed light on how the mapping function between
+the noise and data distributions is learned and constructed, and it will also offer profound under-
+standing of how diffusion models are capable of learning the complicated image distribution from
+a limited number of training samples. We discuss the theoretical aspects in more detail in Section 5.
+In practical terms, gaining a deeper insight into model reproducibility could potentially lead to (1)
+improved efficiency in training, (2) solutions for data privacy concerns in large-scale pre-trained
+diffusion models, and (3) more interpretable and controllable data generation processes. We fur-
+ther discuss the practical aspect in detail in Section 6.
+Notations.
+We denote scalar (function) as regular lower-case letters (e.g. st, f(t)), vectors (func-
+tion) with bold lower-case letters (e.g. x, s(xt, t)). We use [N] to denote the set {1, 2, . . . , N}, P(·)
+to denote the probability, E [·] to denote expectation, || · ||2 to denote L2 norm, N(·) to denote gaus-
+sian distribution, U(0, 1) to denote uniform distribution from 0 to 1. Given any d ∈N, we use Id to
+denote an identity matrix of size d.
+Organization of the paper.
+The rest of the paper is organized as follows: Section 2 introduces and
+Section 3 analyzes the reproducibility in the contexts of memorization and generalization regimes.
+We then broaden our investigation to include variants of diffusion model settings in Section 4.
+Section 5 draws comparisons between our work and related literature. Finally, in Section 6, we
+explore the implications of our empirical findings.
+2
+Consistent Model Reproducibility
+While the illustrations in Figure 1 and initial investigations in the seminal work [2] are motivating,
+this work provides a more comprehensive and systematic study of model reproducibility in diffu-
+sion models.2 We begin by proposing quantitative metrics to evaluate reproducibility as well as
+generalizability in diffusion models. Subsequently, we discover a strong relationship between the
+reproducibility and generalizability of diffusion models.
+2Recent seminal work [2] has observed a similar phenomenon (see also subsequent works [14, 17]), but the study
+in [2] remains preliminary.
+5
+
+2.1
+Measures of Reproducibility and Generalizability
+Measure of model reproducbility.
+To study the reproducibility phenomenon in Figure 1 more
+quantitatively, we introduce the reproducibility (RP) score to measure the similarity of image pair
+generated from two different diffusion models starting from the same noise, which is drawn i.i.d.
+from the standard Gaussian distribution:
+RP Score := P (MSSCD(x1, x2) > 0.6) ,
+which measures the probability of a generated sample pair (x1, x2) from two different diffusion
+models to have self-supervised copy detection (SSCD) similarity MSSCD larger than 0.6 [18, 19].3
+Higher RP score indicates stronger model reproducibility. In practice, we estimate RP Score by
+the empirical probability using 10K noise samples. The SSCD similarity is first introduced in [18]
+to measure the replication between image pair (x1, x2), which is defined as follows:
+MSSCD(x1, x2) =
+SSCD(x1) · SSCD(x2)
+||SSCD(x1)||2 · ||SSCD(x2)||2
+where SSCD(·) represents a neural descriptor for copy detection of images.
+In addition, we also use the mean-absolute-error (MAE) score to measure the reproducibility,
+MAE Score := P (MAE(x1, x2) < 15.0), based upon similar setting with the RP score. MAE(·) is
+the operator that measures the mean absolute different of image pairs in the pixel value space ([0,
+255]).
+Measure of model generalizability.
+Moreover, we discover a strong relationship between model
+reproducibility and its generalizability, where the latter refers to the model’s ability to produce new
+samples distinct from the ones in the training set. To assess the generalizability of diffusion models,
+we introduce the generalization (GL) score as follows:
+GL Score := 1 −P
+
+max
+i∈[N] [MSSCD(x, yi)] > 0.6
+
+,
+which is defined based upon the probability of maximum MSSCD over the training dataset larger
+than 0.6. Similar to RP score, we empirically sample 10K initial noises to estimate the probability.
+Intuitively, GL score measures the dissimilarity between the generated sample x and all N samples
+yi from the training dataset {yi}N
+i=1. Higher GL score indicates stronger generalizability.
+2.2
+Model Reproducibility Manifests in Two Regimes
+Based upon RP and MAE scores, we provide comprehensive quantitative studies (see Figure 6) to
+demonstrate the prevalence of model reproducibility in diffusion models. More interestingly, we
+discover that the reproducibility of the model arises either through memorization of the training
+data or by acquiring the ability to generalize. As highlighted in Figure 2, we show that
+3As demonstrated in [19], MSSCD > 0.4 already exhibits very strong visual similarities.
+6
+
+The model reproducibility manifests in two distinct memorization and generalization regimes,
+depending on the size of training data and model capacities.
+In the following, we discuss the two regimes in detail:
+• “Memorization regime” characterizes the scenario where the reproducibility is due to the mem-
+orization of the training data distribution. As illustrated in the left region of Figure 2a, this
+regime occurs when the model has much larger capacity than the size of training data. Al-
+though the model possesses the ability to reproduce the same results starting from the same
+noise, the generated samples are only replications of the samples in the training data and the
+model lacks the ability to generate new samples; see the left region of Figure 2b. In this regime,
+the emergence of reproducibility is due to the fact that all diffusion models memorize the same
+multi-delta distribution of training samples. This can be verified by characterizing the closed-
+form solution of the score function under empirical multi-delta distribution (see Proposition 1),
+and by showing that practical diffusion models converge to such score function (see Figure 4).
+An in-depth study is provided in Section 3.1. It should noted that, given no generalizability,
+training diffusion models in this regime might hold limited practical interest.
+• “Generalization regime” emerges when the diffusion model not only regains its reproducibil-
+ity but also becomes capable of generating new samples distinct from the training data; see the
+right region of Figure 2b. This usually happens when the diffusion model is trained on large
+dataset without full capacity to memorize the whole dataset [20]; see the right region of Fig-
+ure 2a. This is the regime in which diffusion models are commonly trained and employed in
+practice. As illustrated in Figure 2b, we revealed that there is a clear phase transition from the
+memorization regime to the generalization regime as the training samples increase. In the gen-
+eralization regime, the model reproducbility co-emerges with the model’s generalizability. We
+believe this is because all diffusion models are learning the same score function of the true under-
+lying data distribution instead of the training data distribution. We provide an in-depth study
+in Section 3.2.
+2.3
+Reproducibility is Rare in Generative Models
+We end this section by highlighting that only diffusion models appear to consistently exhibit model
+reproducibility. This property rarely exists in other generative models, with one exception as noted
+in [25].4 Quantitative results of model reproducibility for Generative Adversarial Network (GAN)
+[26] and Variational Autoencoder (VAE) [27] are in Figure 3. In contrast to diffusion models, the
+observed lack of reproducibility in GANs and VAEs implies that they are not effectively trained to
+capture the underlying data distribution. This deficiency is a contributing factor to the occurrence
+of mode collapse in GANs [28].
+4[25] demonstrates that VAE is uniquely identifiable encoding given a factorized prior distribution over the latent
+variables.
+7
+
+Figure 3: Quantitative results for GANS and VAEs. In our evaluation of GAN-based methods,
+we utilize two architectures: Wasserstein GAN (wGAN) [21] and Spectral Normalization GAN
+(SNGAN) [22] training on the CIFAR-10 dataset. For VAE-based approaches, we consider both the
+standard VAE and the Variational Autoencoding Mutual Information Bottleneck (VAMP) model
+[23] training on the MNIST [24] dataset.
+3
+Analyzing Reproducibility in Two Regimes
+To understand why diffusion models exhibit reproducibility across different models and regimes, it
+would be intuitive to first look at the reverse sampling process. When we employ an ODE sampler
+[2], for t ∈[0, 1] the reverse sampling process can be characterized by
+xt =
+ 1 −f(t′)
+
+xt′ + g2(t′)
+2
+· s(xt′; t′)
+score function
+,
+(1)
+where t′ = t + ∆t ∈[0, 1], f(t) = d log st
+dt
+, and g2(t) = ds2
+t σ2
+t
+dt
+−2s2
+t σ2
+t
+d log st
+dt
+. Here, the scalars
+σt and st denote the parameters of the perturbation kernel pt(xt|x0) = N(xt; stx0, s2
+t σ2
+t I) at the
+t-th time-step. Furthermore, let fs : E 7→I be the mapping from the noise space E to the image
+space I, by using a deterministic ODE sampler and the score function s(xt; t). The reproducibility
+of diffusion models is the result of the learned mapping fs is reproducible.
+Observing (1), it becomes evident that the behavior of the ODE sampler is deterministic, with
+results exclusively reliant on s(xt; t). This implies that the consistency observed across various
+diffusion models might be attributed to the reproducibility in score matching. Hence, to under-
+stand the reproducibility observed in both memorization and generalization regimes as outlined
+in Section 2, we must delve into two critical questions:
+• How well do diffusion models approximate the score function s(xt; t) in each regime?
+• For each regime, which distribution p(x0) do diffusion models learn the score function s(xt; t) from?
+In the following, we study both questions for the memorization and generalization regimes in
+Section 3.1 and Section 3.2, respectively. Before that, we first derive the analytical form of any
+given distribution p(x0) based upon the Tweedie’s formula [29] as follows.
+8
+
+Figure 4: Convergence of the optimal denoiser (left) and training loss (right) w.r.t. the train-
+ing data size. We employ DDPMv4 and conduct training on the CIFAR-10 dataset. During this
+process, we make modifications to both the model’s capacity and the size of the training dataset,
+maintaining the same configuration as depicted in Figure 2. The left figure illustrates the repro-
+ducibility score between each diffusion model and the theoretically unique identifiable encoding
+as outlined in Proposition 1, the right figure illustrates the training loss for these models when
+trained till converge.
+Lemma 1. Suppose the distribution learned by diffusion model is p(x0) and the perturbation kernel pt(xt|x0) =
+N(xt; stx0, s2
+t σ2
+t I) with perturbation parameters st, σt. The ideal score function has the following form
+s(xt; t) =
+1
+s2
+t σ2
+t
+ Ext∼pt(xt)[x0|xt] −xt
+
+=
+1
+s2
+t σ2
+t
+ 
+st
+Ex0∼p(x0)[N(xt; stx0, s2
+t σ2
+t I) · x0]
+Ex0∼p(x0)[N(xt; stx0, s2
+t σ2
+t I)]
+−xt
+!
+.
+In the following, we will use the above result to derive the optimal score function w.r.t. different
+p(x0) in two distinct regimes.
+3.1
+Reproducibility in Memorization Regime
+Through a combination of theoretical and experimental studies, we show that in the memorization
+regime,
+reproducibility is a result of memorizing the training distribution p(x0) = 1
+N
+PN
+i=1 δ(x0 −yi).
+Here, p(x0) denotes the multi-delta distribution of the training samples {yi}N
+i=1 and δ(·) de-
+notes the Dirac delta function. In the following, we corroborate our claim by (i) deriving the op-
+timal score function of p(x0) in Proposition 1, and by (ii) showing that practical diffusion models
+9
+
+converge to the optimal score function in the small data regime; see Figure 4.
+Proposition 1. Given a training dataset {yi}N
+i=1 of N-samples, consider the same setting of Lemma 1
+with p(x0) following the empirical multi-delta distribution p(x0) = 1
+N
+PN
+i=1 δ(x0 −yi). In this set-
+ting, we can show that the score function can be characterized as
+semp(xt; t) = −
+1
+s2
+t σ2
+t
+"
+xt −st
+PN
+i=1 N(xt; styi, s2
+t σ2
+t I)yi
+PN
+i=1 N(xt; styi, s2
+t σ2
+t I)
+#
+.
+The proof for Proposition 1 can be found in the Section B, building upon previous findings from
+[17, 30]. From Proposition 1, we can see that the score function semp(xt; t) is purely determined
+by the given training dataset {yi}N
+i=1 and perturbation parameters st, σt.
+Moreover, by comparing the reproducibility between the theoretical noise-to-image mapping
+fsemp and different practically trained diffusion models, our experiments in Figure 4 (left) demon-
+strate that the trained networks have a very high similarity compared with the theoretical solution
+when the training data size is small enough. In the meanwhile, the training loss in Figure 4 (right)
+also converges to the minimum value in this case, which is proven in Section B. As such, in the
+memorization regime when the model has a much larger capacity than the training data, the repro-
+ducibility among different diffusion models and the theoretical mapping implies that all diffusion
+models are approximating the same score function of the empirical multi-delta distribution of the
+training data. In this regime, the diffusion model lacks the ability to generate new samples.
+3.2
+Reproducibility in Generalization Regime
+Second, we study reproducibility in the generalization regime, which is the typical training setting
+for most practical diffusion models. Within this regime, we first focus on examining the learning
+of score function through model reproducibility. Based upon preliminary studies using simple
+models, we show that in the generalization regime,
+reproducibility is a byproduct of diffusion model learning the ground-truth distribution p(x0).
+Following this, we conduct a thorough investigation into the reproducibility of various pre-
+trained diffusion models used in real-world applications.
+3.2.1
+Reproducibility & Distribution Learning
+However, analysis of the estimation accuracy under the true natural image distribution is exceed-
+ingly challenging. Instead, we illustrate through empirical evidence that diffusion models have the
+capacity to learn the underlying distribution by utilizing data samples generated from two given
+distributions: (i) a mixture of Gaussian distribution and (ii) pre-trained diffusion models.
+10
+
+Figure 5: Score matching accuracy. We train the same diffusion model with varying numbers of
+training samples N and subspace dimension r from the Mixture of Gaussian distribution defined
+in Equation (2) and plot the metric Lscore in different colors for each r. The detailed experimental
+settings are in Section C.1.
+Case 1: Learning score functions of a mixture of Gaussians.
+We first consider learning diffusion
+models based upon the following mixture of low-rank Gaussian (MoG) distribution:5
+p(x0) = 1
+C
+X
+i∈[C]
+N (x0; 0, Σi) with Σi = UiU ⊤
+i ,
+(2)
+where C is the number of classes, and U ∗
+i ∈Rd×r is the low-rank basis for the ith class with r ≪d.
+In this case, by invoking Lemma 1, we can show that the corresponding score function has the
+following form.
+Proposition 2. Under the same setting of Lemma 1 with p(x0) following the MoG distribution
+introduced in (2), we can show that the optimal score function is:
+sMoG(xt, t) =
+X
+i∈[C]
+πi(xt, t)
+s2
+t σ2
+t
+
+−xt +
+1
+1 + σ2
+t
+UiU ⊤
+i xt
+
+,
+with πi(xt, t) =
+N
+ xt; 0, s2
+t UiU ⊤
+i + s2
+t σ2
+t Id
+
+P
+i∈[C] N
+ xt; 0, s2
+t UiU ⊤
+i + s2
+t σ2
+t Id
+.
+The proof can be found in Section B. To test whether practical diffusion models converge to
+the optimal score function sMoG(xt, t), we train the diffusion models sθ by using N data points
+{yi}N
+i=1 ⊆Rn drawn from the MoG distribution in (2). We measure the distance between sMoG(xt, t)
+and sθ by
+Lscore := Et∼U(0,1),x0∼p(x0),xt∼pt(xt|x0)
+
+∥sθ(xt, t) −sMoG(xt, t)∥2
+
+,
+where the expectation is calculated for t uniformly sampled from [0, 1], x0 sampled from the MoG
+distribution p(x0) and xt sampled from the noise perturbation kernel pt(xt|x0) given t and x0.
+5As shown in [31], the learned real data distribution could be approximated as the Mixture of Gaussian distribution.
+11
+
+From experiment results shown in Figure 5, we observe that sθ(xt, t) converges to sMoG(xt, t) as
+N increases given different r. Therefore, under this setting of MoG distribution, the diffusion
+model could converge towards the score function sMoG given enough training samples (in the
+generalization regime).
+Case 2: Learning score functions from pre-trained diffusion models.
+Second, suppose the un-
+derlying image distribution p(x0) can be characterized by the noise-to-image mapping fsθ1(ϵ), ϵ ∼
+N(0, s2
+t σ2
+t Id) of a pretrained diffusion model in generalization regime sθ1. We sample N data
+points from p(x0) to generate a training dataset {yi}N
+i=1, based upon which we train another dif-
+fusion model sθ2 with sufficient large N (in the generalization regime ). We then calculate the
+reproducibility of the two models following the same metric as in Section 2.1.
+Experimentally, we find that the two models have a high RP Score = 0.80, which indicates
+that the diffusion model fsθ2 could converge to the underlying distribution, which is the same
+data distribution as fsθ1, and at the same time they have the same noise-to-image mapping. The
+detailed experiment settings are in Section C.2.
+3.2.2
+Prevalence of Reproducibility
+Finally, we conclude this section by showing the prevalence of reproducibility in the generalization
+regime, which is irrespective of network architectures, training and sampling procedures, and perturba-
+tion kernels. Specifically, in Figure 6, we visualize the similarity matrix for seven different popular
+diffusion models, where each element of the matrix measures pairwise similarities of two different
+diffusion models based upon RP score (left) and MAE score (right). All the models are trained
+with the CIFAR-10 dataset [16]. Experimental details and more comprehensive studies can be
+found in Section A.
+As we can see from Figure 6, there is a very consistent model reproducible phenomenon for
+comparing any two models. For even the most dissimilar models, the RP and MAE scores are
+notably high at 0.7 and 0.68, respectively. Specifically, we observe the following:
+• Different network architectures. We evaluate (i) U-Net [32] based architecture: DDPM [1],
+DDPM++ [2], Multistage [33], EDM [17], Consistency Training (CT) and Distillation (CD)
+[14], and (ii) Transformer [34] based architecture: DiT [35] and U-ViT [15]. This phenomenon
+remains consistent regardless of the specific architecture employed.
+• Different training procedures. We consider discrete [1] and continuous [2] settings, training
+from scratch or distillation [36, 14] for the diffusion model. When we compare CT (consistency
+training) and EDMv1, even when we use different training losses, they both converge to similar
+noise-to-image mappings. Additionally, comparing DDPMv1 and Progressivev1 reveals that
+both training from scratch and distillation approaches lead to the same results.
+• Different sampling procedures. For sampling, we only use deterministic samplers, such as DPM-
+Solver [37], Heun-Solver [17], DDIM [13] etc. For example, DDPMv4 utilizes DPM-solver,
+12
+
+Figure 6: Similarity among different unconditional diffusion model settings in generalization
+regime. We visualize the quantitative results based upon seven different unconditional diffusion
+models (DDPMv4, DDPMv6 [1, 13], Multistagev1 [33], EDMv1 [17], UViT [15], CT [14], Progres-
+sivev1 [36]) based upon reproducibility score (left) and MAE score (right) (defined in Section 2.1).
+About more detailed settings and a more comprehensive comparison could be found in Section A.
+EDMv1 employs a 2nd order heun-solver, and CT utilizes consistency sampling, yet they all
+exhibit very high model reproducibility.
+• Different perturbation kernels. For the data corruption process, we compared Variance Pre-
+serving (VP) [1], Variance Exploding (VE), and sub Variance Preserving (sub-VP) [2] pertur-
+bation methods for noise perturbation stochastic differential equations. We scale the initial noise
+using the standard deviation specific to the terminated Gaussian distribution of each perturba-
+tion kernel to ensure a fair comparison, details can be found in Section A. Our observations
+indicate that the choice of perturbation methods (VP, sub-VP, and VE) has a limited impact on
+reproducibility when comparing DDPMv4, DDPMv6, and EDMv1.
+3.2.3
+Reproducibility from Noise Hyperplane to Image Manifold
+While Section 3.2.2 studies the reproducibility of images generated from discretized initial noises
+ϵ ∈E. In this section, we want to further explore the reproducibility of the image manifold gener-
+ated from 2D noise hyperplane H ⊆E. Specifically, we find that
+• Similar unique encoding maps across different network architectures. We further confirm the model
+reproducibility by visualizing the generated image manifold from the same 2D noise hyper-
+plane, inspired by [38]. The visualization in Figure 7 shows that different generated manifolds
+of different network architectures share very similar structures.
+13
+
+Figure 7: Unqiue Encoding from Noise Hyperplane to Image Manifold. The diagram illustrates
+the process of mapping from a noise hyperplane to the image manifold. We employ three dis-
+tinct models: DDPMv6, EDMv1, and Multistagev1. Initially, we select three different initial noises
+from Gaussion and generate corresponding samples, denoted by a triangle, square, and circle in
+the first three images on the left. The hyperplane is defined based on these chosen noises. Image
+generations, starting from uniformly selected initial noise within this hyperplane, are classified as
+identical to either the triangle, square, or circle image, determined by the maximum SSCD simi-
+larity with them. Each initial noise is colored according to its generation’s corresponding class (as
+indicated on the right; for instance, the noise’s generation identical to the triangle image is repre-
+sented by the black-white color bar), along with the SSCD similarity to the identical image.
+• Local Lipschitzness of the unique encoding from noise to image space. Furthermore, our visualization
+suggests that fs is locally Lipschitz, where ∥fs(ϵ1) −fs(ϵ2)∥≤L∥ϵ1 −ϵ2∥for any ϵ1, ϵ2 ∈
+B(ϵ, δϵ) ∩E with some Lipschitz constant L. Here B(ϵ, δϵ) denotes a ball centered at a Gaussian
+noise ϵ with radius δϵ. In other words, noises ϵ1, ϵ2 ∈E close in distance would generate similar
+reproducible images in I via diffusion models.
+Specifically, the visualization in Figure 7 is created as follows. First, we pick three initial noises
+(ϵ1, ϵ2, ϵ3) in the noise space E and used different diffusion model architectures to generate clear
+images (x1, x2, x3) in the image manifold I, so that the images {xi}3
+i=1 belong to three different
+classes. Second, we create a 2D noise hyperplane with
+ϵ (α, β) = α · (ϵ2 −ϵ1) + β · (ϵ3 −ϵ1) + ϵ1
+Within the region (α, β) ∈[−0.1, 1.1]×[−0.1, 1, 1], we uniformly sample 100 points along each axis
+and generate images x (α, β) for each sample ϵ (α, β) using different diffusion model architectures
+(i.e., DDPMv6, EDMv1, Multistagev1). For each point (α, β), it is considered as identical to image
+xi for i = arg maxk∈{1,2,3}[MSSCD(xk, x (α, β))], and we visualize the value of MSSCD(xi, x (α, β)).
+As we observe from Figure 7, the visualization shares very similar structures across different net-
+work architectures. Second, for each plot, closeby noises create images with very high similarities.
+These observations support our above claims.
+14
+
+Figure 8: Model reproducibility for conditional diffusion model in the generalization regime.
+In this study, we employ conditional diffusion models, specifically U-Net-based (EDM-cond,
+MultistageEDM-cond) and transformer based (UViT-cond), which we train on the CIFAR-10
+dataset using class labels as conditions. Additionally, we select unconditional diffusion models,
+namely Progressivev1, DDPMv4, and EDMv2, as introduced in Section 3.2.2. Figure (a) showcases
+sample generations from both unconditional and conditional diffusion models (with the "plane"
+serving as the condition for the latter). Notably, samples within the same row and column originate
+from the same initial noise. The reproducibility scores between the conditional diffusion models
+are presented in (b), and between unconditional and conditional diffusion models in (c).
+4
+Beyond Unconditional Diffusion Models
+In this section, we explore the concept of model reproducibility in a broader context, extending
+beyond unconditional diffusion models. We demonstrate that model reproducibility manifests
+more generally across various scenarios, including conditional diffusion models, diffusion models
+for inverse problems, and the fine-tuning of diffusion models.
+4.1
+Conditional Diffusion Models
+Conditional diffusion model, introduced by [41, 39], gained its popularity in many applications
+such as text-to-image generation [3, 7, 8]. These models achieve a superior degree of control and
+enhanced quality in output generation through the integration of rich class embeddings within the
+denoising function. Interestingly, we find that:
+Model reproducibility of conditional models exhibits in a structured way and is strongly related to
+unconditional counterparts.
+Specifically, our experiments in Figure 8 demonstrate that (i) model reproducibility exists among
+different conditional diffusion models, and (ii) model reproducibility presents between condi-
+tional and unconditional diffusion models only if the type (or class) of content generated by the
+15
+
+(a) Visualization.
+(b) RPcond Score
+Figure 9: Model reproducibility for conditional diffusion model generations on ImageNet
+dataset. In this experiment, we choose the conditional diffusion model (EDM, ADM [39], CD,
+CT, iDDPM [40]) trained on the ImageNet dataset. 10K image pairs are generated to estimate the
+RPcond Score. Due to the complexity of the ImageNet dataset, we set the threshold for the SSCD
+metric as 0.4 instead of 0.6 here, following the setting in [19].
+unconditional models matches that of the conditional models. More results can be found in Sec-
+tion D.
+To support our claims, we define the conditional reproducibility score between different condi-
+tional diffusion models by RPcond Score := P (MSSCD(xc
+1, xc
+2) > 0.6 | c ∈C) to evaluate similarity
+between outputs of different conditional diffusion models, based on the likelihood of their similar-
+ity exceeding a threshold from the same initial noise and conditioned on the class c ∈C. We also
+introduce a between reproducibility score RPbetween Score := P
+ maxc∈C[MSSCD(x1, xc
+2)] > 0.6
+
+, for
+an unconditional generation x1 and conditional generation xc
+2 originating from an identical noise,
+to assess the similarity between unconditional output x1 and conditional output xc
+2.
+Results in Figure 8 (a) (b) show that samples from different conditional models (EDM-cond,
+UViT-cond, MultistageEDM-cond) are similar when conditioned on the same class and noise, sup-
+porting Claim (i). On the other hand, a high RPbetween Score and visual similarities between un-
+conditional and conditional samples, as seen Figure 8 (c), support Claim (ii). Furthermore, beside
+the CIFAR-10 dataset, we also demonstrate the conditional reproducibility on large-scale datasets
+such as ImageNet [42] in Figure 9 and large-scale diffusion models such as Stable Diffusion [3] in
+Section E.
+4.2
+Diffusion Models for Solving Inverse Problems
+Recently, diffusion models have also been demonstrated as rich, structural priors to solve a broad
+spectrum of inverse problems [12, 11, 43, 9],6 including but not limited to image super-resolution,
+6Here, the problem is often to reconstruct an unknown signal u from the measurements z of the form z = A(u)+η,
+where A denotes some (given) sensing operator and η is the noise.
+16
+
+Figure 10: Model reproducibility for solving inverse problems in the generalization regime.
+In this investigation, we employ various unconditional diffusion models, as introduced in Sec-
+tion 3.2.2, which were initially trained on the CIFAR-10 dataset. Our approach involves utilizing
+a modified deterministic variant of diffusion posterior sampling (DPS), as detailed in Section F.
+Specifically, we focus on the task of image inpainting. Figure (a) presents both the observation z,
+unknown signal u, and generations from different diffusion models. Notably, samples within the
+same row and column originate from the same initial noise. The reproducibility scores for different
+diffusion models under the DPS algorithm are quantitatively analyzed in (b).
+de-blurring, and inpainting. Motivated by these promising results, our illustration is based upon
+solving the image inpainting problem using a modified deterministic variant of diffusion posterior
+sampling (DPS) [11], showcasing that for solving inverse problems using diffusion models:
+Model reproducibility holds only within the same type of network architectures.
+Our claim is supported by the experimental results in Figure 10. Specifically, Figure 10 (a)
+virtualizes the samples generated from different diffusion models, and Figure 10 (b) presents the
+similarity matrix of model reproducibility between different models, i.e., U-Net based (DDPMv1,
+DDPMv2, DDPMv3, DDPMv4, Multistagev1) and Transformer based (DiT, U-ViT) architectures.
+We note a strong degree of model reproducibility among architectures of the same type (e.g., U-Net
+vs. Transformer), but the model reproducibility score exhibits a notable decrease when any U-Net
+model is compared with any Transformer-based model.
+We conjecture that the lack of reproducibility across network architectures is due to the follow-
+ing reasons: (i) DPS introduces the gradient term ∂sθ(xt,t)
+∂xt
+during the sampling, and this extra term
+might break the reproducibility for different type of architectures. (ii) the reproducibility between
+different types of architectures might not hold for out-of-distribution data generation, whereas the
+data xt passed into the learned score function sθ(xt, t) is out-of-distribution for solving inverse
+17
+
+Figure 11: Model reproducibility for diffusion model finetuing. In this experiment, we employ
+DDPMv4. Two distinct training strategies are investigated: "from scratch," denoting direct training
+on a subset of the CIFAR-10 dataset, and "partial fine-tuning," which involves pretraining on the
+entire CIFAR-100 dataset [16] followed by fine-tuning only the attention layers of the model on a
+subset of the CIFAR-10 dataset. The dataset sizes for CIFAR-10 range from 26 to 215. Importantly,
+both "from scratch" and "partial fine-tuning" are trained using the same subset of images for each
+dataset size. Under different dataset sieze, Figure (a) illustrates the reproducibility score between
+these two strategies and (b) presents the generalization score for them.
+problems. We leave these for future study.
+4.3
+Model Reproducibility in Fine-tuning Diffusion Models.
+Few-shot image fine-tuning for diffusion models, as discussed in [44, 45, 46, 47], showcases remark-
+able generalizability. This is often achieved by fine-tuning a small portion of the parameters of a
+large-scale pre-trained (text-to-image) diffusion model. In this final study, we delve into the im-
+pacts of partial model fine-tuning on both model reproducibility and generalizability, by extending
+our analysis in Section 2. We show that:
+Partial fine-tuning reduces reproducibility but improves generalizability in “memorization regime”.
+Our claim is supported our results in Figure 11, comparing model fine-tuning and training from
+scratch of with varying size of the training data, where both models have the same number of pa-
+rameters. In comparison to training from scratch that we studied in Figure 2b, fine-tuning specific
+components of pre-trained diffusion models, particularly the attention layer in the U-Net architec-
+ture, yields lower model reproducibility score but higher generalization score in the memorization
+regime. However, in the generalization regime, partial model fine-tuning has a minor impact on
+both reproducibility and generalization in the diffusion model. Our result reconfirms the improved
+18
+
+generalizability of fine-tuning diffusion models on limited data, but shows a surprising tradeoff in
+terms of model reproducibility that is worth of further investigations.
+5
+Related Works
+Convergence analysis of diffusion models.
+Numerous theoretical studies have investigated the
+diffusion model’s convergence towards the underlying distribution. Most of these studies, includ-
+ing [48, 49, 50, 51, 52, 53], have established convergence by assuming an L2-accurate score estima-
+tion. Others have explored convergence without relying on this assumption. Nonetheless, these
+studies rely on strong simplification regarding network architectures [54, 55] and data distribu-
+tions [55]. Our paper provides an empirical complement to existing theoretical analyses.
+In contrast, our paper focuses on the learned distribution and score function under various
+practical diffusion model settings. The empirical findings not only broaden the understanding of
+diffusion models in realistic settings but also bridge the gap between theory and practice.
+Understanding memorization & generalization.
+Recently, Yoon et al. [20] categorized the train-
+ing regimes of diffusion models into memorization and generalization, concluding that diffusion
+models tend to generalize when they fail to memorize the training data. In the memorization
+regime, Yi et al. [30], Gu et al. [56] demonstrated that training diffusion models converges towards
+an optimal denoiser. In contrast, in the generalization regime, Pidstrigach [57] linked generaliza-
+tion in simple settings to avoiding overfitting, while Kadkhodaie et al. [58] showed that the gen-
+eralization capabilities of diffusion models arise from an implicit bias towards geometry-adaptive
+harmonic bases. Furthermore, Somepalli et al. [59, 19], Carlini et al. [60] revealed that diffusion
+models can still replicate training samples even in the generalization regime, leading to significant
+privacy concerns.
+In comparison, our work takes a step further to delve into the problem. By examining the
+largely overlooked reproducibility phenomenon, our work is the first to show that diffusion mod-
+els learn distinct distributions in different regimes: in the memorization regime, diffusion models
+learn the empirical distribution, while in the generalization regime, they learn the underlying dis-
+tribution. Moreover, our research provides the first empirical evidence that diffusion models can
+overcome the curse of dimensionality when learning the underlying distribution, enabling effective
+generalization even with a limited number of training samples. Finally, our analysis also extends
+to conditional diffusion models and diffusion models for inverse problems, which have not been
+addressed in previous studies.
+Reproducibility in deep learning.
+Theoretically, the reproducibility we identified for diffusion
+models is similar to the notion of unique identifiable encoding, that several prior studies have ex-
+plored for deep latent-variable models. This property refers to the ability of models to converge
+to a specific input-embedding mapping, irrespective of variations in weight initialization or opti-
+mization methods [61]. The foundational work for this property in deep latent-variable models
+19
+
+was established through the analysis of Independent Component Analysis (ICA) by [62, 63, 64].
+Building upon this, [25] demonstrated the identifiability of Variational Autoencoders (VAE) using
+conditionally factorial priors over latent variables, while [61] provided evidence of linear identifi-
+ability in representation learning. Empirically, studies such as [65] and [38] have observed repro-
+ducibility in representation learning and classification tasks, respectively, using similar network
+architectures but different training procedures.
+While [2] mentioned that diffusion models possess the property of unique identifiable encod-
+ing, our novel empirical findings show that diffusion models consistently converge to a similar
+noise-to-image mapping. This occurs regardless of variations in network architectures, noise per-
+turbation kernels, or training and sampling procedures.
+6
+Conclusions and Implications
+This study focuses on an important phenomenon in diffusion models, which we term “consistent
+model reproducibility”. We believe this intriguing phenomenon could significantly impact future
+research on diffusion models. Below, we outline several promising directions:
+Improving training efficiency.
+The potential of this work to improve the training efficiency of
+diffusion models lies in leveraging the distinct relationship between noise and image spaces. Re-
+cent research [33] illustrates this by delineating the training of diffusion models into three stages,
+each employing networks of varying sizes. This approach capitalizes on the reproducibility phe-
+nomenon, indicating that adequately parameterized networks learn the same score function. Con-
+sequently, by appropriately adjusting parameter sizes for each stage, empirical evidence shows that
+the proposed method surpasses existing techniques, particularly in improving training efficiency
+in the generalization regime. These findings imply that incorporating reproducibility as a guiding
+principle in training diffusion models holds significant promise for future research endeavors.
+Black-box model privacy.
+Several commercial, large-scale diffusion models, e.g. Imagen [66],
+DALL-E [67], are designed as black-box systems, raising significant privacy concerns due to the
+property of reproducibility. Our analysis, in the Case 2 of Section 3.2.1, indicates that one can
+replicate the mapping from a trained diffusion model fsθ by training a new score function sθ′
+from generated data by fsθ (through the open-source API). Furthermore, given the white-box
+duplication fsθ′, gradient-based adversarial attacking [68] and training data privacy [60] would
+arise as more exacerbated problems.
+Controllable data generation.
+Given the unique mapping learned by the diffusion model, we
+could control image distribution by manipulating the noise distribution. More specifically, in text-
+driven image generation, image distribution could be manipulated for adversarial attacking [69],
+robust defending [70], copyright protection [19, 59]. In solving inverse problems, one recent paper
+20

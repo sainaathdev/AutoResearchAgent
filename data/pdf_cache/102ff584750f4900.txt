@@ -1,0 +1,1251 @@
+Alignment of Diffusion Models: Fundamentals, Challenges, and Future
+BUHUA LIU, The Hong Kong University of Science and Technology (Guangzhou), China
+SHITONG SHAO, The Hong Kong University of Science and Technology (Guangzhou), China
+BAO LI, Institute of Automation, Chinese Academy of Sciences, China
+LICHEN BAI, The Hong Kong University of Science and Technology (Guangzhou), China
+ZHIQIANG XU, Mohamed bin Zayed University of Artificial Intelligence, UAE
+HAOYI XIONG, Baidu Inc., China
+JAMES KWOK, The Hong Kong University of Science and Technology, Hong Kong
+SUMI HELAL, The University of Bologna, Italy
+ZEKE XIE∗, The Hong Kong University of Science and Technology (Guangzhou), China
+Diffusion models have emerged as the leading paradigm in generative modeling, excelling in various applications. Despite their success,
+these models often misalign with human intentions and generate results with undesired properties or even harmful content. Inspired
+by the success and popularity of alignment in tuning large language models, recent studies have investigated aligning diffusion
+models with human expectations and preferences. This work mainly reviews alignment of diffusion models, covering advancements in
+fundamentals of alignment, alignment techniques of diffusion models, preference benchmarks, and evaluation for diffusion models.
+Moreover, we discuss key perspectives on current challenges and promising future directions on solving the remaining challenges in
+alignment of diffusion models. To the best of our knowledge, our work is the first comprehensive review paper for researchers and
+engineers to comprehend, practice, and research alignment of diffusion models.
+CCS Concepts: • General and reference →Surveys and overviews; • Computing methodologies →Machine learning;
+Computer vision; Natural language generation.
+Additional Key Words and Phrases: Alignment, Diffusion Models, Generative Models
+ACM Reference Format:
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, and Zeke Xie. 2026. Alignment of
+Diffusion Models: Fundamentals, Challenges, and Future. 1, 1 (February 2026), 35 pages. https://doi.org/XXXXXXX.XXXXXXX
+∗Corresponding author
+Authors’ Contact Information: Buhua Liu, The Hong Kong University of Science and Technology (Guangzhou), Guangzhou, Guangdong, China,
+bryceliu@foxmail.com; Shitong Shao, The Hong Kong University of Science and Technology (Guangzhou), Guangzhou, Guangdong, China, sshao213@
+connect.hkust-gz.edu.cn; Bao Li, Institute of Automation, Chinese Academy of Sciences, Beijing, China, libao2023@gmail.com; Lichen Bai, The Hong
+Kong University of Science and Technology (Guangzhou), Guangzhou, Guangdong, China, lichenbai@hkust-gz.edu.cn; Zhiqiang Xu, Mohamed bin Zayed
+University of Artificial Intelligence, Masdar City, Abu Dhabi, UAE, Zhiqiang.Xu@mbzuai.ac.ae; Haoyi Xiong, Baidu Inc., Beijing, China, xhyccc@gmail.com;
+James Kwok, The Hong Kong University of Science and Technology, Hong Kong, jamesk@cse.ust.hk; Sumi Helal, The University of Bologna, Bologna,
+Emilia-Romagna, Italy, sumi.helal@gmail.com; Zeke Xie, The Hong Kong University of Science and Technology (Guangzhou), Guangzhou, Guangdong,
+China, zekexie@hkust-gz.edu.cn.
+Permission to make digital or hard copies of all or part of this work for personal or classroom use is granted without fee provided that copies are not
+made or distributed for profit or commercial advantage and that copies bear this notice and the full citation on the first page. Copyrights for components
+of this work owned by others than the author(s) must be honored. Abstracting with credit is permitted. To copy otherwise, or republish, to post on
+servers or to redistribute to lists, requires prior specific permission and/or a fee. Request permissions from permissions@acm.org.
+© 2026 Copyright held by the owner/author(s). Publication rights licensed to ACM.
+Manuscript submitted to ACM
+Manuscript submitted to ACM
+1
+arXiv:2409.07253v4  [cs.LG]  5 Feb 2026
+
+2
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, Zeke Xie
+1
+Introduction
+Diffusion models [75, 184, 188] have emerged as the dominant paradigm, surpassing previous state-of-the-art generative
+models such as generative adversarial networks (GANs) [14, 43, 65, 91, 170, 211] and variational autoencoders (VAEs) [99].
+Diffusion models have demonstrated the impressive performance and success in various generative tasks, including image
+generation [52, 93], video generation [9, 74], text generation [128], audio synthesis [85, 102], 3D generation [223, 241],
+music generation [41], and molecule generation [67, 230]. Fig. 2a illustrates the trend in the number of papers on diffusion
+models published in top computer vision conferences (CVPR, ICCV, ECCV) and top machine learning conferences
+(NeurIPS, ICML, ICLR) in recent years, highlighting the growing interest in diffusion models at these leading conferences.
+However, the diffusion training objective does not necessarily align well with human intentions and preferences.
+For instance, images generated by pre-trained text-to-image (T2I) models may generate images that, while technically
+plausible, may fail to capture specific artistic nuances or accurately represent complex textual descriptions [8, 55, 106],
+which can hinder practical applications or diminish user satisfaction. Similarly, in drug discovery, pre-trained diffusion
+models typically lack the ability to generate molecules with high binding affinity and structural rationality [67], a critical
+issue that can directly impact therapeutic efficacy. Fig. 1 provides a conceptual illustration of such misalignment. To
+address this mismatch, recent works have begun to optimize pre-trained diffusion models directly for human preference
+or certain desired properties, aiming to more controllable data generation [206] beyond simply modeling the training
+data distribution.
+Pre-trained
+Diffusion Model
+Fine-tuned
+Diffusion Model
+A dog without its tail
+Alignment with
+Human Feedback
+Fig. 1. Conceptual illustration of diffusion model misalignment and the goal of alignment. A pre-trained model may generate an
+output that deviates from human intentions or desired qualities (e.g., missing details in a prompt). An aligned model, after an
+alignment process, produces an output that better reflects human preferences for the same input.
+Within the community of language modeling, recent powerful large language models (LLMs) like GPT-4 [144],
+Llama [48, 199], and Qwen 3 [233] are typically trained in two stages. In the first pre-training stage, they are trained
+on a vast textual corpus with the objective of predicting the next tokens. In the second post-training stage, they are
+fine-tuned to follow instructions, align with human preferences, and improve capabilities like coding and factuality. The
+post-training process usually involves supervised fine-tuning (SFT) followed by alignment with human feedback, using
+techniques such as reinforcement learning from human feedback (RLHF) [144, 147], and direct preference optimization
+(DPO) [48, 159]. The success of these techniques in LLMs is particularly relevant as they demonstrate the feasibility and
+Manuscript submitted to ACM
+
+Alignment of Diffusion Models: Fundamentals, Challenges, and Future
+3
+effectiveness of aligning complex generative models with nuanced human preferences, thereby providing a validated
+conceptual and methodological roadmap for diffusion models. LLMs trained using this two-stage process have achieved
+state-of-the-art performance [36, 144] in various language generation tasks and have been deployed in commercial
+applications such as ChatGPT.
+2017 2018 2019 2020 2021 2022 2023 2024 2025
+Year
+0
+100
+200
+300
+400
+500
+600
+700
+800
+Number of Papers
+Computer Vision Conferences
+Conference
+CVPR
+ECCV
+ICCV
+2017 2018 2019 2020 2021 2022 2023 2024 2025
+Year
+Machine Learning Conferences
+Conference
+NeurIPS
+ICML
+ICLR
+(a) Diffusion model paper trends at top conferences.
+89.4%
+(209000)
+10.6%
+(24700)
+LLMs vs Diffusion Models
+LLMs
+Diffusion Models
+93.5%
+(8300)
+6.5%
+(573)
+Alignment: LLMs vs Diffusion Models
+Alignment of LLMs
+Alignment of Diffusion Models
+(b) Research focus: LLMs vs. Diffusion Models and
+their alignment.
+Fig. 2. Statistical overview of research trends. (a) The number of papers on diffusion models at top computer vision conferences
+(CVPR, ECCV, ICCV) and top machine learning conferences (NeurIPS, ICML, ICLR) since 2017, indicating a growing interest. Note
+that ECCV and ICCV are held biennially. (b) Comparison of the ratio of papers on LLMs vs. diffusion models (left pie) and the research
+focus on alignment within these areas (right pie), highlighting the nascent stage of diffusion model alignment.
+Inspired by the success of aligning LLMs [210], there is growing interest in better aligning diffusion models with
+human intentions to enhance their capabilities. Fig. 2b visualizes the paper counts on LLMs and diffusion models, as
+well as their alignment studies 1. The left pie chart shows LLMs account for 89.4% of the studies, while diffusion models
+account for 10.6%. The right chart highlights that, at this point, 93.5% of alignment studies focus on LLMs, while only
+6.5% address diffusion models. This disparity, clearly illustrated in Fig. 2b, not only underscores the relatively nascent
+stage of alignment research for diffusion models compared to LLMs but also signals a significant opportunity and
+pressing need for focused investigation in this domain. This survey aims to facilitate such research by consolidating
+current knowledge and outlining future directions. The fundamental differences between LLMs and diffusion models,
+where LLMs predict sequences of tokens and diffusion models progressively reverse a noise-adding diffusion process,
+and where the continuous, high-dimensional nature of image generation versus discrete token prediction in LLMs
+presents unique challenges for defining preferences and applying feedback, along with their uniquely advantageous
+application domains, such as LLMs for language generation and diffusion models for image generation, make the study
+of diffusion model alignment an independent and valuable area of interest.
+In this work, we provide a comprehensive review of the alignment of diffusion models to assist researchers and
+practitioners in understanding how to align these models with human intentions and preferences. A literature list is
+made publicly available at GitHub. Fig. 3 illustrates the main framework of this survey. Section 2 introduces recent
+advancements in diffusion models, particularly those incorporating alignment technologies. Section 3 explores funda-
+mental alignment techniques and related challenges in human alignment. Section 4 focuses on alignment techniques
+specific to diffusion models. Section 5 reviews benchmarks and evaluation metrics for assessing human alignment of
+diffusion models. Section 6 outlines future research directions. Section 7 concludes our work, summarizing the key
+1Data obtained from Google Scholar as of January 15, 2026.
+Manuscript submitted to ACM
+
+4
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, Zeke Xie
+Alignment of Diffusion Models
+Fundamentals of
+Human Alignment
+Preference Data
+and Modeling
+Bradley-Terry Model [11],
+Plackett-Luce Model [131, 151]
+Alignment
+Algorithms
+Reinforcement Learning
+from Human Feedback
+InstructGPT [147], REINFORCE [2],
+RAFT [44], RRHF [247], RSO [125],
+CAI [6], RLAIF [104]
+Direct Preference
+Optimization
+DPO [159], IPO [62], ORPO [76],
+KTO [53], PRO [186], LiPO [124]
+Human Alignment of
+Diffusion Models
+Training-based
+Alignment
+RLHF
+Lee et al. [106], ReFL [228], DPOK [55],
+DDPO [8], PRDP [42], DRaFT [35],
+AlignProp [153], DRTune [221]
+DPO
+Diffusion-DPO [203], D3PO [234],
+Dense Reward [239], SPO [119],
+Diffusion-KTO [111]
+Test-time Alignment
+Implicit Guidance
+Prompt Optimization
+Attention Control
+Initial Noise Optimization
+Explicit Guidance
+Reward-based
+Input Optimization
+Reward-Guided
+Decoding and Sampling
+Alignment Beyond
+T2I Diffusion Models
+Video Generation [84, 94, 103, 123, 146, 154, 209, 227, 245, 249],
+Image Editing [251], 3D Generation [87, 241, 262],
+Molecule Generation [67], Decision Making [46],
+Audio Generation [133], Motion Generation [195]
+Benchmarks and
+Evaluation
+Benchmarks
+Scalar Human
+Preference Dataset
+HPD v1 [219], HPD v2 [217],
+Pick-a-Pic v1 [100], ImageRewardDB [228],
+Picsart Image-Social [90]
+Multi-dimensional Human
+Feedback Dataset
+MHP [250], RichHF-18K [118]
+AI Feedback Dataset
+VisionPrefer [218], DreamBench++ [149]
+Evaluation
+Reward Models
+Human Feedback Prediction,
+Correlation with Human Raters
+T2I Diffusion Models
+Prompts
+MS-COCO [120], DiffusionDB [212],
+MT-Bench [150]
+Image Quality
+IS [168], FID [73]
+Human
+Preference
+Evaluation
+CLIP [158], Aesthetic [171],
+HPS v1 [219], HPS v2 [217],
+PickScore [100], ImageReward [228],
+MPS [250], VP-Score [218],
+Social Reward [90]
+Fine-grained
+Evaluation
+DALL-Eval [31], GenEval [63],
+VPEval [32], HEIM [107],
+LLMScore [130], Style [185]
+Fig. 3. The framework of this survey in human alignment of diffusion models and beyond.
+findings and their implications for both researchers and practitioners. Our survey provides a thorough understanding
+Manuscript submitted to ACM
+
+Alignment of Diffusion Models: Fundamentals, Challenges, and Future
+5
+Forward Diffusion Process
+Reverse Denoising Process
+Noise
+Data
+Fig. 4. Diffusion models consist of two key processes: a forward diffusion process with a transition kernel 𝑞(𝑥𝑡|𝑥𝑡−1), where noise is
+gradually added to a data sample, and a reverse denoising process with a learnable transition kernel 𝑝𝜃(𝑥𝑡−1|𝑥𝑡), where the model
+learns to denoise Gaussian noise to reconstruct the original data sample.
+of the alignment of diffusion models, identifies research gaps, and informs the development of next-generation models,
+driving future advancements in the field.
+2
+An Overview of Diffusion Models
+In this section, we briefly outline recent advancements in diffusion models and elucidate the role that human alignment
+plays in guiding their development.
+Decades ago, diffusion process or Langevin diffusion, originated from statistical physics [10, 64, 174], were first
+introduced in machine learning not for generative modeling but mainly for parameter inference [4] and analyzing
+optimization dynamics [30, 225, 231]. Diffusion models, pioneered by Sohl-Dickstein et al. [184] and significantly
+advanced by Ho et al. [75] with Denoising Diffusion Probabilistic Models (DDPMs), operate through a two-stage process:
+a forward noising stage that gradually adds noise to data, and a reverse denoising stage that learns to reconstruct
+data from noise, as illustrated in Fig. 4. This iterative refinement allows for the generation of high-quality samples.
+Variations like Denoising Diffusion Implicit Models (DDIMs) [187] further improved sampling efficiency. For detailed
+reviews, see Cao et al. [16], Yang et al. [236].
+A key application area for diffusion models is T2I synthesis. Early T2I models like GLIDE [142] adapted diffusion
+processes for this task but operated in the pixel space, leading to high computational costs [167]. The advent of Latent
+Diffusion Models (LDMs) [166], which perform diffusion in a compressed latent space, marked a significant milestone
+by reducing computational demands and improving efficiency, making T2I models more practical.
+However, even with these advancements, a core challenge emerged: the standard diffusion training objective does
+not inherently guarantee alignment with nuanced human intentions and preferences. This often results in generated
+images that, while technically sound, may not fully meet user expectations or desired aesthetics [7, 26, 152]. Recognizing
+this gap, recent cutting-edge T2I models have explicitly integrated human alignment techniques. For example, Stable
+Diffusion 3 (SD3) [52] not only introduced architectural innovations but also crucially incorporated alignment by
+applying Diffusion Direct Preference Optimization (Diffusion-DPO) [203] to its large base models. This alignment step
+is pivotal in achieving state-of-the-art performance, surpassing other open models and even proprietary ones like
+Manuscript submitted to ACM
+
+6
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, Zeke Xie
+Table 1. The list of symbols.
+Symbols
+Meanings
+L
+the loss function for optimization
+𝑐
+the prompt to LLMs or diffusion models
+𝜌
+the distribution of prompt
+𝑥
+the response of LLMs or diffusion models
+𝐾
+the number of candidate responses
+𝑥𝑤
+the winning/preferred response in the paired responses
+𝑥𝑙
+the losing/dis-preferred response in the paired responses
+𝑝BT
+the probability distribution of human preference under the Bradley-Terry model
+𝑝PL
+the probability distribution of human preference under the Plackett-Luce model
+𝐿
+the total number of tokens in the responses for LLMs
+𝑇
+the total number of denoising steps for diffusion models
+𝜃
+the parameters of LLMs or diffusion models
+𝑞
+the image data distribution
+𝑝𝜃
+the policy in RL, parameterized by 𝜃, i.e., the LLMs or diffusion models to be aligned
+𝑝ref
+the reference policy, which is typically the frozen initial policy
+𝑟𝜙(𝑐,𝑥)
+the reward model output given the input prompt 𝑐and response 𝑥, parameterized by 𝜙
+D
+the pre-collected preference dataset
+𝐷KL
+the Kullback–Leibler divergence
+𝛽
+the hyper-parameter, which regularizes the distance between the current and reference policies
+DALLE-3 [7] on benchmarks such as GenEval [63]. Similarly, SD3-Turbo [169], focuses on efficient high-resolution
+generation, also leverages DPO-finetuned models in its distillation process, demonstrating significant improvements in
+human preference evaluations. These developments underscore that human alignment is no longer an afterthought but
+a central component in advancing the capabilities of diffusion models.
+This trend highlights the increasing importance of human feedback and sophisticated alignment methodologies in
+shaping the next generation of diffusion models, moving beyond mere generation quality to achieve outputs that are
+more accurate, desirable, and aligned with human values. This survey delves into these critical alignment techniques.
+3
+Fundamentals of Human Alignment
+In this section, we discuss the fundamentals of human alignment based on the existing literature for aligning LLMs and
+diffusion models. Specifically, we summarize the general data forms and preference modeling methods for alignment in
+Section 3.1. We outline the general alignment algorithms for human alignment in Section 3.2. We discuss key challenges
+in human alignment in Section 3.3.
+3.1
+Preference Data and Modeling
+Preference Data. In general, preference data consists of three elements: prompts, responses2, and feedback. Table 1
+shows the mathematical notations in this work.
+Preference data are typically composed of prompts, responses, and feedback. Prompts, whether human-provided or AI-
+generated, are diverse inputs used to elicit model responses. Responses can be generated on-policy (from current model)
+or off-policy (from external or older models), presenting a trade-off between relevance and collection efficiency [193].
+2We use the term “responses” broadly to include human-collected data samples beyond model responses.
+Manuscript submitted to ACM
+
+Alignment of Diffusion Models: Fundamentals, Challenges, and Future
+7
+Preference Modeling. The most common feedback form is a pairwise preference between a preferred response 𝑥𝑤
+and a dis-preferred response 𝑥𝑙, given a prompt 𝑐. This is often modeled using a reward model 𝑟𝜙trained under the
+Bradley-Terry (BT) framework [11]. Specifically, the reward model 𝑟parameterized with 𝜙takes in a prompt 𝑐and a
+response 𝑥, outputting a scalar reward 𝑟𝜙(𝑐,𝑥). The BT model assumes that the human preference probability 𝑝BT can
+be expressed as:
+𝑝BT(𝑥𝑤> 𝑥𝑙|𝑐) =
+exp(𝑟∗(𝑐,𝑥𝑤))
+exp(𝑟∗(𝑐,𝑥𝑤)) + exp(𝑟∗(𝑐,𝑥𝑙))) = 𝜎(𝑟∗(𝑐,𝑥𝑤) −𝑟∗(𝑐,𝑥𝑙)),
+(1)
+where 𝑟∗represents the optimal reward model that 𝑟𝜙approximates, and 𝜎(𝑥) = 1/(1+exp(−𝑥)) is the logistic function.
+The model is optimized with a loss function that maximizes the log-probability of the preferred sample having a higher
+reward score:
+LRM−BT(𝜙) = −E(𝑐,𝑥𝑤,𝑥𝑙)∼D
+
+log(𝜎(𝑟𝜙(𝑐,𝑥𝑤) −𝑟𝜙(𝑐,𝑥𝑙)))
+
+,
+(2)
+where (𝑐,𝑥𝑤,𝑥𝑙) ∼D denotes the sampling of prompt 𝑐, the preferred response 𝑥𝑤, and the dis-preferred response 𝑥𝑙
+from the collected dataset D labeled by humans or AI. In essence, Eq. (2) represents a cross-entropy loss where pairwise
+comparisons are treated as labels, with 𝑥𝑤labeled as 1 and 𝑥𝑙as 0. The term 𝜎(𝑟𝜙(𝑐,𝑥𝑤) −𝑟𝜙(𝑐,𝑥𝑙)) represents the
+probability that response 𝑥𝑤will be preferred over response 𝑥𝑙by a human labeler, as modeled by Eq. (1).
+Beyond pairwise comparisons, feedback can be listwise (ranking multiple responses) or binary (a single response is
+desirable/undesirable) [53, 165]. Listwise feedback can be modeled by extending the BT model to the Plackett-Luce (PL)
+model [131, 151], which frames alignment as a ranking problem [124, 186, 247]. Specifically, the PL model stipulates
+that when presented with a set of possible choices, people prefer each choice with a probability proportional to the
+value of some underlying reward function. In our context, the policy 𝑝is given a prompt 𝑐and produces a set of 𝐾
+responses (𝑥1,𝑥2, . . . ,𝑥𝐾) ∼𝑝(𝑥|𝑐). A human then ranks these responses, yielding a permutation 𝜏: [𝐾] →[𝐾], where
+[𝐾] = {1, 2, . . . , 𝐾} indexes the responses and 𝜏(𝑖) = 𝑗indicates that the response 𝑥𝑗is ranked at position 𝑖. The PL
+model assumes that the human preference ranking probability 𝑝PL can be formulated as:
+𝑝PL(𝜏|𝑥1,𝑥2, . . . ,𝑥𝐾,𝑐) =
+𝐾
+Ö
+𝑘=1
+exp(𝑟∗(𝑐,𝑥𝜏(𝑘)))
+Σ𝐾
+𝑗=𝑘exp(𝑟∗(𝑐,𝑥𝜏(𝑗))) .
+(3)
+Notably, when 𝐾= 2, Eq. (3) reduces to the BT model in Eq. (1). The loss function for training the reward model on
+listwise feedback under the PL model typically uses a maximum likelihood estimation (MLE) ranking loss [124, 159, 222]:
+LRM−PL(𝜙) = −E𝑐,𝑥1,𝑥2,...,𝑥𝐾,𝜏
+"
+log
+𝐾
+Ö
+𝑘=1
+exp(𝑟𝜙(𝑐,𝑥𝜏(𝑘)))
+Σ𝐾
+𝑗=𝑘exp(𝑟𝜙(𝑐,𝑥𝜏(𝑗)))
+#
+.
+(4)
+Feedback Sources and Timing. While traditionally sourced from humans, the cost and effort of annotation have
+motivated the use of AI-generated feedback, with powerful models like GPT-4 being used as annotators [40, 190, 218].
+Furthermore, feedback can be collected offline from a static dataset or online during training, which distinguishes
+between offline and online alignment settings [45, 108, 196].
+3.2
+Alignment Algorithms
+In this subsection, we introduce general alignment algorithms.
+3.2.1
+Reinforcement Learning from Human Feedback. Alignment with human preferences is typically achieved through
+RLHF, which first trains an explicit reward model to reflect human preferences and then applies RL methods to optimize
+Manuscript submitted to ACM
+
+8
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, Zeke Xie
+a policy toward maximizing the reward provided by the reward model [33]. RLHF was successfully applied by Ouyang
+et al. [147] to fine-tune instruction-following LLMs, leading to the development of the widely-used ChatGPT.
+Specifically, the policy 𝑝𝜃is fine-tuned to maximize the reward 𝑟𝜙(𝑐,𝑥) while being regularized by the KL divergence
+from an initial reference policy 𝑝ref:
+max
+𝑝𝜃E𝑐∼𝜌,𝑥∼𝑝𝜃(𝑥|𝑐)
+
+𝑟𝜙(𝑐,𝑥) −𝛽𝐷KL(𝑝𝜃(𝑥|𝑐)||𝑝ref (𝑥|𝑐))
+
+,
+(5)
+where 𝛽controls the strength of the KL regularization term [191].
+Proximal Policy Optimization (PPO) [172] is the predominant RL algorithm for this task, but it is computationally
+expensive and notoriously difficult to tune [51, 147]. This has motivated simpler alternatives, such as basic REINFORCE-
+style optimization [2, 193] or iterative fine-tuning methods that bypass traditional RL entirely by using the reward
+model to filter or rank data for supervised fine-tuning [44, 125, 247].
+3.2.2
+Direct Preference Optimization. DPO offers a simpler paradigm by bypassing explicit reward model training and
+optimizing the policy directly on preference data [159]. By re-parameterizing the RLHF objective (Eq. (5)) in terms of
+the optimal policy, DPO derives a direct loss on pairwise preferences:
+LDPO(𝑝𝜃;𝑝ref) = −E(𝑐,𝑥𝑤,𝑥𝑙)∼D
+
+log𝜎
+
+𝛽log 𝑝𝜃(𝑥𝑤|𝑐)
+𝑝ref (𝑥𝑤|𝑐) −𝛽log 𝑝𝜃(𝑥𝑙|𝑐)
+𝑝ref (𝑥𝑙|𝑐)
+
+.
+(6)
+Several variants have been proposed to address DPO’s limitations, including its tendency to overfit to the offline
+preference dataset, its sensitivity to hyperparameters, the need for a separate reference model, and its restriction to
+pairwise preference data. Identity Preference Optimization (IPO) [62] modifies the objective with a robust regularization
+term to mitigate overfitting to the preference dataset. Odds Ratio Preference Optimization (ORPO) [76] eliminates
+the need for a separate reference model and combines standard supervised fine-tuning on preferred responses with
+preference alignment. Other approaches use different feedback formats entirely. Kahneman-Tversky Optimization
+(KTO) [53] requires only binary feedback (desirable/undesirable) instead of pairs, leveraging principles from human
+decision-making theory. Preference Ranking Optimization (PRO) [186] and Listwise Preference Optimization (LiPO)
+framework [124] extend the paradigm to leverage listwise feedback, where multiple responses are ranked.
+3.3
+Challenges of Human Alignment
+In this subsection, we synthesize key challenges in human alignment.
+Alignment with AI Feedback. Using AI-generated feedback, or Reinforcement Learning from AI Feedback (RLAIF), is
+a prominent strategy to circumvent costly human annotations [6, 104]. This involves models improving themselves via
+self-generated rewards [113, 246] or using powerful proxy models (e.g., LLMs) as annotators [49, 218]. However, this
+introduces a core trade-off between cost-effectiveness and the risks of AI feedback, namely inheriting biases, lacking
+diversity, and potential model collapse from recursively training on synthetic data [179].
+Diverse and Changing Human Preferences. A key challenge is modeling the diverse, dynamic, and often conflicting
+nature of human preferences [18]. Current research addresses this by learning distributions over preferences [19],
+developing pluralistic frameworks [37, 189], and using multi-objective alignment for conflicting goals [160, 237]. While
+these methods promote fairness [177], they also increase algorithmic complexity and introduce the difficulty of balancing
+competing values.
+Distributional Shift. Reliance on static, offline preference data creates a distributional shift between the training
+data and the evolving policy, a known challenge in offline RL [108] that leads to over-optimization and reward
+Manuscript submitted to ACM
+
+Alignment of Diffusion Models: Fundamentals, Challenges, and Future
+9
+hacking [60, 181]. KL regularization, a common mitigation, can be overly restrictive and limit model improvement.
+Future work could draw from fields like OOD generalization [122], causality [173], and uncertainty estimation [59, 96]
+to enhance robustness.
+Efficiency of Alignment. Improving alignment efficiency is pursued via data-centric and algorithmic approaches.
+Data-centric methods focus on achieving strong performance with less data, such as by curating small, high-quality
+instruction sets [127, 259]. Algorithmic innovations aim to reduce computational overhead through techniques like
+linear alignment [61] and feedback-efficient exploration [201]. The primary challenge is to enhance efficiency without
+sacrificing alignment quality or introducing data selection biases. Future work may explore dataset distillation [207, 244],
+parameter-efficient fine-tuning [135], and inference-time scaling [182].
+Alignment with Rich Rewards. A single, terminal reward is often sparse and overlooks the sequential generation
+process, causing optimization instability [1, 183]. To address this, research explores richer, denser reward structures,
+such as step-wise preferences for diffusion models [119, 239] and token-level feedback for LLMs [21, 248]. However,
+aligning with richer rewards inevitably increases both computational and algorithmic complexities, necessitating further
+research to address potential scalability issues and to understand how to best design and utilize these complex reward
+structures.
+Understanding of Alignment. Research is ongoing to understand the mechanisms, theoretical properties, and
+limitations of alignment. Comparative analyses examine the trade-offs between dominant paradigms like RLHF and
+DPO, exploring differences in their optimization behavior and performance [92, 232]. Theoretical studies are also
+emerging to formalize the learning dynamics of alignment [88, 226] and analyze fundamental model-level flaws, such
+as the DPO loss function’s potential lack of a unique MLE [79]. Finally, trustworthiness remains a major concern, with
+research highlighting model vulnerabilities to jailbreak attacks [216, 243], the brittleness of safety alignment [155, 213],
+and the negative impact of noisy preference data [162]. Collectively, these studies underscore the gap between current
+methods and the goal of robust, understandable, and truly aligned AI systems.
+4
+Human Alignment Techniques of Diffusion Models
+In this section, we first introduce training-based human alignment techniques of diffusion models, including RLHF
+and DPO in Section 4.1 and Section 4.2, respectively. We then review test-time alignment techniques in Section 4.3.
+Furthermore, we review studies related to alignment beyond T2I diffusion models in Section 4.4. Finally, we discuss
+challenges of diffusion alignment in Section 4.5.
+RLHF and DPO are two very classic training-based techniques for aligning AI models with human preferences.
+However, when applied to diffusion models, these methods encounter significant challenges due to the step-by-step
+training and sampling nature of diffusion models. Specifically, aligning diffusion models with preference optimization
+requires sampling across all possible diffusion trajectories leading to 𝑥0, which is intractable in practice. While the LLM
+response is treated as a single output, diffusion models’ multiple latent image representations of each step need to be
+calculated and stored, leading to unreasonable high memory consumption and low computation efficiency. This makes
+these methods impractical for large-scale diffusion models. To address the high computational overhead associated with
+adapting alignment techniques to diffusion models, researchers often formulate the denoising process as a multi-step
+Markov decision process (MDP). The proposed diffusion alignment methods need to directly optimize the expected
+reward of an image output or update the policy based on human preferences to approximately perform policy gradient
+guided by a reward model. This formulation enables parameter updates at each step of the denoising process based on
+Manuscript submitted to ACM
+
+10
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, Zeke Xie
+Step 1
+Data Collection
+add
+noise
+add
+noise
+Maximize likelihood on
+preferred images
+Step 2
+Direct Preference
+Optimization
+random
+sampling
+Collected
+Data
+Minimize likelihood on
+dispreferred images
+Text-to-Image
+Diffusion Model
+Prompt
+Text-to-image
+Diffusion Model
+AI
+Human
+or
+Step 1
+Data Collection
+Step 2
+Obtain Reward Model
+Reward
+Model
+Sample
+1
+Sample
+N
+Score 1
+Score
+N
+or
+AI
+Prompt
+Score
+Step 3
+Reinforcement Learning
+Reward
+Model
+Reward Maximization
+Text-to-Image
+Diffusion Model
+A dog without its
+tail
+0.8
+(a) RLHF
+(b) DPO
+Prompt
+Text-to-image
+Diffusion Model
+AI
+Human
+or
+Fig. 5. The overview of RLHF and DPO of diffusion models.
+human preferences, thereby circumventing the significant computational costs. Table 2 highlights the core differences
+among RLHF, DPO and test-time alignment techniques for diffusion models.
+Table 2. Comparison of Human Alignment Paradigms for Diffusion Models.
+Paradigm
+Compute Cost
+Feedback / Re-
+ward
+Scalability
+Key Limitations
+Best Use Cases
+RLHF
+High: multi-step
+rollouts,
+trajec-
+tory storage, RL
+optimization
+Explicit: scalar re-
+ward via learned
+or heuristic reward
+models
+Low: limited by an-
+notation cost and un-
+stable RL training
+High
+variance,
+training instability,
+reward
+hacking,
+memory intensive
+When
+rich,
+well-
+defined rewards are
+easier to learn than
+the policy itself
+DPO
+Moderate: avoids
+RL
+loops
+and
+explicit
+reward
+model training
+Implicit: relative
+preference via log-
+likelihood ratios
+Moderate: simpler
+pipeline but depends
+on high-quality pref-
+erence pairs
+Sensitive to distri-
+bution shift; limited
+robustness outside
+preference data
+When
+preferences
+are
+available
+but
+reward modeling is
+unreliable or costly
+Test-Time
+Align-
+ment
+Low–Moderate:
+added inference-
+time optimization,
+no retraining
+Hybrid: heuristics
+or external (differ-
+entiable / black-
+box) rewards
+High:
+model-
+agnostic
+and
+training-free
+Increased inference
+latency;
+local
+or
+proxy-driven
+fail-
+ures possible
+Lightweight, on-the-
+fly, or personalized
+alignment without
+model updates
+4.1
+Reinforcement Learning from Human Feedback of Diffusion Models
+In this subsection, we present the RLHF paradigm and its extension for diffusion alignment. As shown in Fig. 5 (a), RLHF
+typically involves three progressive stages: data collection, developing a reward model, and reinforcement learning.
+In the data collection stage, preferences of prompt-response pairs (e.g., text-image pairs for T2I diffusion models) are
+Manuscript submitted to ACM
+
+Alignment of Diffusion Models: Fundamentals, Challenges, and Future
+11
+gathered from humans or AI. In the second stage, RLHF develops a reward model 𝑟𝜙(𝑐,𝑥), either through training
+or prompt engineering [130]. The trained reward model for diffusion models is often instantiated as a VLM such as
+CLIP [158] or BLIP [110] and typically trained with Eq. (2) [100, 217, 228] on D to model human preferences. Finally,
+RLHF optimizes the diffusion model 𝑝𝜃(𝑥0|𝑐) to maximize the reward 𝑟𝜙(𝑐,𝑥0) given the prompt distribution 𝑐∼𝜌
+(ignoring the regularization term):
+min
+𝜃
+E𝑐∼𝜌,𝑥0∼𝑝𝜃(𝑥0|𝑐)
+
+−𝑟𝜙(𝑐,𝑥0)
+
+.
+(7)
+There are several classical and emerging approaches to approximately optimizing the objective in Eq. (7). They can be
+broadly categorized into reward-weighted fine-tuning, RL fine-tuning, and direct reward fine-tuning, alongside newer
+paradigms.
+Reward-weighted Fine-tuning. Lee et al. [106] proposed to align diffusion models with human feedback with a
+reward-weighted likelihood maximization objective:
+min
+𝜃
+E(𝑐,𝑥0)∼Dmodel
+
+−𝑟𝜙(𝑐,𝑥0) log𝑝𝜃(𝑥0|𝑐)
+
++ 𝛽E(𝑐,𝑥0)∼Dpre−training [−log𝑝𝜃(𝑥0|𝑐)] ,
+(8)
+where (𝑐,𝑥0) ∼Dmodel is the model-generated dataset by diffusion models on the tested text prompts, and Dpre−training
+is the pre-training dataset. The first term in Eq. (8) minimizes the reward-weighted negative log-likelihood (NLL) on
+Dmodel to improve the image-text alignment of the model. The second term in Eq. (8) minimizes the pre-training loss to
+mitigate overfitting to Dmodel. Black et al. [8] pointed out that Eq. (8) can be performed for multiple rounds of alternating
+sampling and training to make it into an online RL method by replacing (𝑐,𝑥0) ∼Dmodel with 𝑐∼𝜌,𝑥0 ∼𝑝𝜃(𝑥0|𝑐).
+They referred to this general class of reward-weighted methods as reward-weighted regression (RWR), and considered
+two weighting schemes: 1) a standard one that uses exponentiated rewards to ensure nonnegativity, 𝑤RWR(𝑐,𝑥0) =
+1
+Z𝑅𝑊𝑅exp(𝛾𝑟𝜙(𝑐,𝑥0)), where 𝛾is an inverse temperature and Z𝑅𝑊𝑅is a normalization constant; and 2) a simplified one
+that uses binary weights 𝑤sparse(𝑐,𝑥0) = I
+
+𝑟𝜙(𝑐,𝑥0) ≥𝐶
+
+, where 𝐶is a reward threshold determining which samples
+are used for training and I is the indicator function. Notably, from the RL literature, a weighted log-likelihood objective
+by 𝑤RWR is known to approximately solve Eq. (7) subject to a KL divergence constraint on 𝑝𝜃(𝑥0|𝑐) [140].
+RL Fine-tuning. Reward-weighted fine-tuning relies on an approximate log-likelihood because it ignores the sequential
+nature of the diffusion denoising process, only using the final samples 𝑥0. To address this, the denoising process is
+treated as a multi-step decision-making problem [8, 55, 200], using exact likelihoods at each denoising step instead of
+the approximate likelihoods from the full denoising process. This allows us to directly optimize Eq. (7) using policy
+gradient algorithms. Black et al. [8] proposed denoising diffusion policy optimization (DDPO) to maximize rewards
+from various reward models, including image compressibility, aesthetic quality, and image-prompt alignment. They
+demonstrated that DDPO is more effective than reward-weighted likelihood approaches. DDPO has two variants. One
+uses REINFORCE [138, 215], a score function policy gradient estimator:
+E𝑐∼𝜌,𝑥0:𝑇∼𝑝𝜃(𝑥0:𝑇|𝑐)
+
+−𝑟𝜙(𝑐,𝑥0)Σ𝑇
+𝑡=1∇𝜃log𝑝𝜃(𝑥𝑡−1|𝑥𝑡,𝑐)
+
+.
+(9)
+Another variant uses an importance sampling estimator to reuse old trajectories (i.e., prompt-image pairs) with a
+PPO-style clipping objective [172] to stabilize training:
+E𝑐∼𝜌,𝑥0:𝑇∼𝑝ref (𝑥0:𝑇|𝑐)
+
+−𝑟𝜙(𝑐,𝑥0)Σ𝑇
+𝑡=1clip
+ 𝑝𝜃(𝑥𝑡−1|𝑥𝑡,𝑐)
+𝑝ref (𝑥𝑡−1|𝑥𝑡,𝑐) ∇𝜃log𝑝𝜃(𝑥𝑡−1|𝑥𝑡,𝑐), 1 −𝜖, 1 + 𝜖
+
+,
+(10)
+where 𝜖is the clip hyperparameter.
+Manuscript submitted to ACM
+
+12
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, Zeke Xie
+Fan et al. [55] introduced Diffusion Policy Optimization with KL regularization (DPOK), an online RL fine-tuning
+algorithm that maximizes the ImageReward score with KL regularization. Compared to DDPO, DPOK [55] further
+employs KL regularization to Eq. (7), resulting in the objective:
+min
+𝜃
+E𝑐∼𝜌,𝑥0∼𝑝𝜃(𝑥0|𝑐)
+
+−𝑟𝜙(𝑐,𝑥0) + 𝛽𝐷KL(𝑝𝜃(𝑥0|𝑐)||𝑝ref (𝑥0|𝑐))
+
+.
+(11)
+DPOK then utilizes an upper bound of the KL-term to derive the following objective for regularized training:
+min
+𝜃
+E𝑐∼𝜌,𝑥0:𝑇∼𝑝𝜃(𝑥0:𝑇|𝑐)
+
+−𝑟𝜙(𝑐,𝑥0)
+
++ 𝛽Σ𝑇
+𝑡=1E𝑥𝑡∼𝑝𝜃(𝑥𝑡|𝑐) [𝐷KL(𝑝𝜃(𝑥𝑡−1|𝑥𝑡,𝑐)||𝑝ref (𝑥𝑡−1|𝑥𝑡,𝑐)] .
+(12)
+However, policy gradient methods like DDPO are known for their high variance and instability, especially in large-scale
+settings. To address this, Deng et al. [42] proposed Proximal Reward Difference Prediction (PRDP), which reframes
+the RL objective as a more stable, supervised reward difference prediction task. Instead of directly estimating policy
+gradients, PRDP trains the model to predict the reward difference between two generated images, proving that a model
+which perfectly predicts this difference effectively maximizes the original RL objective.
+Direct Reward Fine-tuning. RL fine-tuning methods are flexible because they do not require differentiable rewards.
+However, many reward models are differentiable, such as ImageReward, PickScore [100], and HPSv2 [217], providing
+analytic gradients. In such cases, using RL can discard valuable information from the reward model. To address this,
+end-to-end backpropagation from reward gradients to the diffusion model parameters has been proposed to solve
+Eq. (7). Nevertheless, updating the diffusion model throughout the entire denoising process is memory-intensive, as
+storing partial derivatives of all layers and denoising steps is prohibitive. ReFL [228] was the first to backpropagate
+through a differentiable reward model by evaluating the reward on a one-step predicted image 𝑟(𝑐, ˆ𝑥0) from a randomly
+selected step 𝑡, thus bypassing the full denoising process. In contrast, Alignment by Backpropagation (AlignProp) [153]
+and Direct Reward Fine-Tuning (DRaFT) [35] evaluate the reward on the final iteratively denoised image 𝑥0. Techniques
+such as low-rank adaptation (LoRA) [81] and gradient checkpointing [27] are employed to reduce memory costs. To
+address the “depth-efficiency dilemma” of backpropagating through many steps, Deep Reward Tuning (DRTune) [221]
+enables more efficient deep supervision by stopping the gradient of the denoising network’s input and training only on
+a selective subset of steps. Direct reward fine-tuning avoids the high variance and low sample efficiency inherent in RL
+fine-tuning, thus improving training efficiency. However, fine-tuning with a differentiable reward model introduces a
+risk of over-optimization, potentially resulting in high-reward but lower-quality images. To mitigate this, DRaFT [35]
+explores methods such as LoRA scaling, early stopping, and KL regularization, with LoRA scaling found to be the most
+effective in reducing reward overfitting.
+Advanced Fine-tuning Paradigms and Strategies. Beyond these foundational approaches, recent works have
+introduced more sophisticated paradigms to tackle key challenges like reward over-optimization, diversity collapse,
+and the alignment of specialized, fast models.
+Tackling Reward Over-optimization: A primary failure mode is “reward hacking”, where the model maximizes the
+reward metric at the expense of true image quality. Zhang et al. [253] proposed Temporal Diffusion Policy Optimization
+(TDPO-R), which provides reward supervision at each denoising step rather than just on the final image. This temporal
+inductive bias, combined with a “critic active neuron reset” mechanism to combat overfitting to early experiences
+(primacy bias), improves robustness. This aligns with theoretical work framing fine-tuning as entropy-regularized
+control to prevent reward collapse [25].
+Aligning Fast and Few-Step Models: As diffusion models become faster through distillation, aligning them presents new
+challenges. Stepwise Diffusion Policy Optimization (SDPO) [29] is designed for few-step models by learning from dense
+Manuscript submitted to ACM
+
+Alignment of Diffusion Models: Fundamentals, Challenges, and Future
+13
+rewards at each step. For ultra-fast (e.g., 1-2 step) models where standard RL fails, LaSRO [257] learns a differentiable
+surrogate reward in the latent space, enabling effective gradient-based tuning.
+Innovations in Reward Signals and Applications: The design of the reward function itself is a major area of research.
+For instance, CoMat [117] uses an image-to-text model to provide concept-level rewards, addressing issues of concept
+ignorance and mismapping. Other works have focused on specialized alignment goals, such as improving long-text
+alignment [252], performing region-aware fine-tuning to fix local flaws [258], or using information-theoretic objectives
+for alignment [254]. Hu et al. [82] have demonstrated alignment with only sparse terminal rewards.
+Emerging Paradigms: Other novel approaches are also being explored. Adversarial Diffusion Tuning (ADT) [86] uses
+an adversarial discriminator to close the gap between the training and inference distributions. To preserve sample
+diversity, a known issue in reward-driven fine-tuning, Shen et al. [176] proposed using Gradient-Informed GFlowNets
+(∇-GFlowNet) to balance reward maximization with exploration.
+Summary and Outlook The landscape of fine-tuning diffusion models with RLHF is rapidly evolving from three
+foundational pillars—reward-weighted regression, policy-gradient RL, and direct reward optimization—to a more
+diverse set of specialized and robust techniques. While RWR is simple, it offers less precise control. Policy gradient
+methods like DDPO provide strong optimization capabilities but can suffer from high variance; this is addressed by more
+stable alternatives like PRDP. Direct reward methods like DRaFT are sample-efficient but risk memory overhead and
+reward over-optimization, a challenge that methods like DRTune and TDPO-R aim to mitigate. Furthermore, emerging
+paradigms like adversarial tuning and GFlowNet-based alignment are being developed to address fundamental issues
+like distribution shift and diversity collapse. A critical consideration in practical applications is feedback efficiency; when
+reward signals are expensive, online fine-tuning methods like SEIKO [201] use uncertainty modeling to minimize queries.
+The choice of method thus involves a trade-off between implementation complexity, training stability, sample efficiency,
+and the specific alignment goal, from general aesthetic improvement to targeted concept or regional correction.
+4.2
+Direct Preference Optimization of Diffusion Models
+In this subsection, we present the DPO paradigm and its extension for diffusion alignment. This paradigm has been
+successfully adapted to diffusion models, directly optimizing them on human preference data without an explicit reward
+model as illustrated in Fig. 5 (b). This approach forms the basis for powerful open-source models like SD3.
+Foundational DPO Methods. The core method, Diffusion-DPO [203], adapts the original DPO objective (Eq. (6)) to
+the iterative nature of diffusion models. Specifically, Diffusion-DPO formulated the objective function over the entire
+diffusion path 𝑥0:𝑇as
+LDiffusion−DPO(𝑝𝜃;𝑝ref)
+=
+−E(𝑐,𝑥𝑤
+0 ,𝑥𝑙
+0)∼D log𝜎
+ 
+𝛽E𝑥𝑤
+1:𝑇∼𝑝𝜃(𝑥𝑤
+1:𝑇|𝑥𝑤
+0 ,𝑐),𝑥𝑙
+1:𝑇∼𝑝𝜃(𝑥𝑙
+1:𝑇|𝑥𝑙
+0,𝑐)
+"
+log
+𝑝𝜃(𝑥𝑤
+0:𝑇|𝑐)
+𝑝ref (𝑥𝑤
+0:𝑇|𝑐) −log
+𝑝𝜃(𝑥𝑙
+0:𝑇|𝑐)
+𝑝ref (𝑥𝑙
+0:𝑇|𝑐)
+#!
+.
+(13)
+Eq. (13) can be upper bounded [203, 234] using Jensen’s inequality and the convexity of function −log𝜎to push the
+expectation outside:
+LDiffusion−DPO(𝑝𝜃;𝑝ref) ≤−E(𝑐,𝑥𝑤
+0 ,𝑥𝑙
+0)∼D,𝑡∼U(0,𝑇),𝑥𝑤
+𝑡−1,𝑡∼𝑝𝜃(𝑥𝑤
+𝑡−1,𝑡|𝑥𝑤
+0 ,𝑐),𝑥𝑙
+𝑡−1,𝑡∼𝑝𝜃(𝑥𝑙
+𝑡−1,𝑡|𝑥𝑙
+0,𝑐)
+log𝜎
+ 
+𝛽𝑇
+"
+log 𝑝𝜃(𝑥𝑤
+𝑡−1|𝑥𝑤
+𝑡,𝑐)
+𝑝ref (𝑥𝑤
+𝑡−1|𝑥𝑤
+𝑡,𝑐) −log 𝑝𝜃(𝑥𝑙
+𝑡−1|𝑥𝑙
+𝑡,𝑐)
+𝑝ref (𝑥𝑙
+𝑡−1|𝑥𝑙
+𝑡,𝑐)
+#!
+.
+(14)
+Manuscript submitted to ACM
+
+14
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, Zeke Xie
+Because sampling from the reverse joint distribution 𝑝𝜃(𝑥𝑡−1,𝑡|𝑥0,𝑐) is intractable, Wallace et al. [203] approximates the
+reverse process 𝑝𝜃(𝑥1:𝑇|𝑥0,𝑐) with the forward process 𝑞(𝑥1:𝑇|𝑥0,𝑐). The right-hand side of Eq. (14) becomes:
+L(𝑝𝜃;𝑝ref) = −E(𝑐,𝑥𝑤
+0 ,𝑥𝑙
+0)∼D,𝑡∼U(0,𝑇),𝑥𝑤
+𝑡∼𝑞(𝑥𝑤
+𝑡|𝑥𝑤
+0 ,𝑐),𝑥𝑙
+𝑡∼𝑞(𝑥𝑙
+𝑡|𝑥𝑙
+0,𝑐)
+log𝜎
+
+−𝛽𝑇
+
+𝐷KL
+
+𝑞(𝑥𝑤
+𝑡−1|𝑥𝑤
+0,𝑡,𝑐)||𝑝𝜃(𝑥𝑤
+𝑡−1|𝑥𝑤
+𝑡,𝑐)
+
+−𝐷KL
+
+𝑞(𝑥𝑤
+𝑡−1|𝑥𝑤
+0,𝑡,𝑐)||𝑝ref (𝑥𝑤
+𝑡−1|𝑥𝑤
+𝑡,𝑐)
+
+−𝐷KL
+
+𝑞(𝑥𝑙
+𝑡−1|𝑥𝑙
+0,𝑡,𝑐)||𝑝𝜃(𝑥𝑙
+𝑡−1|𝑥𝑙
+𝑡,𝑐)
+
++ 𝐷KL
+
+𝑞(𝑥𝑙
+𝑡−1|𝑥𝑙
+0,𝑡,𝑐)||𝑝ref (𝑥𝑙
+𝑡−1|𝑥𝑙
+𝑡,𝑐)
+
+.
+(15)
+This allows the model to learn from preference pairs (𝑥𝑤
+0 ,𝑥𝑙
+0) by adjusting the denoising process at each step. A
+key variant, D3PO [234], shares a similar objective but differs primarily in its sampling strategy, using the model’s
+reverse process to obtain noisy latents rather than the forward noising process. Other works have explored alternative
+optimization perspectives, such as reinterpreting DPO as preference-weighted score matching [263], distribution
+optimization [95], or extending it to handle multiple reward signals [105].
+Addressing Temporal Inconsistency: Step-Aware Preference. A key limitation of the foundational approach
+is the assumption that preferences are constant across all denoising steps. This overlooks that different stages of
+generation influence different aspects of the final image [72]. To address this, recent works introduce step-aware or
+temporally-discounted preferences. This provides more granular feedback throughout the generation process, which
+has been shown to improve alignment by relaxing the assumption of a static preference signal [119, 129, 163, 239].
+Enhancements and Extensions of the DPO Framework. Further extensions to the DPO framework focus on
+two main areas: improving the training process and adapting to new contexts. Enhancements to the training process
+include curriculum-based strategies that use progressively harder examples [39], reference-free objectives like MaPO to
+improve robustness to distribution shifts [77], combining fine-tuning with test-time sampling [58], and constructing
+more visually consistent preference pairs to enhance the training signal [83]. In parallel, the framework has been
+adapted for new contexts, most notably to handle different feedback formats. Diffusion-KTO [111], for instance, extends
+the paradigm to use simpler binary feedback (desirable/undesirable) instead of pairwise comparisons.
+Summary and Outlook The DPO landscape for diffusion models is evolving rapidly. Foundational methods like
+Diffusion-DPO offer a simple and effective baseline. However, their core assumption of static preferences has motivated
+the development of more complex but potentially more accurate step-aware alignment techniques. Meanwhile, other
+research avenues focus on improving training efficiency through better data and learning strategies or expanding
+the paradigm’s applicability to different feedback types and model architectures. The choice of method involves a
+trade-off between the simplicity of the core framework and the increased granularity and robustness offered by its
+more advanced extensions.
+4.3
+Test-Time Alignment of Diffusion Models
+In this subsection, we review methods for aligning diffusion models at test-time without requiring model fine-tuning.
+This paradigm, also referred to as inference-time alignment [202], has rapidly evolved from strategies that implicitly
+guide generation by manipulating initial inputs and internal mechanisms, to more sophisticated approaches that
+employ explicit reward-guided strategies. In the latter, external preference models (e.g., for aesthetics or semantic
+consistency) directly steer the sampling process. This evolution offers more powerful and targeted control over model
+outputs, addressing complex human preferences.
+Manuscript submitted to ACM
+
+Alignment of Diffusion Models: Fundamentals, Challenges, and Future
+15
+4.3.1
+Implicit Guidance: Optimizing Inputs and Internal Mechanisms. Implicit guidance strategies focus on improving
+alignment without an external reward function, typically by adjusting the initial conditions or internal states of the
+generation process. These methods are generally computationally lightweight.
+Prompt Optimization. Prompt design plays a crucial role in determining generation quality and helping models better
+understand user intentions [164, 260]. While manual prompt engineering is common [126, 145], it can be labor-intensive.
+Consequently, recent works have explored optimizing prompts automatically. Wang et al. [208] developed RePrompt to
+refine text prompts toward more precise emotional expressions. Hao et al. [70] introduced Promptist, which adapts user
+input to model-preferred prompts via RL, where the reward is derived from metrics like CLIP similarity [158] and an
+aesthetic predictor [171]. Mañas et al. [134] proposed OPT2I, which leverages an LLM to iteratively revise user prompts,
+and Mo et al. [137] introduced an online RL strategy to generate dynamic fine-control prompts.
+Attention Control. Attention control has emerged as a crucial technique for improving image-prompt alignment,
+addressing issues like attribute leakage and missing entities [56, 161]. Hertz et al. [72] first demonstrated that manipulat-
+ing attention maps can guide the generation process. Building on this, Attend-and-Excite [22] enhances cross-attention
+interactions for more semantically aligned content. Wu et al. [220] propose a phase-wise attention modulation technique,
+and Li et al. [116] refined these methods for more complex semantic alignments. By dynamically adjusting focus, these
+mechanisms allow diffusion models to better align their outputs with human expectations [78, 235, 256].
+Initial Noise Optimization. The reverse diffusion process is highly sensitive to the initial noise [229]. To find better
+noise without a reward model, Qi et al. [156] introduced the concept of inversion stability. Guo et al. [68] introduced
+Initial Noise Optimization (InitNO), which uses the model’s internal attention scores to guide the initial noise towards
+semantically valid regions.
+4.3.2
+Explicit Reward-Guided Strategy: Trajectory Optimization with External Preferences. In contrast to implicit methods,
+explicit reward-guided strategies directly use an external reward function (differentiable or black-box) to modify the
+sampling trajectory at each step to maximize a preference objective. These methods offer stronger control but typically
+increase inference complexity.
+Reward-based Input Optimization. One approach is to use the reward signal to optimize the initial inputs. For
+instance, ReNeg [112] learns an optimal, universal negative embedding from reward signals. Others directly optimize
+the initial noise via gradient ascent on a reward function, as seen in Direct Noise Optimization (DNO) [198] and ReNO
+[54]. This concept has been further abstracted into learning a “noise prompt network” to generate a tailored “golden
+noise” [261] or framing it as a search problem guided by verifier feedback [132].
+Reward-Guided Decoding and Sampling. A more powerful class of methods steers the entire decoding trajectory.
+Many are derivative-free, enabling the use of black-box reward models. For example, Li et al. [114] propose Soft
+Value-Based Decoding (SVBD), which uses a soft value function to estimate future rewards. To combat reward over-
+optimization and maintain diversity, methods based on Sequential Monte Carlo (SMC) [98] or Feynman-Kac steering
+[180] run and resample multiple generation trajectories. Xie and Gong [224] introduced DyMO for multi-objective
+alignment, while Zigzag Diffusion Sampling (Z-Sampling) [5] introduces a self-reflection mechanism. Yeh et al. [242]
+proposed Sampling Demons, a backpropagation-free method that performs stochastic optimization on the sampling
+distribution. On a theoretical level, Shi et al. [178] work towards a more formal connection between terminal preference
+labels and the generation trajectory.
+4.3.3
+Summary and Outlook. Test-time alignment techniques provide efficient and flexible ways to improve generation
+without retraining, evolving from implicit guidance to explicit reward-guided strategies. Implicit methods (e.g.,
+Manuscript submitted to ACM
+
+16
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, Zeke Xie
+prompt optimization or attention control) guide generation via heuristic or model-intrinsic modifications with minimal
+inference overhead, but offer limited control precision. In contrast, explicit methods incorporate external preference or
+reward models to directly optimize the sampling trajectory at inference time, enabling stronger alignment at the cost of
+higher computation and potential reward hacking.
+Overall, the key distinction lies in whether an explicit preference objective is introduced at inference time: implicit
+methods modify inputs or internal states without an explicit objective, whereas explicit methods optimize generation
+with respect to an external preference signal. Control-input methods (e.g., spatial masks or sketches) are beyond the
+scope of this survey, as they specify what to generate rather than how preference alignment is enforced during sampling;
+see Cao et al. [17] for a comprehensive survey of controllable generation.
+For practitioners, the choice of method involves a trade-off between control fidelity and inference efficiency. A
+promising future direction may involve combining training-based alignment with test-time methods. The former can
+instill general preferences into the model, while the latter can provide on-the-fly, personalized guidance, leading to
+more robust and versatile alignment systems.
+4.4
+Beyond T2I Diffusion Models
+In this subsection, we review studies focused on the alignment of non-T2I diffusion models across various generation
+domains. While pioneering efforts have been made, adapting techniques from T2I diffusion models remains challenging
+due to domain-specific requirements in preference dataset collection, reward modeling, and the alignment techniques
+themselves. Each domain thus requires tailored adaptations to achieve effective alignment with human preferences.
+4.4.1
+Video Generation. Aligning video generation models [3] with human preferences introduces unique challenges,
+including immense computational overhead, a scarcity of large-scale video preference datasets, and the complex need
+to evaluate temporal consistency. Research in this area mirrors the methodological evolution seen in T2I alignment.
+RLHF-based Alignment. Early approaches explored adapting the RLHF framework. For instance, Yuan et al. [245]
+proposed InstructVideo, which reduces fine-tuning costs by using partial DDIM sampling and repurposing image
+reward models for video. Focusing on more direct reward supervision, VADER [154] and LiFT [209] align models
+via direct reward fine-tuning. VADER leverages pre-trained reward models for efficiency, while LiFT develops a
+custom video-specific reward model (LiFT-Critic) trained on a new dataset with textual rationales (LiFT-HRA). The
+VisionReward framework further advances this by learning fine-grained, multi-dimensional preferences for both images
+and videos [227]. These methods, however, rely heavily on the quality and availability of explicit (or proxy) reward
+signals.
+DPO-based Alignment. Inspired by its success and simplicity in the image domain, DPO was quickly adapted for
+video. Liu et al. [123] pioneered VideoDPO, which uses a comprehensive score to handle both visual quality and
+semantic alignment. To overcome the static nature of offline datasets, Zhang et al. [249] introduced OnlineVPO, an
+online DPO algorithm that uses a synthetically-trained video quality assessment (VQA) model for feedback. Other
+works like HuViDPO [94] focus on specific niches like human-centric videos, while Flow-DPO [84] demonstrates
+the paradigm’s versatility by applying it to flow-based models. The primary challenge for DPO-based methods is
+constructing preference pairs that meaningfully capture the temporal nuances of video.
+Test-time Alignment. For lightweight alignment without retraining, test-time methods are emerging. Lee et al. [103]
+presented VideoRepair, a model-agnostic framework that identifies and performs localized refinements during inference.
+Manuscript submitted to ACM
+
+Alignment of Diffusion Models: Fundamentals, Challenges, and Future
+17
+Similarly, Oshima et al. [146] proposed using a diffusion latent beam search to improve perceptual quality without any
+model updates. These approaches offer great flexibility but may be limited in addressing complex, global alignment
+issues.
+4.4.2
+Audio and Motion Generation. Preference alignment is also proving effective for other types of sequential data
+generation. In audio generation, Majumder et al. [133] introduced Tango 2, which applies diffusion-DPO to fine-tune
+a text-to-audio model. It uses a synthetic preference dataset where “loser” samples feature missing concepts or incorrect
+temporal ordering. This work highlights DPO’s effectiveness in capturing nuanced structural and semantic aspects of
+audio. For motion generation, Tan et al. [195] proposed SoPo, a DPO-based method that uses semi-online preference
+optimization. By combining online and offline data pairs, SoPo addresses the overfitting and sampling bias issues
+common in standard DPO, leading to higher-quality, human-preferred motions.
+4.4.3
+Image Editing. For the task of instructional visual editing, alignment must consider not only the final quality
+but also fidelity to user instructions. Zhang et al. [251] proposed Harnessing Human Feedback for Instructional Visual
+Editing (HIVE), an RLHF-based approach. It involves collecting feedback on the edited images to learn a reward function,
+which then guides the fine-tuning of diffusion models to better adhere to human preferences.
+4.4.4
+3D Generation. Aligning text-to-3D models involves challenges beyond aesthetics, such as ensuring multi-view
+consistency and geometric plausibility.
+RLHF and DPO-based Alignment. Ye et al. [241] developed DreamReward, a two-stage RLHF-like process that first
+trains a 3D-aware reward model (Reward3D) and then uses it to fine-tune the generator. While this introduced the
+first 3D preference dataset, Zhou et al. [262] demonstrated a more direct path with DreamDPO, which applies DPO
+to leverage relative rankings, simplifying the need for absolute quality scores. This mirrors the RLHF-to-DPO trend
+observed in the other domains.
+Geometric and Semantic Alignment. Moving beyond preference scores, Ignatyev et al. [87] addressed alignment from
+a geometric perspective. Their method optimizes for smooth and plausible transitions between generated objects in a
+latent space, directly enforcing structural consistency. This unique approach enables applications like 3D editing and
+hybridization, highlighting that 3D alignment is a multi-faceted problem concerning both preference and geometry.
+4.4.5
+Specialized Scientific and Control Applications. Alignment techniques are also applied to specialized domains
+with functional, rather than purely aesthetic, objectives. In molecule generation, Gu et al. [67] introduced AliDiff,
+which aligns diffusion models with desired functional properties like binding affinity via preference optimization. A key
+challenge here is the accuracies of user-defined reward functions, which may not perfectly model real-world chemical
+properties. In decision making, Dong et al. [46] used RLHF to guide a planning diffusion model. This allows the model
+to plan for desired behaviors based on human preferences, demonstrating the potential of alignment for customizing
+agentic systems.
+4.4.6
+Summary and Outlook. The extension of alignment techniques from T2I to diverse domains like video, 3D, and
+molecule generation marks a significant evolution, demonstrating the versatility of core paradigms like RLHF and
+DPO. A clear pattern has emerged: DPO and its variants are rapidly adopted across modalities due to their simplicity,
+while RLHF offers powerful control but is hampered by the immense challenge of creating accurate, domain-specific
+reward models. The central trade-off between implementation simplicity and nuanced control is thus amplified by
+Manuscript submitted to ACM
+
+18
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, Zeke Xie
+cross-domain challenges, primarily severe preference data scarcity and the complexity of modeling domain-specific
+objectives (e.g., temporal consistency or binding affinity). The future of non-T2I alignment hinges on overcoming this
+data bottleneck, likely through standardized, cross-domain benchmarks and more universal reward frameworks. This
+will pave the way for robust, and perhaps even hybrid, alignment techniques tailored to the unique properties of video,
+geometric, and other complex data types.
+4.5
+Open Challenges and Research Frontiers in Diffusion Alignment
+In this subsection, we discuss open challenges and research frontiers in diffusion alignment, focusing on the nuanced
+comparison between dominant paradigms, insights from LLM alignment, and challenges unique to the diffusion models.
+4.5.1
+The RLHF vs. DPO Debate: A Nuanced Comparison. The choice between the two dominant training-based
+alignment paradigms, RLHF and DPO, is not a simple matter of superiority but rather a complex trade-off involving
+training stability, sample efficiency, and robustness to distribution shifts.
+RLHF, which uses a reward model as proxy for human preferences, allows for complex and nuanced reward functions.
+However, it often suffers from high variance and inefficient sample usage during the reinforcement learning phase.
+In contrast, DPO simplifies the training pipeline by eliminating the need for an explicit reward model, optimizing
+the policy directly on preference data. This can lead to more stable training but introduces its own vulnerabilities.
+Specifically, recent comprehensive studies suggest that a well-tuned PPO can outperform DPO, especially for complex
+tasks where DPO’s performance may degrade due to distribution shifts between the preference data and the policy
+model [232]. This highlights a critical weakness of DPO: its performance is highly sensitive to the alignment between
+the training data distribution and the model’s evolving policy.
+Theoretical analysis further deepens this trade-off, indicating that the optimal choice depends on the relative learning
+difficulty of the reward function versus the optimal policy. RLHF may be more sample-efficient when the reward
+model is easier to learn than the policy, whereas DPO holds an asymptotic advantage when the true reward function is
+exceptionally complex [143].
+Beyond these training-based methods, test-time approaches align models during inference by adjusting inputs, noise,
+or internal mechanisms, thus avoiding costly fine-tuning. These methods are efficient and easy to deploy but may lack
+the precision needed for complex alignment tasks [115]. The entire landscape is rapidly evolving from static, offline
+training towards more dynamic online and iterative preference learning, which promises to better adapt to feedback
+and overcome the limitations of fixed preference datasets [15, 226].
+4.5.2
+Cross-Domain Insights: Adapting Innovations from LLM Alignment. The human alignment of diffusion models,
+while nascent, has benefited from adapting techniques pioneered for LLMs. For instance, Wallace et al. [203] success-
+fully extended DPO [159] to create Diffusion-DPO, and Li et al. [111] adapted KTO [53] to produce Diffusion-KTO.
+These successes suggest that other advanced LLM alignment methods, such as IPO, ORPO, and PRO (as discussed in
+Section 3.2.2), are promising candidates for adaptation.
+Indeed, the frontier of LLM alignment is rapidly expanding. For instance, f-DPO [204] generalizes DPO to a broader
+family of f-divergences for better diversity control, and GPO [197] provides a unified framework encompassing DPO
+and IPO. Other novel approaches like BOND [175], which distills a policy from a best-of-N sampling distribution, and
+techniques that derive dense, token-level rewards for free [21], also represent promising avenues. While these methods
+have advanced LLM alignment, their transfer to diffusion models is not guaranteed.
+Manuscript submitted to ACM
+
+Alignment of Diffusion Models: Fundamentals, Challenges, and Future
+19
+A key challenge lies in the fundamental architectural differences. Many LLM alignment techniques leverage the
+model’s auto-regressive, next-token prediction structure in a discrete token space. For example, SimPO [136] achieves
+strong performance in LLMs by using a sequence’s average log probability as a reference-free implicit reward. Creatively
+mapping such sequence-based concepts to the iterative, continuous, and high-dimensional denoising process of diffusion
+models remains a core research question.
+4.5.3
+Unique Challenges in Diffusion Model Alignment. Beyond the general challenges of alignment discussed in
+Section 3.3, diffusion models present a unique set of problems stemming from their generative process and multimodal
+nature. At a high level, the alignment problem in deep learning is fraught with fundamental risks, such as models
+learning to “hack” proxy reward signals or developing misaligned internal goals that deviate from the intended human
+preferences [141]. In diffusion models, these challenges are amplified and new ones emerge.
+First, feedback for T2I models is inherently subjective and multidimensional, spanning image quality, realism, artistic
+style, and cultural context. This complexity makes reliable AI-generated feedback non-trivial to obtain. Second, the
+diversity of human preferences intensifies the issue of distributional shift. Most public preference datasets are built
+using Stable Diffusion variants (see Table 3), and applying these datasets to align other models (e.g., Midjourney) can
+lead to significant misalignment. This is a critical vulnerability for methods like DPO, whose learning dynamics can
+be skewed by the specific biases of the training data [89]. Third, the iterative nature of the diffusion process means
+that feedback may need to be incorporated at multiple steps, demanding highly efficient alignment algorithms. Fourth,
+integrating feedback from various modalities (e.g., visual, textual, numerical) in a coherent manner adds another layer
+of complexity. Finally, feedback on images is often sparser and noisier than on text, making it difficult for RL algorithms
+to learn effectively from inconsistent signals.
+Beyond these issues, several profound challenges cast a shadow on current alignment strategies:
+(1) Reward Model Overoptimization: A core issue in RLHF is “reward hacking”, where optimizing against a fixed,
+imperfect reward model leads the policy to find exploitative solutions that maximize the proxy score but fail to
+capture true human preference. This is a predictable phenomenon governed by scaling laws, where performance
+on the true objective predictably rises and then falls as the policy diverges from its initial state [60]. In the visual
+domain, this can manifest as images that are semantically correct but visually distorted or absurd.
+(2) Scalability and Brittleness: The long-term viability and robustness of current alignment methods are under
+question. Large-scale studies suggest RLHF may scale less efficiently than pre-training [80]. Furthermore, the
+resulting alignment can be brittle. For instance, safety alignment in T2I models has been shown to “backfire”,
+where fine-tuning on benign data can cause suppressed, unsafe concepts to re-emerge, suggesting the initial
+alignment was not robustly learned [97]. Even low-rank modifications or model pruning can compromise safety
+alignment, revealing its fragility [213].
+(3) Security Vulnerabilities: The reliance on a reward model introduces a new attack surface. Recent work
+has demonstrated a “clean-label” poisoning attack, termed BadReward, where an attacker subtly poisons the
+preference dataset with seemingly harmless examples. This manipulation corrupts the learned reward model,
+which in turn steers the diffusion model to generate harmful or undesired content during RLHF fine-tuning [47].
+5
+Benchmarks and Evaluation for Human Alignment of T2I Diffusion Models
+In this section, we first review benchmark datasets and evaluation metrics for human alignment of T2I diffusion models
+in Section 5.1 and Section 5.2, respectively. We then discuss the associated challenges in Section 5.3.
+Manuscript submitted to ACM
+
+20
+Buhua Liu, Shitong Shao, Bao Li, Lichen Bai, Zhiqiang Xu, Haoyi Xiong, James Kwok, Sumi Helal, Zeke Xie
+5.1
+Benchmarks for Human Alignment of T2I Diffusion Models
+The foundation of any alignment technique is the data used to define human preferences. In this subsection, we discuss
+benchmark datasets for human alignment of T2I diffusion models, categorizing them into three types that reflect the
+field’s maturation: scalar human preference datasets, multi-dimensional human feedback datasets, and AI feedback
+datasets. This progression highlights a move towards capturing more nuanced and scalable representations of human
+intent. Table 3 compares the reviewed benchmark datasets across three aspects: prompts, images, and annotations.
+5.1.1
+Scalar Human Preference Datasets. Early preference datasets primarily provide an overall comparison among
+images using a single scalar score or a pairwise choice to indicate human preference. Wu et al. [219] introduced the
+HPD v1 dataset, with prompts and images collected from the public Stable Foundation Discord channel. While valuable,
+this approach inherently captures the preferences of a niche group of experienced Stable Diffusion users, which may
+not generalize to the broader population. Wu et al. [217] later introduced a larger dataset, HPD v2, where the prompts
+are sourced from COCO Captions [28] and the ChatGPT-cleansed DiffusionDB [212]. Notably, HPD v2 includes images
+generated by nine different generative models, including diffusion models, GANs, and auto-regressive-based models,
+resulting in a higher degree of diversity. The pairwise image preferences in HPD v2 are derived from the preference
+rankings of 57 employed annotators over the generated images.
+To capture more authentic, in-the-wild preferences, Kirstain et al. [100] developed a web application to build the
+Pick-a-Pic v1 dataset, collecting prompts and preferences over images generated by multiple Stable Diffusion variants
+from thousands of real users. However, such a collection method may be subject to self-selection bias, as the user base
+of a specific application may not be fully representative. Xu et al. [228] created the ImageRewardDB dataset by using
+six popular T2I generative models to generate images based on a diverse selection of prompts from DiffusionDB [212].
+They implemented a three-stage annotation pipeline in which hired annotators annotate prompts, rate text-image pairs,
+and rank images. This pipeline provides more detailed human preference feedback, capturing aspects such as fidelity,
+image-text alignment, and overall quality.
+Beyond explicit human preferences from annotators regarding image fidelity and image-text alignment, Isajanyan
+et al. [90] introduced the Picsart Image-Social dataset, which captures social popularity for creative editing purposes as
+an implicit and novel dimension of human preferences. Instead of relying on explicit annotations, they utilized editing
+behaviors (e.g., how often an image is “remixed” by others) from the online visual creation and editing platform Picsart
+to curate this dataset. While this provides a unique, large-scale signal, it is important to note that such a proxy may
+reflect creative utility or "remixability" more than pure image quality or prompt alignment.
+5.1.2
+Multi-dimensional Human Feedback Datasets. Recognizing the limitations of a single preference score, multi-
+dimensional human preferences [250] and rich human feedback [118] have been shown to be effective in improving T2I
+generations. Specifically, motivated by the observation that human preference results vary when evaluating images
+across different aspects, Zhang et al. [250] constructed the MHP dataset. This dataset was created using a balanced and
+refined prompt set from four sources and nine different T2I diffusion models to generate images with various resolutions
+and aspect ratios. In particular, 210 crowd-sourced annotators were employed to provide preference choices over image
+pairs across four dimensions: aesthetics, detail quality, semantic alignment, and overall assessment. Similarly, Liang
+et al. [118] sampled a diverse and balanced subset of image-text pairs from the Pick-a-Pic dataset. They then constructed
+the RichHF-18K dataset, which provides enriched feedback signals. Specifically, they marked implausible or misaligned
+image regions, annotated which words in the text prompt were missing or misrepresented in the corresponding image,
+Manuscript submitted to ACM

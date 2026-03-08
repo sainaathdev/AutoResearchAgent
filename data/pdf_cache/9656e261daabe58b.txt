@@ -1,0 +1,1358 @@
+Published in Transactions on Machine Learning Research (11/2024)
+Video Diffusion Models: A Survey
+Andrew Melnik
+andrew.melnik.papers@gmail.com
+Bielefeld University
+Michal Ljubljanac
+mljubljanac@techfak.uni-bielefeld.de
+Bielefeld University
+Cong Lu
+conglu@cs.ubc.ca
+University of British Columbia
+Qi Yan
+qi.yan@ece.ubc.ca
+University of British Columbia
+Weiming Ren
+w2ren@uwaterloo.ca
+University of Waterloo
+Helge Ritter
+helge@techfak.uni-bielefeld.de
+Bielefeld University
+Reviewed on OpenReview: https: // openreview. net/ forum? id= rJSHjhEYJx
+Abstract
+Diffusion generative models have recently become a powerful technique for creating and
+modifying high-quality, coherent video content.
+This survey provides a comprehensive
+overview of the critical components of diffusion models for video generation, including
+their applications, architectural design, and temporal dynamics modeling. The paper be-
+gins by discussing the core principles and mathematical formulations, then explores var-
+ious architectural choices and methods for maintaining temporal consistency.
+A taxon-
+omy of applications is presented, categorizing models based on input modalities such as
+text prompts, images, videos, and audio signals. Advancements in text-to-video genera-
+tion are discussed to illustrate the state-of-the-art capabilities and limitations of current
+approaches. Additionally, the survey summarizes recent developments in training and eval-
+uation practices, including the use of diverse video and image datasets and the adoption
+of various evaluation metrics to assess model performance. The survey concludes with an
+examination of ongoing challenges, such as generating longer videos and managing com-
+putational costs, and offers insights into potential future directions for the field. By con-
+solidating the latest research and developments, this survey aims to serve as a valuable
+resource for researchers and practitioners working with video diffusion models. Website:
+https://github.com/ndrwmlnk/Awesome-Video-Diffusion-Models
+1
+Introduction
+Diffusion generative models (Sohl-Dickstein et al., 2015; Song & Ermon, 2019; Ho et al., 2020; Song et al.,
+2021; Ruiz et al., 2024) have already demonstrated a remarkable ability for learning heterogeneous visual
+concepts and creating high-quality images conditioned on text descriptions (Rombach et al., 2022; Ramesh
+et al., 2022). Recent developments have also extended diffusion models to video (Ho et al., 2022c), with the
+potential to revolutionize the generation of content for entertainment or simulating the world for intelligent
+decision-making (Yang et al., 2023a). For example, the text-to-video SORA (Brooks et al., 2024) model has
+been able to generate high-quality videos up to a minute long conditional on a user’s prompt. Following
+1
+arXiv:2405.03150v2  [cs.CV]  17 Nov 2024
+
+Published in Transactions on Machine Learning Research (11/2024)
+the announcement of SORA, there has been a surge of proprietary and open-source video diffusion models
+spanning across a wide variety of video generation problems, such as text-to-video generation, image-to-
+video generation, and video editing. Several commercial AI video generation tools are gaining attention for
+their unique features. Runway’s Gen-3 stands out with highly photorealistic videos, especially for complex
+scenes and faces, offering both text-to-video and image-to-video capabilities with professional-level quality.
+Luma Dream Machine, though less coherent in complex scenes, remains user-friendly and affordable for
+quick cinematic outputs. Kling AI, with its mobile-first approach, provides strong control over elements
+like lighting and motion, while ensuring high video generation quality. Movie Gen (Polyak et al., 2024)
+from Meta offers a suite of foundation models capable of generating high-quality, high-resolution videos in
+various aspect ratios with synchronized audio. For open-source models, recent foundational video generation
+models include OpenSora (Zheng et al., 2024), VideoCrafter-2 (Chen et al., 2024) and Stable Video Diffusion
+(Blattmann et al., 2023a). However, the quality, resolution and duration of the generated videos are still
+not comparable to commercial video generation solutions. Adapting diffusion models to video generation
+poses unique challenges that still need to be fully overcome, including maintaining temporal consistency,
+generating long video, and computational costs.
+In this survey, we provide an overview over key aspects of video diffusion models including possible applica-
+tions, the choice of architecture, mechanisms for modeling of temporal dynamics, and training modes (see
+Figure 1 and Table 1 for an overview). We then provide brief summaries of notable papers in order to outline
+developments in the field until now. Finally, we conclude with a discussion of ongoing challenges and identify
+potential areas for future improvements.
+2
+Taxonomy of Applications
+The possible applications of video diffusion models can be roughly categorized according to input modalities.
+This includes text prompts, images, videos, and auditory signals. Many models also accept inputs that are
+a combination of some of these modalities. Figure 2 visualizes the different applications. We summarize
+notable papers in each application domain starting from Sec. 7.1.3. For this, we have categorized each model
+according to one main task.
+In our taxonomy, text-conditioned generation (Sec. 7.1.3) refers to the task of generating videos purely based
+on text descriptions. Different models show varying degrees of success in how well they can model object-
+specific motion. We thus categorize models into two types: those capable of producing simple movements
+such as a slight camera pan or flowing hair, and those that can represent more intricate motion over time,
+such as those incorporating Physical Reasoning (Melnik et al., 2023).
+Figure 1: Overview of the key aspects of video diffusion models that we cover in this survey.
+2
+
+Published in Transactions on Machine Learning Research (11/2024)
+Table 1: Overview of video diffusion models and their applications.
+Paper
+Model
+Application
+Max. Resolution
+Methodology
+Shots
+Ho et al. (2022c)
+VDM
+T
+V
+L
+128×128×64
+FA
+↑S
+↑T AR
+Many
+Singer et al. (2022)
+Make-a-Video
+T
+I
+V
+768×768×76
+FA
+↑S
+↑T
+Many
+Ho et al. (2022a)
+ImagenVideo
+T
+1280×768×128
+FA
+↑S
+↑T
+Many
+Zhou et al. (2022)
+MagicVideo
+T
+I
+V
+1024×1024×61
+P
+L
+FA
+↑S
+↑T
+Many
+Blattmann et al. (2023b)
+VideoLDM
+T
+V
+2048×1280×90000
+P
+L
+FA
+↑S
+↑T AR
+Many
+Khachatryan et al. (2023)
+Text2Video-Zero
+T
+V
+512×512×8+
+P
+L
+Many
+Guo et al. (2023)
+AnimateDiff
+T
+512×512×16
+P
+L
+FA
+Many
+Chen et al. (2023d)
+MCDiff
+I
+256×256×10
+L
+AR
+Many
+Chen et al. (2023e)
+SEINE
+I
+512×320×16
+P
+L
+AR
+Many
+Yin et al. (2023)
+Nuwa-XL
+T
+L
+NaN×NaN×1024
+P
+L
+FA ↑T
+Many
+He et al. (2022b)
+LVDM
+T
+L
+256×256×1024
+P
+L
+FA ↑T AR
+Many
+Harvey et al. (2022)
+FDM
+V
+L
+128×128×15000
+P
+FA ↑T AR
+Many
+Lu et al. (2023b)
+VDT
+I
+V
+256×256×30
+L
+FA ↑T
+Many
+Wang et al. (2023)
+Gen-L-Video
+T
+V
+L
+512×512×hundreds
+P
+L
+3D
+NaN
+Zhu et al. (2023)
+MovieFactory
+T
+L
+3072×1280×NaN
+P
+L
+FA
+↑S
+Many
+Sun et al. (2023)
+GLOBER
+T
+L
+256×256×128
+P
+L
+3D FA
+Many
+Luo et al. (2023)
+VideoFusion
+T
+L
+128×128×512
+P
+↑S AR
+Many
+Hu et al. (2023a)
+GAIA-1
+T
+I
+L
+288×512×minutes
+FA ↑T AR
+Many
+Lee et al. (2023a)
+Soundini
+A
+256×256×NaN
+P
+One
+Lee et al. (2023b)
+AADiff
+I
+A
+512×512×150
+P
+L
+Zero
+Liu et al. (2023d)
+Generative Disco
+A
+512×512×NaN
+P
+L
+Zero
+Tang et al. (2023)
+Composable Diffusion
+T
+I
+V
+A
+512×512×16
+P
+L
+FA
+Many
+Stypułkowski et al. (2023)
+Diffused Heads
+A
+128×128×8-9s
+AR
+Many
+Zhua et al. (2023)
+(Audio Heads)
+A
+1024×1024×NaN
+P
+↑S AR
+Many
+Casademunt et al. (2023)
+Laughing Matters
+A
+128×128×50
+FA AR
+Many
+Molad et al. (2023)
+Dreamix
+I
+V
+1280×768×128
+P
+FA
+↑S
+↑T
+One
+Wu et al. (2022b)
+Tune-A-Video
+V
+512×512×100
+P
+L
+FA AR
+One
+Qi et al. (2023)
+FateZero
+V
+512×512×100
+P
+L
+FA AR
+One
+Liu et al. (2023b)
+Video-P2P
+V
+512×512×100
+P
+L
+FA AR
+One
+Ceylan et al. (2023)
+Pix2Video
+V
+512×512×NaN
+P
+L
+FA AR
+Zero
+Esser et al. (2023)
+Runway Gen-2
+T
+I
+V
+448×256×8
+P
+L
+FA
+Many
+Xing et al. (2023a)
+Make-Your-Video
+V
+256×256×64
+P
+L
+FA AR
+Many
+Ma et al. (2023)
+Follow Your Pose
+V
+512×512×100
+P
+L
+FA AR
+Many
+Zhao et al. (2023)
+Make-A-Protagonist
+V
+768×768×8
+P
+L
+FA
+One
+Bai et al. (2024)
+UniEdit
+V
+512×320×16
+P
+L
+Zero
+Ku et al. (2024)
+AnyV2V
+V
+512×512×16
+P
+L
+Zero
+Zhang et al. (2023c)
+ControlVideo
+V
+512×512×100
+P
+L
+3D ↑T
+Zero
+Wang et al. (2023b)
+vid2vid-zero
+V
+512×512×8
+P
+L
+AR
+Zero
+Huang et al. (2023)
+Style-A-Video
+V
+512×256×NaN
+P
+L
+Zero
+Yang et al. (2023b)
+Rerender A Video
+V
+512×512×NaN
+P
+L
+↑T AR
+Zero
+Liu et al. (2023a)
+ColorDiffuser
+V
+256×256×NaN
+P
+L
+FA
+Many
+T : txt2vid,
+I
+: img2vid,
+V : vid2vid,
+A : aud2vid,
+L : long vid
+P : pre-trained model,
+L : latent space, 3D : full 3D attn./conv., FA : factorized attn./conv.,
+↑S : spatial upsampling, ↑T : temporal upsampling, AR : auto-regressive
+3
+
+Published in Transactions on Machine Learning Research (11/2024)
+In image-conditioned video generation (Sec. 7.2) tasks, an existing reference image is animated. Sometimes,
+a text prompt or other guidance information is provided.
+Image-conditioned video generation has been
+extensively studied recently, due to its high controllability to the generated video content.
+For models
+introduced in other sections, we mention their capability for image-to-video generation where applicable.
+We treat video completion (Sec. 8) models that take an existing video and extend it in the temporal domain as
+a distinct group, even though they intersect with the previous applications. Video diffusion models typically
+have a fixed number of input and output frames due to architectural and hardware limitations. To extend
+such models to generate videos of arbitrary length, both auto-regressive and hierarchical approaches have
+been explored.
+Audio-conditioned models (Sec. 9) accept sound clips as input, sometimes in combination with other modal-
+ities such as text or images. They can then synthesize videos that are congruent with the sound source.
+Typical applications include the generation of talking faces, music videos, as well as more general scenes.
+Video editing models (Sec. 10) use an existing video as a baseline from which a new video is generated.
+Typical tasks include style editing (changing the look of the video while maintaining the identity of objects),
+object / background replacement, deep fakes (Sec. 12), and restoration of old video footage (including tasks
+such as denoising, colorization, or extension of the aspect ratio).
+Finally, we consider the application of video diffusion models to intelligent decision-making (Sec. 11). Video
+diffusion models can be used as simulators of the real world, conditioned on the current state of an agent or
+a high-level text description of the task. This could enable planning in a simulated world, as well as fully
+training reinforcement learning policies within a generative world model.
+Figure 2: Applications of video diffusion models. Bounding boxes are clickable links to relevant chapters.
+Example images taken from the following papers (top to bottom): Blattmann et al. (2023b), Ho et al.
+(2022a), Singer et al. (2022), Lu et al. (2023b), Yin et al. (2023), Lee et al. (2023b), Stypułkowski et al.
+(2023), Wu et al. (2022b), Xing et al. (2023a), Ma et al. (2023), Liu et al. (2023a)
+4
+
+Published in Transactions on Machine Learning Research (11/2024)
+We conduct a thorough search for relevant papers on video diffusion models. This search includes open lists
+of accepted papers from recent conferences and journals in computer vision and machine learning, such as
+CVPR and NeurIPS. We select papers based on their relevance to the topic and their publication status,
+including archived and in-proceeding papers. Additionally, we utilize specific search terms related to video
+diffusion models in our database queries. Our search spans multiple reference databases, including Google
+Scholar and Semantic Scholar, to ensure we capture the latest preprint papers and ongoing research in this
+rapidly evolving field.
+Figure 3:
+Diffusion models add noise to the observed data in the forward process and are trained to learn
+how to reverse the process. Denoising diffusion probabilistic model (DDPM) and score-based model (SBM)
+are popular approaches that are mathematically equivalent but provide different perspectives.
+3
+Mathematical Formulation
+We first review the mathematical formulation of diffusion generative models, which learn to model a target
+distribution, for example, of natural videos, by progressive noise injection in the forward process and reversed
+denoising in the backward process, as shown in Fig. 3. A diffusion model generates samples via a chain of
+denoising steps that start from an initial noise vector that is often a sample from a Gaussian distribution
+of uncorrelated white noise. Each denoising step is performed by a neural network that has been trained to
+guide a noisy input toward the target distribution. After a number of such denoising steps, the obtained result
+will approximate a noise-free sample of the target domain. The key to this mechanism’s success is training
+a suitable denoising network. This is achieved by an objective that learns to reverse the forward noising
+process at the corresponding noise levels. Broadly speaking, diffusion models can be categorized into two
+families of formulations: denoising diffusion probabilistic models (DDPM) (Ho et al., 2020; Sohl-Dickstein
+et al., 2015) and score-based model (SBM), the latter of which includes the denoising score matching models
+with Langevin dynamics (SMLD) (Song & Ermon, 2019; 2020) and the generalized Score SDE (Song et al.,
+2021). We give a brief introduction to each of the modeling designs below.
+3.1
+Denoising Diffusion Probabilistic Model (DDPM) Formulation
+In the following, we summarize the formalization of the unconditioned denoising diffusion probabilistic model
+(DDPM) process from Ho et al. (2020); Sohl-Dickstein et al. (2015). The forward diffusion process follows
+a Markov chain that iteratively adds sampled noise to an initial input video x0 over T time steps, so that
+it resembles samples drawn from a Gaussian distribution. The Markov property ensures that the degraded
+video xt at time step t only depends on the video xt−1 in the immediately preceding step t −1.
+The
+distribution q(xt|xt−1) of xt in a forward step can be described by the conditional Gaussian transition kernel
+q(xt|xt−1) := N(xt;
+p
+1 −βtxt−1, βtI),
+(1)
+where the mean and standard deviation are determined by a variance-preserving noise schedule β1, ..., βT
+and I is the identity matrix. Different schedules can be used, such as a linear or cosine schedule, influencing
+5
+
+Published in Transactions on Machine Learning Research (11/2024)
+how quickly information in the original vide is destroyed. Due to the Markov property that each state only
+depends on the preceding state, the overall forward process is described by
+q(x1:T |x0) :=
+T
+Y
+t=1
+q(xt|xt−1).
+(2)
+Ho et al. (2020) show that the distribution at an arbitrary time step t can be directly computed by
+q(xt|x0) = N(xt; √αtx0, (1 −αt)I),
+(3)
+where αt := Qt
+s=1 αs and αt := (1 −βt). The analytical solution in the forward process allows for fast
+sampling of corrupted samples and reduces training variance.
+In the denoising phase, we try to reverse this process, starting from the final time step T. The reverse
+process is again a Markov chain, this time with Gaussian transition probabilities that need to be learned by
+our model. A single denoising step is described by
+pθ(xt−1|xt) := N(xt−1; µθ(xt, t), Σθ(xt, t)),
+(4)
+where θ are the trainable parameters of our denoising model used to predict the mean and covariance of the
+conditional Gaussian. The full reverse process is described by
+pθ(x0:T ) := p(xT )
+T
+Y
+t=1
+pθ(xt−1|xt),
+(5)
+where p(xT ) := N(xT ; 0, I) is the prior distribution to start drawing samples from in the reverse process.
+To train the model, we minimize the variational lower bound on the negative log-likelihood
+E[−log pθ(x0)] ≤Eq
+"
+−log p(xT ) −
+X
+t>1
+log pθ(xt−1|xt)
+q(xt|xt−1)
+#
+.
+(6)
+This loss function can be rewritten as a sum of Kulback-Leibler divergences between the distributions of the
+forward and backward steps
+L := Eq
+"
+DKL(q(xT |x0)∥p(xT )) +
+X
+t>1
+DKL(q(xt−1|xt, x0)∥pθ(xt−1|xt)) −log(pθ(x0|x1))
+#
+.
+(7)
+This formulation has the advantage that we can calculate closed-form solutions for the Kulback-Leibler
+terms. First, the conditional distribution q(xT |x0) admits an analytical solution in Eq. 3, and the reverse
+process prior p(xT ) is fixed, making the first term DKL(q(xT |x0)∥p(xT )) a constant. One can design the
+noise schedule properly so that the terminal state in the forward process q(xT |x0) is empirically close to the
+prior in the reverse process p(xT ) to lower this term.
+Note that the forward posteriors are now also conditioned on the initial video x0. Using Bayes’ theorem, it
+can be shown that
+q(xt−1|xt, x0) = q(xt|xt−1, x0) q(xt−1|x0)
+q(xt|x0)
+= q(xt|xt−1) q(xt−1|x0)
+q(xt|x0)
+= N(xt−1; ˜µt(xt|x0), ˜βtI),
+(8)
+where ˜µ(xt, x0) :=
+√
+αt−1βt
+1−αt
+x0 +
+√αt(1−αt−1)
+1−αt
+xt and ˜βt := 1−αt−1
+1−αt βt. The first equality follows from Bayes’
+rule, the second from the Markovian property of the forward process, and the third is a rearrangement of
+Gaussian density functions. Namely, the second loss term DKL(q(xt−1|xt, x0)∥pθ(xt−1|xt)) from Eq. 7 is
+also tractable, as it characterizes the KL divergence between two Gaussians and has analytical solutions.
+6
+
+Published in Transactions on Machine Learning Research (11/2024)
+Empirically, Ho et al. (2020) show that predicting the added noise ϵθ(xt, t) rather than the mean ˜µθ(xt, t)
+of each forward step leads to a simplified loss function
+Lsimple := Et,x0,ϵ
+
+∥ϵ −ϵθ(xt, t)∥2
+2
+
+,
+(9)
+that performs better in practice. Here, ϵθ is called a “denoising model”, or “denoiser”, which predicts the
+standard normal noise ϵ added to the input given the input xt at time step t. The denoising model is often
+formulated as a UNet (Ronneberger et al., 2015) or a Vision Transformer (Dosovitskiy et al., 2020) (see
+Sec. 4). A more detailed description of how video diffusion models perform such a denoising process can be
+found in Sec. 5.
+To generate samples using DDPM, we utilize the reverse process outlined in Eq. 4 and Eq. 5. This reverse
+Markov chain allows us to generate a data sample x0 by initially sampling a noise vector xT ∼p(xT ), and
+then iteratively sampling from the learnable transition kernel xt−1 ∼pθ(xt−1 | xt) until t = 1.
+The original
+DDPM generation process has more recently been complemented by a non-Markovian alternative denoted as
+denoising diffusion implicit models (DDIM, Song et al. 2020), which offers a deterministic and more efficient
+generation process. Here, a backward denoising step can be computed with
+ˆx(t)
+0
+= xt −√1 −αtϵθ(xt, t)
+√αt
+(10)
+xt−1 =
+p
+αt−1ˆx(t)
+0
++
+p
+1 −αt−1ϵθ(xt, t).
+(11)
+One distinct advantage of DDIM is that it allows for accurate reconstruction of the original input video x0
+from the noise at arbitrary time step t.
+To accelerate the generation process, we consider defining the
+reverse process not on all the intermediate latent variables x1:T , but on a subset {xτ1, . . . , xτS}, where τ is
+an increasing subsequence of [1, . . . , T] of length S. Specifically, we define the sequential forward process
+over xτ1, . . . , xτS such that q(xτi | x0) = N(xτi; √ατix0, (1 −ατi)I) matches the marginals. We can then
+draw samples following the sequence xτS →ˆx(τS)
+0
+→xτS−1 →· · · →xτ1.
+This technique, called DDIM
+inversion, can be utilized for applications such as image and video editing (see Sec. 10).
+3.2
+Score-based Model Formulation
+Score-based models (SBMs) (Song & Ermon, 2019; Song et al., 2021) center on the concept of the Stein score,
+or score function (Hyvärinen, 2005). For a given probability density function p(x), the score function is the
+gradient of the log probability density, ∇x log p(x). This score function depends on the data x and indicates
+the direction of the steepest increase in the probability density. SBMs add increasing Gaussian noise to
+data and estimate the score functions for all noisy data distributions by training a noise-conditional score
+network (Vincent, 2011). Samples are then generated by chaining these score functions at decreasing noise
+levels using methods like Langevin dynamics (Parisi, 1981), stochastic differential equations (SDEs) (Song
+et al., 2021) and ordinary differential equations (ODEs) (Karras et al., 2022). Unlike DDPM, SBMs decouple
+training and sampling, allowing for various sampling techniques after the score functions are estimated. Below
+we focus on the two most representative types of SBMs: denoising score matching with Langevin dynamics
+(SMLD) and score-based stochastic differential equations (Score SDEs).
+Denoising Score Matching with Langevin Dynamics. In denoising score matching with Langevin
+dynamics (SMLD), we denote the data distribution by p(x0) and use a sequence of noise levels 0 < σ1 <
+σ2 < · · · < σT for score estimation. A data point x0 is perturbed to xt by Gaussian noise, p(xt | x0) =
+N(xt; x0, σ2
+t I). This process creates a series of noisy data distributions p(x1), p(x2), . . . , p(xT ), where p(xt) =
+R
+p(xt | x0)p(x0) dx0. A noise-conditional score network, sθ(x, t), is trained to estimate the score function
+∇xt log p(xt) using denoising score matching (Vincent, 2011) with the following training objective
+Et∼U[[1,T ]],x0∼p(x0),xt∼p(xt|x0)
+h
+λ(t) ∥ϵ + σtsθ(xt, t)∥2i
++ const,
+(12)
+where U[[1, T]] denotes the uniform distribution over discrete indices {1, 2, · · · , T}, xt = x0 +σtϵ, ϵ ∼N(0, I)
+and λ(t) is a positive weighting function. The training objectives of DDPM and SMLD are equivalent when
+ϵθ(x, t) = −σtsθ(x, t).
+7
+
+Published in Transactions on Machine Learning Research (11/2024)
+For sampling, SMLD uses iterative approaches like annealed Langevin dynamics (Song & Ermon, 2019).
+Starting with x(N)
+T
+∼N(0, I), Langevin dynamics is applied iteratively for t = T, T −1, . . . , 1. At each step,
+initialized with x(0)
+t
+= x(N)
+t+1, the update rule is:
+x(i+1)
+t
+= x(i)
+t
++ 1
+2stsθ(x(i)
+t , t) + √stϵ(i), ϵ(i) ∼N(0, I),
+(13)
+where st > 0 is the step size and N is the number of iterations per step. As st →0 and N →∞, x(N)
+0
+converges to a valid sample from the data distribution p(x0).
+Score-based Stochastic Differential Equations. Models like DDPM and SMLD can be extended to
+infinite time steps or noise levels using stochastic differential equations (SDEs), forming the Score SDE (Song
+et al., 2021). This approach uses SDEs for noise perturbation and sample generation, requiring the estimation
+of score functions of noisy data distributions. Score SDEs perturb data with a forward process governed by:
+dx = f(x, t) dt + g(t) dw,
+(14)
+where f(x, t) and g(t) are the drift and diffusion functions, and w is a standard Wiener process.
+DDPM and SMLD can be seen as discrete versions of this SDE. For DDPM, the corresponding SDE is:
+dx = −1
+2β(t)x dt +
+p
+β(t) dw, β
+ t
+T
+
+= Tβt.
+(15)
+For SMLD, the SDE is:
+dx =
+r
+d[σ(t)2]
+dt
+dw, σ
+ t
+T
+
+= σt.
+(16)
+Here T refers to the total number of noise levels used in DDPM and SMLD.
+Any diffusion process in the form of Eq. 14 can be reversed by solving the reverse-time SDE:
+dx =
+
+f(x, t) −g(t)2∇x log pt(x)
+
+dt + g(t) d ¯w,
+(17)
+where ¯w is a reverse-time Wiener process. The solution trajectories of the reverse SDE share the same
+marginal densities as the forward SDE but evolve in the opposite direction, progressively converting noise
+into data. Additionally, Song et al. (2021) introduce the probability flow ODE, with trajectories matching
+those of the reverse-time SDE:
+dx =
+
+f(x, t) −1
+2g(t)2∇x log pt(x)
+
+dt.
+(18)
+The key to building Score SDE generative models is accurately learning the score function ∇x log pt(x) at
+each time step t. We achieve this by training a time-dependent score model sθ(xt, t) using a continuous-time
+score matching objective:
+Et∼U[0,T ],x0∼p(x0),xt∼p(xt|x0)
+h
+λ(t) ∥sθ(xt, t) −∇xt log p(xt | x0)∥2i
+,
+(19)
+where U[0, T] denotes the uniform distribution over [0, T], and other notations follow the definition in Eq. 12.
+With a trained score estimation network, we can solve the reverse-time SDE and probability flow ODE to
+generate samples. Methods include annealed Langevin dynamics Song & Ermon (2019), numerical SDE
+solvers Song et al. (2021), numerical ODE solvers Song et al. (2021); Karras et al. (2022), and predictor-
+corrector methods Song et al. (2021), effectively solving the reverse processes.
+4
+Architecture
+Next, we review popular architectures used for video diffusion models including UNets and transformers. We
+first introduce image-based variants before discussing how they may be suitably adapted for video generation,
+in Sec. 5. We also discuss common variations on these including latent diffusion models and cascaded diffusion
+models.
+8
+
+Published in Transactions on Machine Learning Research (11/2024)
+4.1
+UNet
+The UNet (Ronneberger et al., 2015) is currently the most popular architectural choice for the denoiser
+in visual diffusion models (see Figure 4).
+Originally developed for medical image segmentation, it has
+more recently been successfully adapted for generative tasks in image, video, and audio domains. A UNet
+transforms an input image into an output image of the same size and shape by encoding the input first into
+increasingly lower spatial resolution latent representations while increasing the number of feature channels
+by progressing through a fixed number of encoding layers. Then, the resulting ‘middle’ latent representation
+is upsampled back to its original size through the same number of decoding layers.
+While the original
+UNet (Ronneberger et al., 2015) only used ResNet blocks, most diffusion models interleave them with Vision
+Transformer blocks in each layer.
+The ResNet blocks mainly utilize 2D-Convolutions, while the Vision
+Transformer blocks implement spatial self-attention, as well as cross-attention. This happens in a way that
+allows conditioning of the generative process on additional information such as text prompts and current
+timestep. Layers of the same resolution in the encoder and decoder part of the UNet are connected through
+residual connections. The UNet can be trained by the process outlined in Sec. 3.
+4.2
+Vision Transformer
+The Vision Transformer (ViT, Dosovitskiy et al. (2020)) is an important building block of generative dif-
+fusion models based on the transformer architecture developed for natural language processing (Vaswani
+Figure 4: The denoising UNet architecture typically used in text-to-image diffusion models. The model
+iteratively predicts a denoised version of the noisy input image. The image is processed through a number
+of encoding layers and the same number of decoding layers that are linked through residual connections.
+Each layer consists of ResNet blocks implementing convolutions, as well as Vision Transformer self-attention
+and cross-attention blocks. Self-attention shares information across image patches, while cross-attention
+conditions the denoising process on text prompts.
+9
+
+Published in Transactions on Machine Learning Research (11/2024)
+et al., 2017). Therefore, it similarly combines multi-head attention layers, normalization layers, residual
+connections, as well as a linear projection layer to transform a vector of input tokens into a vector of output
+tokens. In the image case, the input tokens are obtained by dividing the input image into regular patches and
+using an image encoder to compute for each patch a patch embedding, supplemented with learnable position
+embeddings. Within the attention layer, the patch embeddings are projected through trainable projection
+matrices, producing so called Query, Key and Value matrices. The first two matrices are used to compute
+a learnable affinity matrix A between different image token positions, which is calculated according to the
+scaled dot-product attention formula: A(Q, K) = softmax( QKT
+√dk ). Here, Q and K are d × dk dimensional
+and refer to the query and key matrix, d is the number of input tokens, dk the dimensionalities of the d
+query and key vectors making up the rows of K and Q, and the matrix Z of output embeddings is obtained
+as Z = AV , i.e. the attention-weighted superposition of the rows of the value matrix V (with one row for
+each input token embedding). In the simplest case, there is a single (d × d dimensional) affinity matrix,
+resulting from a single set of projection matrices. In multi-head attention, a stack of such projections with
+separate query, key, and value matrices is used. Their outputs are concatenated and transformed through a
+linear output layer to form a single set of d new patch embeddings. The attention heads can be computed
+in parallel and allow the model to focus on multiple aspects of the image. Depending on the task, ViTs can
+output an image embedding or be equipped with a classification head.
+In diffusion models, ViT blocks serve two purposes: On the one hand, they implement spatial self-attention
+where Q, K, and V refer to image patches. This allows information to be shared across the whole image,
+or even an entire video sequence. On the other hand, they are used for cross-attention that conditions the
+denoising process on additional guiding information such as text prompts. Here, Q is an image patch and
+K and V are based on text tokens that have been encoded into an image-like representation using a CLIP
+encoder (Radford et al., 2021).
+Purely Vision Transformer-based diffusion models have been proposed as an alternative to the standard
+UNet (Peebles & Xie, 2022; Lu et al., 2023b; Ma et al., 2024; Chen et al., 2023c;b; Gupta et al., 2023).
+Rather than utilizing convolutions, the whole model consists of a series of transformer blocks only. This
+approach has distinct advantages, such as flexibility in regard to the length of the generated videos. While
+UNet-based models typically generate output sequences of a fixed length, transformer models can auto-
+regressively predict tokens in sequences of relatively arbitrary length.
+4.3
+Cascaded Diffusion Models
+Cascaded Diffusion Models (CDM, Ho et al. 2022b) consist of multiple UNet models that operate at increasing
+image resolutions. By upsampling the low-resolution output image of one model and passing it as input to
+the next model, a high-fidelity version of the image can be generated. At training time, various forms of
+data augmentation are applied to the outputs of one denoising UNet model before it is passed as input to the
+next model in the cascade. These include Gaussian blurring, as well as premature stopping of the denoising
+process (Ho et al., 2022b). The use of CDMs has largely vanished after the adaptation of Latent Diffusion
+Models (Rombach et al., 2022) that allow for native generation of high-fidelity images with lower resources.
+4.4
+Latent Diffusion Models
+Latent Diffusion Models (LDM, Rombach et al. (2022)) have been an important development of the base
+UNet architecture that now forms the de-facto standard for image and video generation tasks. Instead of
+operating in RGB space, the input image is first encoded into a latent representation with lower spatial
+resolution and more feature channels using a pre-trained vector-quantized variational auto-encoder (VQ-
+VAE, Van Den Oord et al. (2017)). This low-resolution representation is then passed to the UNet where the
+whole diffusion and denoising process takes place in the latent space of the VQ-VAE encoder. The denoised
+latent is then decoded back to the original pixel space using the decoder part of the VQ-VAE. By operating
+in a lower-dimensional latent space, LDMs can save significant computational resources, thus allowing them
+to generate higher-resolution images compared to previous diffusion models. Stable Diffusion 1 is a canonical
+1https://github.com/Stability-AI/stablediffusion
+10
+
+Published in Transactions on Machine Learning Research (11/2024)
+open source implementation of the LDM architecture. Further improvements of the LDM architecture have
+been introduced by Chen et al. (2020), who addressed specific concerns about how to adjust the architecture
+for high-resolution images, and Podell et al. (2023), who used a second refiner network for improving the
+sample quality of generated images.
+5
+Temporal Dynamics
+In diffusion-based video generation, the UNet/ViT models described in Sec. 4 are used as denoising models
+(ϵθ in Eq. 9) to predict the noise added to the input video clip. Unlike image diffusion models that generate
+each image separately, video diffusion models often perform denoising over a set of frames simultaneously.
+In other words, the input xt to the video diffusion model represents an n-frame video clip (e.g. n = 16).
+Formally, given a noisy video clip (or video latent if using latent diffusion models) xt at time step t, the
+UNet/ViT model predicts the noise ϵ added to the video clip/latent, which is then used to derive a less
+noisy version of the video xt−1. This denoising process can be repeated until the clean video clip/latent x0
+is obtained.
+Text-to-image models such as Stable Diffusion can produce realistic images, but extending them for video
+generation tasks is not trivial (Ho et al., 2022c). If we try to naively generate individual video frames from a
+text prompt, the resulting sequence has no spatial or temporal coherence (see Figure 5a). For video editing
+tasks, we can extract spatial cues from the original video sequence and use them to condition the diffusion
+process. In this way, we can produce fluid motion of objects, but temporal coherence still suffers due to
+changes in the finer texture of objects (see Figure 5b). In order to achieve spatio-temporal consistency, video
+diffusion models need to share information across video frames. The most obvious way to achieve this is to
+add a third temporal dimension to the denoising model. ResNet blocks then implement 3D convolutions,
+while self-attention blocks are turned into full cross-frame attention blocks. This type of full 3D architecture
+is however associated with very high computational costs.
+Figure 5: Limitations of text-to-video diffusion models for generating consistent videos. (Top) When using
+only a text prompt (“Michael Jordan running”), both the appearance and position of objects change wildly
+between video frames. (Bottom) Conditioning on spatial information from a reference video can produce
+consistent movement, but the appearance of objects and the background still fluctuate between video frames.
+11
+
+Published in Transactions on Machine Learning Research (11/2024)
+To lower the computational demands of video UNet models, different approaches have been proposed (see
+Figure 6 and Figure 7): 3D convolution and attention blocks can be factorized into spatial 2D and temporal
+1D blocks. The temporal 1D modules are often inserted into a pre-trained text-to-image model. Additionally,
+temporal upsampling techniques are often used to increase motion consistency. In video-to-video tasks, pre-
+processed video features such as depth estimates are often used to guide the denoising process. Finally, the
+type of training data and training strategy has a profound impact on a model’s ability to generate consistent
+motion.
+5.1
+Spatio-Temporal Attention Mechanisms
+In order to achieve spatial and temporal consistency across video frames, most video diffusion models modify
+the self-attention layers in the UNet model. These layers consist of a vision transformer that computes the
+affinity between a query patch of an image and all other patches in that same image. This basic mechanism
+can be extended in several ways (see Wang et al. 2023b for a discussion): In temporal attention (Hong
+et al., 2022; Singer et al., 2022), the query patch attends to patches at the same location in other video
+frames. In full spatio-temporal attention (Zhang & Agrawala, 2023; Bar-Tal et al., 2024), it attends to all
+patches in all video frames. In causal attention, it only attends to patches in all previous video frames. In
+sparse causal attention (Wu et al., 2022b), it only attends to patches in a limited number of previous frames,
+typically the first and immediately preceding one. The different forms of spatio-temporal attention differ in
+how computationally demanding they are and how well they can capture motion. Additionally, the quality
+of the produced motion greatly depends on the used training strategy and data set.
+5.2
+Temporal Upsampling
+Generating long video sequences in a single batch often exceeds the capacity of current hardware. While
+different techniques have been explored to reduce the computational burden (such as sparse causal attention,
+Wu et al. 2022b), most models are still limited to generating video sequences that are no longer than a few
+seconds even on high-end GPUs. To get around this limitation, many works have adapted a hierarchical
+upsampling technique whereby they first generate spaced-out key frames. The intermediate frames can then
+be filled in by either interpolating between neighboring key frames, or using additional passes of the diffusion
+model conditioned on two key frames each.
+As an alternative to temporal upsampling, the generated video sequence can also be extended in an auto-
+regressive manner (Blattmann et al., 2023b). Hereby, the last generated video frame(s) of the previous batch
+are used as conditioning for the first frame(s) of the next batch. While it is in principle possible to arbitrarily
+extend a video in this way, the results often suffer from repetition and quality degradation over time.
+Figure 6: Three-dimensional extension of the UNet convolution layers for video generation. The convolution
+kernels are expanded into 3D kernels to adapt to the extra temporal dimension in video generation.
+12
+
+Published in Transactions on Machine Learning Research (11/2024)
+Figure 7: Attention mechanisms used to model temporal dynamics are illustrated here.
+The color red
+represents the Query, and green indicates the Key. This diagram identifies which patches in the 3D video
+sequences receive attention.
+5.3
+Structure Preservation
+Video-to-video translation tasks typically strive for two opposing objectives: Maintaining the coarse structure
+of the source video on the one hand, while introducing desired changes on the other hand. Adhering to the
+source video too much can hamper a model’s ability to perform edits, while strolling too far away from
+the layout of the source video allows for more creative results but negatively impacts spatial and temporal
+coherence.
+A common approach for preserving the coarse structure of the input video is to replace the initial noise in
+the denoising model with (a latent representation of) the input video frames (Wu et al., 2022b). By varying
+the amount of noise added to each input frame, the user can control how closely the output video should
+resemble the input, or how much freedom should be granted while editing it. In practice, this method in
+itself is not sufficient for preserving the more fine-grained structure of the input video and is therefore usually
+augmented with other techniques. For one, the outlines of objects are not sufficiently preserved when adding
+higher amounts of noise. This can lead to unwanted object warping across the video. Furthermore, finer
+details can shift over time if information is not shared across frames during the denoising process.
+These shortcomings can be mitigated to some degree by conditioning the denoising process on additional
+spatial cues extracted from the original video. For instance, specialized diffusion models have been trained
+to take into account depth estimates2. ControlNet (Zhang & Agrawala, 2023) is a more general extension for
+Stable Diffusion that enables conditioning on various kinds of information, such as depth maps, OpenPose
+skeletons, or lineart. A ControlNet model is a fine-tuned copy of the encoder portion of the Stable Diffusion
+denoising UNet that can be interfaced with a pre-trained Stable Diffusion model. Image features are ex-
+tracted using a preprocessor, encoded through a specialized encoder, passed through the ControlNet model,
+and concatenated with the image latents to condition the denoising process. Multiple ControlNets can be
+combined in an arbitrary fashion. Several video diffusion models have also implemented video editing that
+is conditioned on extracted frame features such as depth (Ceylan et al. 2023; Esser et al. 2023; Xing et al.
+2023a, see Sec. 10.2) or pose estimates (Ma et al. 2023; Zhao et al. 2023, see Sec. 10.3).
+6
+Training & Evaluation
+Video diffusion models can differ greatly in regards to how they are trained. Some models are trained from
+scratch (e.g. Ho et al. 2022c, Singer et al. 2022, Ho et al. 2022a), while others are built on top of a pre-
+2https://huggingface.co/stabilityai/stable-diffusion-2-depth
+13
+
+Published in Transactions on Machine Learning Research (11/2024)
+Figure 8: Training approaches for video diffusion models: a) Training on videos. b) Simultaneous training
+on images and videos. c) Pre-training on images and fine-tuning on videos.
+Table 2: Commonly used video data sets for diffusion model training.
+Data Set
+Resolution
+Source
+Labels
+# Clips
+Clip Length
+Total Length (h.)
+WebVid-10M (2021)
+-
+Web
+Alt-Text
+10.7 mio.
+18 sec.
+52k
+HD-Vila-100M (2022)
+1280×720
+Youtube
+Transcription (auto.)
+100 mio.
+13.4 sec.
+371k
+Kinetics-600 (2018)
+-
+Youtube
+Action Class
+500,000
+10 sec.
+1.4k
+UCF101 (2012)
+320×240
+Youtube
+Action Class
+13k
+7 sec.
+27
+MSR-VTT (2016)
+-
+Web
+Annotation (human)
+10k
+10-30 sec.
+41.2
+Sky Time-lapse (2018)
+640×360
+Youtube
+-
+35k
+32 frames
+10
+Tai-Chi-HD (2019)
+256×256
+Youtube
+-
+3k
+128-1024 frames
+-
+TikTok (2022)
+640×1080
+TikTok
+Depth
+340
+10-15 sec.
+0.86
+trained image model (e.g. Zhou et al. 2022, Khachatryan et al. 2023, Blattmann et al. 2023b). It is possible
+to train a model completely on labeled video data, whereby it learns associations between text prompts and
+video contents as well as temporal correspondence across video frames (e.g. Ho et al. 2022c). However,
+large data sets of labeled videos (e.g. Bain et al. 2021, Xue et al. 2022, see Section 6.1) tend to be smaller
+than pure image data sets and may include only a limited range of content. Additionally, a single text label
+per video may fail to describe the changing image content across all frames. At a minimum, automatically
+collected videos need to be divided into chunks of suitable length that can be described with a single text
+annotation and that are free of unwanted scene transitions, thereby posing higher barriers for uncurated
+or weakly curated data collection. For that reason, training is often augmented with readily available data
+sets of labeled images (e.g. Russakovsky et al. 2015, Schuhmann et al. 2022, see Section 6.2). This allows a
+given model to learn a broader number of relationships between text and visual concepts. Meanwhile, the
+spatial and temporal coherence across frames can be trained independently on video data that can even be
+unlabeled (Zhou et al., 2022).
+In contrast to models that are trained from scratch (e.g. Ho et al. 2022c, Singer et al. 2022, Ho et al. 2022a),
+recent video diffusion approaches (e.g. Zhou et al. 2022, Khachatryan et al. 2023, Blattmann et al. 2023b)
+often rely on a pre-trained image generation model such as Stable Diffusion (Rombach et al. 2022). These
+models show impressive results in the text-to-image (Rombach et al., 2022; Ramesh et al., 2022) and image
+editing domains (Brooks et al., 2023; Zhang & Agrawala, 2023), but are not built with video generation in
+mind. For this reason, they have to be adjusted in order to yield results that are spatially and temporally
+coherent. One possibility to achieve this is to add new attention blocks or to tweak existing ones so that
+they model the spatio-temporal correspondence across frames. Depending on the implementation, these
+attention blocks either re-use parameters from the pre-trained model, are fine-tuned on a training data set
+consisting of many videos, or only on a single input video in the case of video-to-video translation tasks.
+During fine-tuning, the rest of the pre-trained model’s parameters are usually frozen in place. The different
+training methods are shown in Figure 8.
+14
+
+Published in Transactions on Machine Learning Research (11/2024)
+6.1
+Video Data Sets
+Table 2 offers an overview of commonly used video data sets for training and evaluation of video diffusion
+models.
+WebVid-10M (Bain et al., 2021) is a large data set of text-video pairs scraped from the internet that
+covers a wide range of content. It consists of 10.7 million video clips with a total length of about 52,000
+hours. It is an expanded version of the WebVid-2M data set, which includes 2.5 million videos with an
+average length of 18 seconds and a total play time of 13,000 hours. Each video is annotated with an HTML
+Alt-text which normally serves the purpose of making it accessible to vision-impaired users. The videos
+and their Alt-texts have been selected based on a filtering pipeline similar to that proposed in Sharma et al.
+(2018). This ensures that the videos have sufficiently high resolution, normal aspect ratio, and lack profanity.
+Additionally, only well-formed Alt-text that is aligned with the video content is selected (as judged by a
+classifier). WebVid-10M is only distributed in the form of links to the original video sources, therefore it is
+possible that individual videos that have been taken down by their owners are no longer accessible.
+HD-Villa-100M (Xue et al., 2022) contains over 100 million short video clips extracted from about 3.3
+million videos found on YouTube. The average length of a clip is 13.4 seconds with a total run time of about
+371.5 thousand hours. All videos have a high-definition resolution of 1280 × 720 pixels and are paired with
+automatic text transcriptions. Along with WebVid-10M, HD-Villa-100M is one of the most popular training
+data sets for generative video models.
+Kinetics-600 (Carreira et al., 2018) contains short YouTube videos of 600 distinct human actions with
+their associated class labels. Each action class is represented by more than 600 video clips that last around
+10 seconds. In total, the data set contains around 500,000 clips. The data set expands upon the previous
+Kinetics-400 (Kay et al., 2017) data set.
+UCF101 (Soomro et al., 2012) is a data set of videos showing human actions. It contains over 13,000
+YouTube video clips with a total duration of about 27 hours and an average length of 7 seconds. It expands
+upon the previous UCF50 (Reddy & Shah, 2013) data set, which includes only roughly half as many video
+clips and action classes. The clips have a resolution of 320×240 pixels. Each video has been annotated with
+a class label that identifies it as showing one of 101 possible actions. The 101 action classes are more broadly
+categorized into 5 action types: Human-Object Interaction, Body-Motion Only, Human-Human Interaction,
+Playing Musical Instruments, and Sports. While UCF101 was mainly intended for training and evaluating
+action classifiers, it has also been adopted as a benchmark for generative models. For this, the class labels
+are often used as text prompts. The generated videos are then usually evaluated using IS, FID, and FVD
+metrics.
+MSR-VTT (Xu et al., 2016) includes about 10,000 short video clips from over 7,000 videos with a total
+run time of about 41 hours. The videos were retrieved based on popular video search queries and filtered
+according to quality criteria such as resolution and length. Each clip was annotated by 20 different humans
+with a short text description, yielding 200,000 video-text pairs. The data set was originally intended as a
+benchmark for automatic video annotation but has been used for evaluating text-to-video models as well.
+For this, CLIP text-similarity, FID, and FVD scores are usually reported.
+Sky Time-lapse (Xiong et al., 2018) is a collection of unlabeled short clips that contain time-lapse shots
+of the sky. The videos have been taken from YouTube and divided into smaller non-overlapping segments.
+Each clip consists of 32 frames of continuous video at a resolution of 640×360 pixels. The clips show the sky
+at different times of day, under different weather conditions, and with different scenery in the background.
+The data set can serve as a benchmark for unconditional video generation or video prediction. In particular,
+it allows one to assess how well a given generative video model is able to replicate complex motion patterns
+of clouds and stars.
+Tai-Chi-HD (Siarohin et al., 2019) contains over 3,000 unlabeled clips from 280 tai chi Youtube videos.
+The videos have been split into smaller chunks that range from 128 to 1024 frames and have a resolution of
+256×256 pixels. Similar to Sky Time-lapse, Tai-Chi-HD can be used for training and evaluating unconditional
+generation or video prediction.
+15
+
+Published in Transactions on Machine Learning Research (11/2024)
+TikTok Dataset (Jafarian & Park, 2022) is recognized as a popular benchmark for the generation of human
+dancing videos. It comprises approximately 350 dance videos, each lasting between 10 and 15 seconds. The
+curated videos in the dataset capture a single individual performing dance moves from monthly TikTok dance
+challenge compilations. These selected videos showcase moderate movements without significant motion blur.
+For each video, RGB images are extracted at a rate of 30 frames per second, resulting in a total of more
+than 100,000 images. Human poses, depth maps, segmentation masks, and UV coordinates of each video
+are also provided.
+6.2
+Image Data Sets
+Video models are sometimes jointly trained on image and video data. Alternatively, they may extend a pre-
+trained image generation model with temporal components that are fine-tuned on videos. Table 3 provides
+a brief overview over commonly used labeled image data sets.
+ImageNet (Russakovsky et al., 2015) is a data set developed for the ImageNet Large Scale Visual Recog-
+nition Challenge that was held annually between 2010 and 2017. Since 2012, the same data set has been
+used for the main image classification task. ImageNet-21k is a large collection of over 14 million images that
+have been annotated by humans with one object category label. Overall, there are 20,000 different object
+classes present in the data set that are hierarchically organized according to the WordNet (Fellbaum, 1998)
+structure. A subset of this dataset used for the ImageNet competition itself is often called ImageNet-1k. It
+contains over 1 million images that each have been annotated by humans with one object category label and
+a corresponding bounding box. There are only 1,000 object categories in this data set.
+MS-COCO (Lin et al., 2014) has originally been developed as a benchmark data set for object localization
+models. It contains over 300,000 images containing 91 different categories of everyday objects. Every instance
+of an object is labeled with a segmentation mask and a corresponding class label. Overall, there are about
+2.5 million instances of objects in this data set.
+LAION-5B (Schuhmann et al., 2022) is a very large public collection of 5.58 billion text-image pairs that
+can be found on the internet. Access is provided in the form of a list of links. To ensure a minimal level
+of correspondence between the images and their associated alt-texts, the pairs have been filtered by the
+following method: Images and texts have both been encoded through a pre-trained CLIP (Radford et al.,
+2021) model and pairs with a low cosine CLIP similarity have been excluded. To train image or video models,
+often only the subset of LAION-5B that contains English captions is used. It contains 2.32 billion text-image
+pairs and is referred to as LAION-2B. Additionally, labels for not safe for work (NSFW), watermarked, or
+toxic content are provided based on automated classification. The LAION-5B data set offers are relatively
+low level of curation, but its sheer size has proven very valuable for training large image and video models.
+6.3
+Evaluation Metrics
+Human ratings are the most important evaluation method for video models since the ultimate goal is to
+produce results that appeal to our aesthetic standards. To demonstrate the quality of a new model, subjects
+usually rate its output in comparison to an existing baseline. Subjects are usually presented with pairs of
+generated clips from two different video models. They are then asked to indicate which of the two examples
+they prefer in regard to a specific evaluation criterion.
+Depending on the study, the ratings can either
+purely reflect the subject’s personal preference, or they can refer to specific aspects of the video such as
+temporal consistency and adherence to the prompt. Humans are very good at judging what “looks natural”
+Table 3: Commonly used image data sets that are used for video diffusion model training.
+Data Set
+# Images
+Annotation
+Labels
+# Classes
+ImageNet-21k (2015)
+14 mio.
+Human
+Class
+20,000
+ImageNet-1k (2015)
+1.28 mio.
+Human
+Class
+1,000
+MS-COCO (2014)
+328k
+Human
+Class
+91
+LAION-5B (2022)
+5.58 mio.
+Automated
+Text
+-
+16
+
+Published in Transactions on Machine Learning Research (11/2024)
+and identifying small temporal inconsistencies. The downsides of human ratings include the effort and time
+needed to collect large enough samples, as well as the limited comparability across studies. For this reason,
+it is desirable to also report automated evaluation metrics. Human studies can also be used to measure how
+well the automated metrics align with human preferences, checking if human judgments agree with metric
+results or differ when assessing similar videos (Unterthiner et al., 2018; Huang et al., 2024; Liu et al., 2024).
+Common automated evaluation metrics can be categorized into two types: 1) set-to-set comparison metrics,
+and 2) unary metrics, as shown in Figure 9. The first category measures the difference between the generated
+set of data and the reference dataset, typically using statistical measures such as Fréchet distance (Dowson
+& Landau, 1982). The second category, unary metrics, does not require a reference set. This makes them
+suitable for applications like video generation in the wild or video editing, where a gold-standard reference
+is absent.
+6.3.1
+Set-to-set Comparison Metrics
+Fréchet Inception Distance (FID, Heusel et al. 2017) measures the similarity between the output distri-
+bution of a generative image model and its training data. Rather than comparing the images directly, they
+are first encoded by a pre-trained inception network (Szegedy et al., 2016). The FID score is calculated as
+the squared Wasserstein distance between the image embeddings in the real and synthetic data. FID can be
+applied to individual frames in a video sequence to study the image quality of generative video models, but
+it fails to properly measure temporal coherence.
+Fréchet Video Distance (FVD, Unterthiner et al. 2018) has been proposed as an extension of FID for
+the video domain. Its inception net is comprised of a 3D Convnet pre-trained on action recognition tasks
+in YouTube videos (I3D, Carreira & Zisserman 2017). The authors demonstrate that the FVD measure is
+not only sensitive to spatial degradation (different kinds of noise), but also to temporal aberrations such
+as swapping of video frames. FVD is a commonly used metric for assessing the quality of unconditional or
+text-conditioned video generation.
+Kernel Video Distance (KVD, Unterthiner et al. 2018) is an alternative to FVD. It is computed in an
+analogous manner, except that a polynomial kernel is applied to the features of the inception net. The
+authors found that FVD aligns better with human judgments than KVD. Nevertheless, both are commonly
+reported as benchmark metrics for unconditional video generation.
+Fréchet Video Motion Distance (FVMD, Liu et al. 2024) is a metric focused on temporal consistency,
+measuring the similarity between motion features of generated and reference videos using Fréchet Distance.
+It begins by tracking keypoints using the pre-trained PIPs++ model (Zheng et al., 2023), then calculates
+the velocity and acceleration fields for each frame.
+The metric aggregates these features into statistical
+histograms and measures their differences using the Fréchet Distance. FVMD assesses motion consistency
+by analyzing speed and acceleration patterns, assuming smooth motions should follow physical laws and
+avoid abrupt changes.
+In addition to video-based metrics, the Peak Signal-to-Noise Ratio (PSNR) and Structural Similar-
+ity Index Measure (SSIM) (Wang et al., 2004) are commonly used image-level metrics for video quality
+assessment. Specifically, SSIM characterizes the brightness, contrast, and structural attributes of the refer-
+ence and generated videos, while PSNR quantifies the ratio of the peak signal to the Mean Squared Error
+Figure 9:
+Commonly used algorithmic video evaluation metrics.
+17
+
+Published in Transactions on Machine Learning Research (11/2024)
+(MSE). Originally proposed for imaging tasks such as super-resolution and in-painting, these metrics are
+nonetheless repurposed for video evaluation. Unlike the aforementioned methods, PSNR and SSIM do not
+need pre-trained models.
+Figure 10:
+Limitations of Automated Evaluation Metrics: We evaluate various video generative models
+trained on the TikTok dataset (Jafarian & Park, 2022) to compare their sample quality. Specifically, we gen-
+erate about 50 videos for each model checkpoint and measure their performance using the FVD (Unterthiner
+et al., 2018), FID (Heusel et al., 2017), VBench (Huang et al., 2024), and FVMD (Liu et al., 2024) metrics.
+We present visualizations of five video samples from the same scene, ranked by human assessors from worst
+to best, to highlight the limitations of algorithmic evaluation methods. The video samples are reproduced
+from the following models: (a) is from Magic Animate (Xu et al., 2023); (b), (c), and (e) are from Animate
+Anyone (Hu et al., 2023b), each with different training hyperparameters; and (d) is from DisCo (Wang et al.,
+2023a). For instance, video sample (a), which is of the poorest quality, cannot be effectively distinguished
+from samples (b), (c), and (d) based on the FID or VBench metrics. In contrast, the FVMD metric aligns
+better with the assessed video quality and motion consistency.
+6.3.2
+Unary Metrics
+Inception Score (IS, Salimans et al. 2016) is applicable to generative models trained on data sets with
+categorical labels.
+An Inception Net (Szegedy et al., 2016) classifier pre-trained on the ImageNet data
+set (Deng et al., 2009) is used to predict the class labels of each generated image. The IS score is then
+expressed by the Kullback-Leibler distance between the conditional class probability distribution p(y|G(x))
+and the marginal class distribution p(y) of the generated samples. While IS aligns well with human ratings
+and possesses good discriminative power (Borji, 2019), it is susceptible to noise, as shown by Heusel et al.
+(2017). It should be noted that IS only assesses the quality of individual images. When applied to video data,
+18
+
+Published in Transactions on Machine Learning Research (11/2024)
+it can therefore not take into account aspects such as temporal coherence between video frames. Saito et al.
+(2020) generalizes the IS to the video domain, specifically for the UCF101 dataset (Soomro et al., 2012),
+where a pre-trained action recognition classifier (C3D, Tran et al. 2015) is used for score computation.
+However, this metric is generally highly specific to the UCF101 dataset and is hardly applicable to videos in
+the wild due to classification difficulty.
+CLIP cosine similarity is often used to measure text prompt and frame consistency, where a reference
+video dataset is not needed. CLIP (Radford et al., 2021) is a family of vision transformer auto-encoder models
+that can project image and text data into a shared embedding space. During training, the distance between
+embedded images and their associated text labels is minimized. Thereby, visual concepts are represented
+close to words that describe them. The similarity between CLIP embeddings is typically measured through
+their cosine distance. A value of 1 describes identical concepts, while a value of 0 implies completely unrelated
+concepts. In order to determine how well a video sequence adheres to the text prompt used to generate or edit
+it, the average similarity between each video frame and the text prompt is calculated (prompt consistency,
+Esser et al. 2023). In a similar fashion, it is also possible to get a rough measure of temporal coherence by
+computing the mean CLIP similarity between adjacent video frames in a sequence (frame consistency, Esser
+et al. 2023). In video editing tasks, the percentage of frames with a higher prompt consistency score in the
+edited over the original video is also sometimes reported (frame accuracy, Qi et al. 2023).
+VBench (Huang et al., 2024) proposes a comprehensive set of fine-grained video evaluation metrics to
+assess temporal and frame-wise video quality, as well as video-text consistency in terms of semantics and
+style. They employ a number of pre-trained models, e.g., RAFT (Teed & Deng, 2020) for dynamic degree,
+and MUSIQ (Ke et al., 2021) for imaging quality, along with heuristics-inspired algorithms, e.g., visual
+smoothness and temporal flickering, based on inter-frame interpolation and reconstruction error. The overall
+score is determined by a weighted sum of a number of fine-grained metrics, and the authors also conduct
+human studies to validate the effectiveness of these metrics.
+6.4
+Benchmarks
+Some authors train their video models on specific datasets for evaluation purposes. This allows them to
+directly compare them with earlier models that have been trained on the same data. In this way, certain
+datasets can also be seen as quality benchmarks for new video diffusion models. Commonly used evaluation
+datasets for video generation include UCF-101 (Soomro et al., 2012), MSR-VTT (Xu et al., 2016), Tai-
+Chi-HD (Siarohin et al., 2019), and Sky Time-Lapse (Radford et al., 2021). Models trained on all four of
+these datasets can be evaluated using samples that have been generated in an unconditional manner. For
+UCF-101, a second benchmark is sometimes reported on conditional generation where the 101 class labels
+are used for guiding the generative process.
+In this case, IS can be used as an evaluation metric.
+For
+MSR-VTT, conditional generation using the 200,000 human video annotations as text prompts can also be
+evaluated. Here, CLIP text-similarity is often reported as a measure of text-video alignment. Most often,
+the benchmarked models are either directly trained on the train split of the evaluation data set, or they are
+pre-trained on a separate large video data set (such as WebVid-10M or HD-Villa-100M) and later fine-tuned
+on the evaluation data set. However, some papers evaluate their model in a zero-shot setting, where the
+model has not been trained on the evaluation data set at all. These discrepancies between evaluation setups
+mean that a direct comparison of benchmark results across studies should be taken with a grain of salt.
+More complex benchmarking suites include Ego-Exo4D (Grauman et al., 2024) which is a multimodal and
+multiview video dataset of skilled human activities.
+The benchmark results for video generation are summarized in Table 4. Make-A-Video (Singer et al., 2022),
+one of the early diffusion-based video models, still holds state-of-the-art FVD and IS scores on the UCF-101
+conditional generation benchmark. It not only outperforms all GAN and auto-regressive models, but also
+the newer diffusion-based models. It is pre-trained on both the WebVid-10M and HD-Villa-100M data sets,
+which gives it an advantage in terms of the quantity of the training data over most other models. Make-
+A-Video also holds the best CLIP-similarity and FID scores in the zero-shot text-conditioned MSR-VTT
+benchmark. Make-A-Video is outperformed by Make-Your-Video (Xing et al., 2023a) when it comes to zero-
+shot performance on UCF-101, although the latter uses depth maps as additional conditioning. Therefore,
+both models are not directly comparable. VideoFusion (Luo et al., 2023) has achieved the best FVD score
+19
+
+Published in Transactions on Machine Learning Research (11/2024)
+on the unconditional Tai-Chi-HD and Sky Time-lapse benchmarks, as well as the best KVD score on Tai-
+Chi-HD. It is outperformed by LVDM (He et al., 2022b) when it comes to KVD on the Sky Time-lapse
+benchmark. MagicVideo (Zhou et al., 2022) has the best FID score on UCF-101 and the best FVD score on
+MSR-VTT, although our comparison includes only few other datasets competing in those categories.
+7
+Video Generation
+7.1
+Unconditional Generation & Text-to-Video
+Unconditional video generation and text-conditioned video generation are common benchmarks for generative
+video models. Prior to diffusion models, Generative Adversarial Networks (GANs, Goodfellow et al. 2014,
+Melnik et al. 2024) and auto-regressive transformer models (Vaswani et al., 2017) have been popular choices
+for generative video tasks. In the following, we provide a short overview over a few representative GAN
+and auto-regressive transformer video models. We then introduce a selection of competing diffusion models
+starting in Sec. 7.1.3.
+7.1.1
+GAN Video Models
+TGAN (Saito et al., 2017) employs two generator networks: The temporal generator creates latent features
+that represent the motion trajectory of a video. This feature vector can be fed into an image generator
+that creates a fixed number of video frames in pixel space. TGAN-v2 (Saito et al., 2020) uses a cascade
+of generator modules to create videos at various temporal resolutions, making the process more efficient.
+TGAN-F (Kahembwe & Ramamoorthy, 2020) is another improved version that relies on lower-dimensional
+kernels in the discriminator network.
+MoCoGAN (Tulyakov et al., 2018) decomposes latent space into motion and content-specific parts by
+employing two separate discriminators for individual frames and video sequences. At inference time, the
+content vector is kept fixed while the next motion vector for each frame is predicted in an auto-regressive
+manner using a neural network. MoCoGAN was evaluated on unconditional video generation on the UCF-101
+and Tai-Chi-HD datasets and achieved higher IS scores than the preceding TGAN and VGAN models.
+DVD-GAN (Clark et al., 2019) uses a similar dual discriminator setup to MoCoGAN. The main difference
+is that DVD-GAN does not use auto-regressive prediction but instead generates all video frames in parallel.
+It outperformed previous methods such as TGAN-v2 and MoCoGAN on the UCF-101 dataset in terms of
+IS score, although DVD-GAN conditioned its generation on class labels, whereas the other approaches were
+unconditional.
+MoCoGAN-HD (Tian et al., 2021) disentangles content and motion in a different way from the previous
+approaches. A motion generator is trained to predict a latent motion trajectory, which can then be passed
+as input to a fixed image generator. It outperformed previous approaches on unconditional generation in
+the UCF-101, Tai-Chi-HD, and Sky Time-lapse benchmarks.
+DIGAN (Yu et al., 2022) introduces an implicit neural representation-based video GAN architecture that
+can efficiently represent long video sequences. It follows a similar content-motion split as discussed above.
+The motion discriminator judges temporal dynamics based on pairs of video frames rather than the whole
+sequence. These improvements enable the model to generate longer video sequences of 128 frames. DIGAN
+achieved state-of-the-art results on UCF-101 in terms of IS and FVD score, as well as on Sky Time-lapse
+and Tai-Chi-HD in terms of FVD and KVD scores.
+7.1.2
+Auto-Regressive Transformer Video Models
+VideoGPT (Yan et al., 2021) uses a 3D VQ-VAE (Van Den Oord et al., 2017) to learn a compact video
+representation. An auto-regressive transformer model is then trained to predict the latent code of the next
+frame based on the preceding frames. While VideoGPT did not outperform the best GAN-based models at
+the time, namely TGAN-v2 and DVD-GAN, it achieved a respectable IS score on the UCF-101 benchmark
+considering its simple architecture.
+20

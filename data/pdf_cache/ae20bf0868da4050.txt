@@ -1,0 +1,1069 @@
+arXiv:2505.23721v2  [cs.LG]  3 Jun 2025
+DiffER: Categorical Diffusion Models for
+Chemical Retrosynthesis
+Sean Current1*, Ziqi Chen1, Daniel Adu-Ampratwum2,
+Xia Ning1,2,3,4, Srinivasan Parthasarathy1*
+1Computer Science and Engineering, The Ohio State University,
+Columbus, 43210, OH, USA.
+2College of Pharmacy, The Ohio State University, Columbus, 43210,
+OH, USA.
+3Translational Data Analytics Institute, The Ohio State University,
+Columbus, 43210, OH, USA.
+4Biomedical Informatics, The Ohio State University, Columbus, 43210,
+OH, USA.
+*Corresponding author(s). E-mail(s): current.33@osu.edu;
+srini@cse.ohio-state.edu;
+Contributing authors: chen.8484@osu.edu; adu-ampratwum.1@osu.edu;
+ning.104@osu.edu;
+Abstract
+Methods for automatic chemical retrosynthesis have found recent success through
+the application of models traditionally built for natural language processing, pri-
+marily through transformer neural networks. These models have demonstrated
+significant ability to translate between the SMILES encodings of chemical prod-
+ucts and reactants, but are constrained as a result of their autoregressive nature.
+We propose DiffER, an alternative template-free method for retrosynthesis pre-
+diction in the form of categorical diffusion, which allows the entire output
+SMILES sequence to be predicted in unison. We construct an ensemble of diffu-
+sion models which achieves state-of-the-art performance for top-1 accuracy and
+competitive performance for top-3, top-5, and top-10 accuracy among template-
+free methods. We prove that DiffER is a strong baseline for a new class of
+template-free model and is capable of learning a variety of synthetic techniques
+used in laboratory settings. Scientific Contribution. DiffER represents a novel
+template-free technique for single-step retrosynthesis prediction which is able to
+outperform a variety of other template-free methods on top-k accuracy metrics.
+1
+
+By constructing an ensemble of categorical diffusion models with a novel length
+prediction component with variance, our method is able to approximately sam-
+ple from the posterior distribution of reactants, producing results with strong
+metrics of confidence and likelihood. Furthermore, our analyses demonstrate that
+accurate prediction of the SMILES sequence length is key to further boosting the
+performance of categorical diffusion models.
+Retrosynthesis prediction is a vital step in organic synthesis tasks, particularly those
+posed for drug discovery or drug engineering. In forward synthesis prediction, the
+products of a chemical reaction are predicted from known reactants; retrosynthesis
+prediction reverses this process, instead predicting possible reactants that would pro-
+duce a target product. Repeated application of retrosynthesis prediction can help
+chemists construct synthetic pathways for drug targets [1–3], promoting the discov-
+ery and advancement of new pharmaceuticals. While numerous types of models for
+computer-aided retrosynthesis have been proposed, many modern approaches utilize
+data-driven machine learning to find suitable models for retrosynthesis prediction.
+Recent advances in machine learning models for chemical retrosynthesis have taken
+advantage of transformer architectures originally crafted for natural language tasks.
+Instead of operating on natural language, these models are set to operate on SMILES
+[4] encodings of chemical products and reactants, effectively translating between two
+molecular sets [5]. Indeed, recent work has done precisely this, going as far as using
+neural machine translation models originally built for language tasks for retrosynthesis
+prediction [6, 7]. A more detailed overview of current work in single-step retrosyn-
+thesis is provided in 2. While these models exhibit remarkable performance compared
+to other baseline methods for retrosynthesis, they impose autoregressive constraints
+during training and prediction, enforcing sequential decoding of the SMILES string.
+In this work, we offer DiffER, an alternative to sequential decoding of SMILES
+strings in the prediction process by utilizing categorical diffusion models rather than
+autoregressive models. This exchange allows DiffER to decode the entire SMILES
+string in unison, rather than in an autoregresssive manner. We hypothesize that
+by allowing the model to predict the entire SMILES string in unison, it may bet-
+ter learn structural relationships within the molecule. Additionally, diffusion models
+have experienced a recent surge of success for many generation tasks across domains.
+By employing categorical diffusion for the chemical retrosynthesis task, we provide a
+strong and competitive baseline for a new class of model. An outline of our approach
+is display in Figure 1, while a more detailed overview is available in Section 1. DiffER
+achieves state-of-the-art top-1 accuracy and competitive performance for top-3, top-5,
+and top-10 accuracy among template-free methods.
+Our main contributions to the domain of computer-aided chemical retrosynthesis
+are as follows:
+• We develop and test DiffER, an ensemble of diffusion models for the chemical ret-
+rosynthesis task and compare our performance against a variety of existing methods,
+achieving state-of-the-art top-1 accuracy and competitive top-3 and top-5 accuracy.
+2
+
+Fig. 1 Schematic of DiffER, our diffusion process for retrosynthesis. a) The Product Encoder, which
+converts the product to a random, root-aligned SMILES form and encodes it using the encoder
+portion of the DiffER models. The encoder models also predict the size of the diffusion noise vector.
+b) The Reactant Decoder, which diffuses the reactant from randomly initialized categorical noise
+using the decoder portion of the DiffER models. Decoder models can predict pad tokens <P> to
+diffuse SMILES strings of varying lengths. c) The Canonicalized Ranking, which ranks the canonical
+molecules predicted by the DiffER models by the number of times they are generated. The top-ranked
+reactant is the predicted reactant.
+• We implement a novel method for estimating the length of the output sequence
+prior to prediction so that the diffusion process can be properly initialized, while
+accounting for possible error and variance in the predicted sequence length.
+• We compare against a diffusion model with oracle length prediction to demonstrate
+an experimental upper-limit of the diffusion approach if the output sequence length
+is able to be perfectly estimated. We find that the oracle model greatly outperforms
+all existing methods for computer-aided retrosynthesis, demonstrating the viability
+of diffusion models for this task given a target sequence length.
+• We also include results for a baseline diffusion model with length prediction which
+does not account for variance or error in the output length, and show that our
+training and sampling methodology greatly improves the performance of diffusion
+models.
+• We demonstrate the results of our method on a set of four reactions, highlighting
+the benefits of our approach as well as the limitations for each reaction.
+• We discuss the current advantages and limitations of our diffusion approach and
+identify directions of future research to improve upon our work.
+3
+
+1 Methods
+We define the retrosynthesis task as a sequence-to-sequence modeling problem and
+combine the approaches of Hoogeboom et al. [8], DiffuSeq [9, 10], and MaskPredict
+[11] to train conditional, multinomial diffusion models for the retrosynthesis task. We
+utilize a traditional encoder-decoder transformer architecture to construct individual
+conditional diffusion models, where the encoder is responsible for learning the represen-
+tation of the conditional features and the decoder acts as the diffusion approximation
+model. In the end, eight individual diffusion models are ensembled to produce DiffER,
+a novel ensemble model for chemical retrosynthesis.
+Let xt ∈{0, 1}K×ℓx be a sequence of ℓx one-hot encoded vectors of size K rep-
+resenting the source and let yt ∈{0, 1}K×ℓy be similarly defined representing the
+target. Let C denote a categorical probability distribution with parametrized proba-
+bility. Finally, let F represent a transformer neural network with encoder Fencoder,
+decoder Fdecoder, and sequence length prediction classifier Flength.
+1.1 Forward Noising Process
+Following Hoogeboom et al. [8], we define the multinomial diffusion process q as a
+categorical distribution C with probability βt of sampling uniformly from {0, 1}K for
+any step in the sequence, and apply noising to the target matrix yt:
+q(yt|yt−1) = C(yt|(1 −βt)yt−1 + βt/K).
+(1)
+This forms a Markov chain allowing yt to be directly sampled from y0:
+q(yt|y0) = C(yt|¯αty0 + (1 −¯αt)/K),
+(2)
+where αt = 1 −βt and ¯αt = Qt
+τ=1 ατ. Note that in the forward noising process, we
+only apply noise to the target sequence y0.
+1.2 Conditional Denoising
+We continue following the work of Hoogeboom et al. to denoise the categorical data.
+We construct the posterior distribution of the categorical model as
+pθ(yt−1|yt, y0) = C(yt−1|θpost(yt, y0)),
+(3)
+where
+θpost(yt, y0) = ¯θ/
+K
+X
+k=1
+ˆθk
+(4)
+and
+¯θ = [αtyt + (1 −αt)/K] ⊙[ˆαt−1y0 + (1 −ˆαt−1)/K].
+(5)
+Notably, as y0 is not known during inference, it must be estimated using a neural
+network. Inspired by DiffuSeq [9, 10], we concatenate a representation of the source
+sequence to the noised representation of the target sequence to use as input to the y0
+4
+
+approximation model. In contrast to DiffuSeq, which uses the embedded representation
+of the source sequence x0, we process the source sequence with a transformer encoder
+model prior to concatenating, which is used as the memory component in the decoder
+architecture [12]. Thus, the reverse diffusion process is fully modeled as
+pθ(yt−1|yt, x0) = C(yt−1|θpost(yt, Fdecoder(yt||Fencoder(x0)))),
+(6)
+where || is the concatenation operator. We denote the estimated target sequence as
+ˆy0. Additionally, we add a sinusoidal embedding of the current diffusion timestep t to
+the diffusion model input yt.
+1.3 Length Prediction
+One downside of the diffusion methodology compared to normal autoregressive meth-
+ods is the requirement that the total length of the sequence must be known prior
+to inference so that the starting uniform noise distribution can be properly initial-
+ized. Prior work, such as DiffuSeq [9, 10], have primarily approached this issue by
+padding the sequence with observable PAD tokens up to a maximum length, and allow-
+ing the diffusion model to predict the location of PAD tokens as necessary. In contrast,
+MaskPredict [11] presents the idea of a length prediction token, which is learnt by the
+transformer encoder block and used to initialize the input to the transformer decoder.
+We similarly prepend a LENGTH token to the source sequence x0 and use the learned
+representation of the LENGTH token for the sequence to predict a target length ˆℓy:
+p(ˆℓy|x0) = Flength(Fencoder(x0)),
+(7)
+where Flength is a feed-forward classifier function over integers up to the maximum
+sequence length dependent only on the first column of Fencoder(x0).
+Upon initial testing, we find that the baseline implementation of MaskPredict
+length prediction performs poorly for this task due to its rigidity in predicting the
+sequence length and frequency of predicting shorter sequences than the ground truth.
+To remedy this, we propose a novel adjustment to the method by appending a uniform
+random number n ∼U(1, N) of observable padding tokens to the decoder sequences
+during training. This increases the expected length of the sequence by (1+N)
+2
+while
+allowing the diffusion model to predict pad tokens within a range of the the target
+length. Notably, as the probability of predicting n padding tokens is equivalent for
+n ∈[1, N], the probability of predicting sequences with lengths within (1+N)
+2
+of the
+predicted length is approximately equal. This offers benefits of both the MaskPredict
+and DiffuSeq approaches: The diffusion model is provided with information about the
+target length from the encoder while still allowing for the possibility of predicting a
+variety of sequence lengths rather than only the predicted target length. Intuitively,
+lower limits of N place more focus on the length prediction component, while higher
+values of N allow the model to vary more from the initial length prediction. Addi-
+tionally, as the lengths of the input source sequence and output target sequence of
+the retrosynthesis task are highly correlated, we shift the methodology to predict the
+5
+
+difference in length between the source and target rather than the total length of the
+target.
+1.4 Ensemble Voting of Models
+In order to stabilize and diversify the output of the diffusion model, we implement
+an ensemble of various individual diffusion models with different values of the ran-
+dom padding limit N. During inference, multiple samples are drawn from each model
+trained on different N. Outputs are then ranked according to the number of times
+they are sampled overall. Ties are broken using a ranked-choice voting scheme. This
+process encourages output diversity by combining models trained with varying degrees
+of reliance on the length prediction component. We refer to the constructed ensemble
+model as DiffER.
+We identically construct and train the individual models that compose DiffER,
+varying only the maximum number of random padding that can be added on to the
+target sequence during training. We test various voting combinations of models with
+random padding limit N ∈{5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90}. We find that models
+trained with N < 20 perform poorly, as they place too much focus on the length
+prediction component, which is biased toward a lower increase in length. We construct
+the final ensemble using eight models trained on N ∈{20, 30, 40, 50, 60, 70, 80, 90}.
+1.5 Loss Functions
+We utilize a combination of mean square error (MSE) and variational lower bound
+(VLB) losses to train the diffusion models, the latter of which is derived using the
+Kullback-Leibler (KL) divergence according to Hoogeboom et al [8]. We apply MSE
+loss directly to the predicted target y0, while the VLB loss uses the sampled posterior
+of the predicted target:
+LMSE = E
+
+||y2
+0 −ˆy2
+0||
+
+(8)
+LVLB = E
+" K
+X
+k=0
+y0,k log ˆy0,k −
+T
+X
+t=2
+KL(q(yt−1|yt, y0)|q(yt−1|yt, ˆy0))
+#
+.
+(9)
+Finally, we include a loss term for the length prediction task using cross entropy:
+Lℓ= E
+" L
+X
+l=0
+ℓyl log p( ˆℓy|x0)l
+#
+,
+(10)
+where ℓy is a one-hot encoded vector representing the length difference between y0 and
+x0. Additionally, when training the diffusion models, we employ the importance-based
+time sampling algorithm used in DiffuSeq [9, 10].
+6
+
+1.6 Reproducibility
+We apply our models to the USPTO-50K [13] data set with Root-aligned SMILES
+augmentation [6], which greatly improves the performance of the diffusion mod-
+els. We directly utilize the dataset splits provided by the authors of Root-aligned
+SMILES. We form DiffER as an ensemble of models with random padding limit
+N ∈{20, 30, 40, 50, 60, 70, 80, 90}. Each model takes the form of a encoder-decoder
+transformer architecture with 6 layers and 8 attention heads with hidden dimension
+size 512, feed-forward size 2048, and GELU activation [14]. We utilize an Adam opti-
+mizer with learning rate 1 × 10−4 and dropout rate of 0.1. We set the number of
+diffusion steps to T = 200. We use a cosine beta schedule [15] and a Gumbel-softmax
+distribution for noise sampling during the diffusion process.
+During inference, we follow the work of Zhong et al. [6] to augment the input
+SMILES strings. 20 random Root-aligned SMILES strings are generated for each input
+product and provided to DiffER for sampling. Thus, each model in DiffER outputs
+20 random samples for the input string. Output samples are canonized and ranked
+according to rate of occurrence.
+2 Related Work
+2.1 Retrosynthesis Models
+Early models for retrosynthesis were primarily rule-based, utilizing known scientific
+knowledge and synthetic reactions to construct algorithms to find retrosynthetic path-
+ways [16–18]. Over time, these rule-based algorithms gave way to more data-driven
+approaches, which instead learn models based on known reactions and are more
+efficient when the number of reaction types is higher. Data-driven models include
+template-based, semi-template, and template-free generative models. In template-
+based approaches, models match features of a target product molecule to known
+reaction mechanisms in order to rank possible reactants [1, 19], while semi-template
+methods first predict reaction centers and then complete the resulting synthons
+(incomplete molecules) to form possible reactants [20, 21]. In contrast, template-free
+generative models learn to construct new reactants, commonly using transformers
+[6, 7, 22] or Graph Neural Networks [22, 23]. Here, generative models are sometimes
+considered to have the advantage, as they are better able to generalize to reactions
+that may exist outside the set of reaction templates, at the cost of losing scientific
+interpretability and trust.
+Early template-free models took advantage of sequential models commonly used in
+natural language modeling. Liu et al. [5] implement a sequence-to-sequence recurrent
+encoder-decoder model for retrosynthesis which operates on the SMILES [4] encod-
+ings of molecules, and demonstrate model efficacy on-par with rule-based mechanisms
+for retrosynthesis. In contrast to Liu et al.’s end-to-end approach, Segler et al. [1]
+adopt a neuro-symbolic approach, combining rule-based mechanisms with neural net-
+works designed to predict which rules should be applied for the retrosynthesis. More
+recent approaches leverage further advances in natural language processing, directly
+7
+
+using transformer architectures and training styles that have performed well in natural
+language and translation tasks.
+Irwin et al. introduce Chemformer [7], a transformer architecture similar to that
+of BART [12], a widely-used transformer in NLP for both sequence-to-sequence and
+discriminative learning tasks. Chemformer is pretrained in a self-supervised manner on
+SMILES strings for feature extraction, and then later applied to downstream tasks such
+as forward synthesis, property prediction, and retrosynthesis. Tu et al. [22] leverage
+the permutation-invariance of graph neural network encoders to constuct a graph-to-
+sequence model, utilizing additional chemical features extracted by RDKit [24]. Once
+the encoded representation of the graph is obtained, it is passed to a decoder model
+[12] in order to produce a sequential SMILES output. Finally, Zhong et al. [6] modify
+the mechanisms by which SMILES strings are constructed for molecules in order to
+better represent relationships between products and reactants before they are passed to
+neural machine translation models. Their root-aligned SMILES methodology is able to
+significantly improve upon state-of-the-art baselines while applying only pre-existing
+language models.
+An important aspect of recent works which focus on encoding and decoding
+SMILES representations of molecules is the transformer architecture. Proposed in 2017
+for natural language tasks [25], transformer architectures are highly efficient, offering
+good parallelization while achieving strong performance on sequential input. Recent
+analysis of transformers have compared their inner workings favorably to graph learn-
+ing algorithms [26], offering some insight as to why they are able to perform strongly
+on chemistry-related tasks when applied to SMILES strings.
+However, one downside of encoder-decoder transformer models lies in their auto-
+regressive nature. When predicting SMILES outputs, transformer models are generally
+required to do so token-by-token, re-using previous outputs as the input for the next
+prediction in the sequence. This requires a significant amount of planning on the part of
+the transformer, which is unable to amend previous predictions when prediction later
+parts of the sequence. Additionally, chemical molecules are most often non-sequential
+themselves, often containing both ring structures and branches. Thus, we hypothesize
+that methods which decode the entire sequence at once rather than token-by-token
+may achieve greater success when it comes to predicting molecules.
+2.2 Categorical Diffusion Models
+Diffusion models are a class of generative model that produce high quality results
+from uniform random noise. In the forward pass, random noise is iteratively added to
+a target sample over T steps until the sample is indistinguishable from random noise.
+In the backward pass, the model is trained to iteratively de-noise the random sample
+until the target sample is reconstructed [27–29]. Additionally, conditional diffusion
+models [30–32] allow for the inclusion of conditional constraints and properties during
+the de-noising process (often in the form of textual information), helping guide the
+model toward a target output with specific parameters or properties.
+Traditional diffusion models operate over continuous regimes such as image gen-
+eration [27, 28], hindering their application on discrete problems such as language
+or molecular generation tasks. To extend these models to discrete domains, many
+8
+
+adaptations have been proposed, such as multinomial diffusion [8] and DiffuSeq
+[9, 10]. DiffuSeq adapts conditional diffusion models for the task of dialogue gen-
+eration by employing traditional diffusion within the token embedding space. The
+authors concatenate embedded representations of the target embeddings and the
+source embeddings, which act as the conditional. Gaussian noise is then applied to
+the portion of the sample containing the target embeddings, and the source embed-
+dings are left untouched during the diffusion process. Yuan et al. [33] follow the
+work of DiffuSeq, but utilize alternative network architectures and support adaptive
+noise scheduling. Dieleman et al. [34] similarly add noise after input embeddings are
+applied, and jointly learn both the diffusion and embedding model. In contrast, the
+multinomial diffusion proposed by Hoogeboom et al. [8] applies noising in the discrete
+domain, repeatedly sampling from a categorical distribution conditioned on the cur-
+rent diffusion timestep and the current sample. This approach is similarly employed
+by Austin et al. [35] and DiffusionBERT [36]. Austin et al. liken the noise-adding
+approach of traditional diffusion to Gaussian transition matrices over discrete space,
+and are able to improve the performance of text diffusion models by properly choos-
+ing the transition matrix. DiffusionBERT takes an approach similar to MaskPredict
+[11], a parallel-decoding schema for text generation that operates similarly to diffusion
+models. Instead of sampling tokens from a categorical distribution when adding noise,
+MaskPredict and DiffusionBERT randomly mask-out tokens at varying rates during
+training, which are un-masked by the model. During inference, both methods generate
+sequences from a sequence of masked tokens, with no need to initialize a noise vector,
+which may limit diversity in the generated output.
+3 Results
+3.1 Overall Performance
+We compare DiffER to a variety of template-based, semi-template, and template-free
+methods for retrosynthesis prediction with unknown reaction types. We report top-k
+accuracy for k ∈{1, 3, 5, 10} following standard procedures. We construct DiffER as an
+ensemble of eight diffusion models with various hyperparameters and sample from each
+model twenty times with augmented input SMILES according to the work of Zhong
+et al. [6]. Predicted reactants sampled from the diffusion models are ranked according
+to the number of times they were predicted by the diffusion models. By using multiple
+different models with different hyperparameters to predict possible reactants for the
+same reaction, we encourage diversity and stability in the output reactants. Ties in
+reactant rankings are decided according to a ranked choice voting scheme. Further ties
+are broken arbitrarily. Results for the diffusion ensemble model are reported against
+baseline algorithms in Table 1, while individual model results are reported in Table 3.
+We include a short review of the baselines used for comparison in appendix A.
+Notably, DiffER is the best performing model for K = 1 (57.6%) across all
+template-free models and is highly competitive for higher values of K, achieving the
+second best performance for K = 3, K = 5, and K = 10 (79.0%, 84.1%, and 87.4%,
+respectively) for template-free methods behind Root-Aligned SMILES. Comparing to
+the state-of-the-art K = 1 result of GDiffRetro [42], DiffER achieves comparable
+9
+
+Table 1 Top-K accuracy for tempate-based, semi-template, and template-free
+retrosynthesis models. The best performing model of its category for each K is
+in bold and the second best model is underlined. DiffER is the best performing
+model for K = 1 and the second best model for K = 3, 5 among template-free
+methods.
+Category
+Model
+K=1
+3
+5
+10
+Template-based
+Retrosim [19]
+37.3
+54.7
+63.3
+74.1
+Neuralsym [1]
+44.4
+65.3
+72.4
+78.9
+GLN [37]
+52.5
+69.0
+75.6
+83.7
+LocalRetro [38]
+53.4
+77.5
+85.9
+92.4
+Semi-template
+G2Gs [39]
+48.9
+67.6
+72.5
+75.5
+GraphRetro [21]
+53.7
+68.3
+72.2
+75.5
+RetroXpert [40]
+50.4
+61.1
+62.3
+63.4
+RetroPrime [41]
+51.4
+70.8
+74.0
+76.1
+G2Retro [20]
+53.9
+74.6
+80.7
+86.6
+GDiffRetro [42]
+58.9
+79.1
+81.9
+-
+Template-free
+Seq2Seq [5]
+37.4
+52.4
+57.0
+61.7
+Levenshtein [43]
+41.5
+48.1
+50.0
+51.4
+GTA [44]
+51.1
+67.6
+74.8
+81.6
+Graph2SMILES [22]
+51.2
+66.3
+70.4
+73.9
+Dual-TF [45]
+53.3
+69.7
+73.0
+75.0
+MEGAN [23]
+48.1
+70.7
+78.4
+86.1
+Chemformer [7]
+54.3
+-
+62.3
+63.0
+Retroformer [46]
+53.2
+71.1
+76.6
+82.1
+Tied transformer [47]
+47.1
+67.2
+73.5
+78.5
+R-SMILES [6]
+56.3
+79.2
+86.2
+91.0
+DiffER
+57.6
+79.0
+84.1
+87.4
+K = 3 performance and out-performs GDiffRetro at higher values of K, indicating
+DiffER produces a wider array of possible reactants. Notably, compared to R-SMILES,
+both DiffER and GDiffRetro struggle with output diversity, resulting in both diffusion-
+based models having decreased performance at high K. The decrease in performance
+for these models at high K can likely be attributed to the affinity for diffusion models
+to most often sample from the peak of the posterior distribution: despite generating
+outputs from multiple models for a diversity of input product SMILES, the output of
+DiffER tends to produce just a few candidate reactant sets for each product, produc-
+ing the same output molecule numerous times in a different, non-canonical SMILES
+form. Indeed, Figure 2 shows a histogram of the number of sample reactions generated
+for the test dataset. The diffusion ensemble produces a median number of samples of
+5, with 17.9% of reactions producing less than 5 samples, and 57.1% producing less
+than 10. Notably, we find that fewer reactants tend to be sampled when DiffER is
+correct in its output: reactions where the top-1 reactant is correctly predicted produce
+only 8.4 different molecules on average, compared to 12.3 for cases where the top-1
+reactant does not match the ground truth. This lack of outputs is less observed in
+10
+
+other methods such as R-SMILES which apply beam-search algorithms to sequential
+decoders, allowing a greater number of possible reactants to be found.
+Fig. 2 A histogram of the number of different molecules output by DiffER for each reaction during
+inference.The distribution has a mean of 10.0 and a median of 9. “K=1 is Accurate” indicates if the
+most commonly predicted molecule matched the ground-truth reaction.
+We further analyze the performance of DiffER across varying reaction types, as
+presented in Table 2. Notably, the performance of DiffER is inconsistent among reac-
+tion types, which has also been observed in other models [20]. The diffusion ensemble
+performs strongly on reactions which operate on ring structures, such as acyclation,
+but performs poorly at predicting patented reactants for ring formation, through either
+heterocycle formation or C-C bond formation. Compared to G2Retro [20], the best per-
+forming semi-template method which offers a similar analysis of their model, DiffER
+is significantly more capable of accurately predicting the reactants for protection
+reactions [20]. For other reaction types, the overall trends in performance are rather
+similar for both DiffER and G2Retro. Both models exhibit their best performance
+on functional group addition followed by acyclation, and their worst performance on
+heterocycle formation, functional group interconversion, and C-C bond formation.
+3.2 Individual Model Performance
+We construct DiffER from eight individually trained diffusion models, each of which
+uses a different random padding limit N (described in Section 1.3) during training. We
+report the individual performance for each of the trained models in Table 3. We com-
+pare these results to the DiffER ensemble as well as a baseline diffusion model trained
+using direct length prediction, without the length variation used in the individual
+DiffER models, also reported in Table 3.
+The individual DiffER models greatly improve upon the baseline length prediction
+model, demonstrating the effectiveness of our length variation technique. The length
+variation technique encourages the individual models to over-predict the length of the
+reactant SMILES and then reduce the output SMILES to the correct size using pre-
+dictable padding tokens. Meanwhile, the baseline length prediction model drastically
+under-performs all other models in terms of accuracy, demonstrating the sensitivity
+11
+
+Table 2 Top-K accuracy for DiffER grouped by reaction type. Rows are ordered by
+number of reactions of the specified reaction type in descending order.
+Reaction Type
+K=1
+3
+5
+10
+Support
+Heteroatom alkylation and arylation
+58.6
+81.1
+86.0
+89.3
+1,516
+Acyclation and related processes
+70.4
+88.7
+92.2
+93.9
+1,190
+Deprotections
+53.4
+79.8
+84.9
+87.2
+822
+C-C bond formation
+42.2
+64.2
+72.0
+77.8
+567
+Reductions
+57.2
+75.2
+81.4
+86.2
+463
+Functional group interconversion
+39.0
+58.2
+66.5
+73.1
+182
+Heterocycle formation
+33.3
+48.9
+55.6
+60.0
+90
+Oxidations
+60.2
+84.3
+88.0
+91.6
+83
+Protections
+64.2
+83.6
+91.0
+91.0
+67
+Functional group addition
+78.3
+87.0
+87.0
+87.0
+23
+of the diffusion models for SMILES string generation to the size of the noise vector.
+Both the individual DiffER models and the baseline length prediction model exhibit
+low variance in the output reactants, only predicting 3.2 and 3.8 reactants on average,
+respectively. Notably, all models still achieves high validity from among the output
+molecules, indicating that the individual diffusion models are properly learning not
+only the SMILES grammar, but also rules of molecular validity.
+When the individual models are ensembled into the complete DiffER model, both
+the accuracy and diversity of predicted reactants are significantly improved. The
+DiffER ensemble produces on average twice the number of reactants compared to the
+individual models, highlighting the impact of the different individual model setups on
+the output molecules. By combining multiple models trained on different upper limits
+for the length of the SMILES string, we can leverage different weightings of the length
+prediction mechanism. When a model is trained on a lower padding limit, more empha-
+sis is placed on the length prediction component, as the model is less able to diverge
+from the predicted length. When the padding limit is larger, the diffusion model has
+more freedom to construct SMILES of varying lengths, but are less informed by the
+length prediction. By combining multiple models on various random padding limits,
+we improve the diversity and accuracy of the predicted reactants.
+3.3 Upper Limits on Performance
+In this section, we consider a upper limit on the performance of categorical diffusion
+models for chemical retrosynthesis by considering an oracle model which predicts the
+length of the output SMILES string with 100% accuracy. This allows us to construct
+a diffusion model without needing to incorporate aspects of length prediction or vari-
+ability in the size of the output as discussed in Section 1.3. Under the assumption of
+the length-predicting oracle, we can initialize input noise to the diffusion model of the
+proper size. We run this experiment for a single diffusion model and utilize the same
+parameters and repeated sampling during inference as discussed in the experimental
+setup.
+12
+
+Table 3 Comparison of the DiffER ensemble with the individual models that make up DiffER.
+Individual models are notated as DiffER N, where N represents the upper bound on the number of
+added padding tokens according to the procedure in Section 1.3. We additionally include single
+models with baseline length prediction and oracle length prediction. The individual DiffER models
+show significantly higher accuracy than baseline length prediction, but are outperformed by the
+DiffER ensemble. The oracle length model drastically outperforms all existing models.
+Model
+K=1
+3
+5
+10
+Sample Validity
+Avg. Num. Reactants
+DiffER Ensemble
+57.6
+79.0
+84.1
+87.4
+100.0
+10.0
+DiffER 20
+53.2
+70.3
+72.9
+73.6
+100.0
+3.2
+DiffER 30
+55.2
+71.5
+74.4
+75.2
+99.9
+3.2
+DiffER 40
+54.6
+72.1
+74.4
+75.3
+99.9
+3.2
+DiffER 50
+54.9
+71.3
+73.7
+74.4
+100.0
+3.2
+DiffER 60
+55.4
+71.7
+74.6
+75.4
+99.9
+3.3
+DiffER 70
+54.3
+71.1
+73.5
+74.4
+99.6
+3.2
+DiffER 80
+54.6
+71.9
+74.4
+75.1
+99.6
+3.3
+DiffER 90
+54.5
+71.6
+74.2
+74.9
+99.8
+3.3
+Baseline Length
+40.4
+55.9
+58.8
+59.9
+99.9
+3.8
+Oracle Length
+77.0
+88.1
+89.5
+90.0
+99.7
+2.8
+Results for this experiment are presented in Table 3 in comparison to the DiffER
+models and the baseline length prediction diffusion model. The model with oracle
+length drastically outperforms DiffER as well as all existing methods for K = 1, 3, 5,
+but performs slightly worse than both Root-aligned SMILES and LocalRetro for K =
+10. Similarly to DiffER, this can be attributed to a lack of variety in the predicted
+output, which is even more extreme for the oracle length model: on average, only 2.8
+different reactants are predicted, with a median of just 2 predicted reactants. However,
+this lack of diversity is overcome by the oracle model’s high accuracy amongst the
+predicted reactants.
+This result highlights the importance of accurate length prediction in non-
+autoregressive models, particularly in the case of molecular generation with SMILES
+strings. While there is some variability in the length of randomly generated SMILES
+string for a specific molecule, these variants generally only differ by a length of two or
+three, if they differ at all. If the length prediction is off from a viable value by even
+one or two, it may force an entirely different molecule to be generated, resulting in
+lower reported performance. By including the random length padding in DiffER, we
+help combat the diffusion model’s sensitivity to length prediction, but remain far from
+the performance of a model with perfect length prediction.
+3.4 Case Studies
+Our final results are in the form of a case study of four different reactions, the results of
+which can be seen in Figure 3. We select four different reactions from the test dataset
+to highlight the successes and limitations of the diffusion models. For each reaction,
+we report the top-3 reactants sampled from the diffusion ensemble.
+13
+
+a)
+3aa, desired product
+3ab, ground-truth reactants
+3ac, top-1 reactants (89.4%)
+3ad, top-2 reactants (3.0%)
+3ae, top-3 reactants (1.5%)
+b)
+3ba, desired product
+3bb, ground-truth reactants
+3bc, top-1 reactants (42.2%)
+3bd, top-2 reactants (38.3%)
+3be, top-3 reactants (9.7%)
+c)
+3ca, desired product
+3cb, ground-truth reactants
+3cc, top-1 reactants (61.3%)
+3cd, top-2 reactants (18.7%)
+3ce, top-3 reactants (16.7%)
+d)
+3da, desired product
+3db, ground-truth reactants
+3dc, top-1 reactants (74.3%)
+3dd, top-2 reactants (11.5%)
+3de, top-3 reactants (2.7%)
+Fig. 3 Top-3 reactants for 4 different target products from the test set compared to patent reactants.
+Values in parentheses indicated the percentage of time that reactant was sampled from the diffusion
+models. Numbers next to atoms are labels used to refer to the atom. Colored regions indicate where
+in the molecule a reaction is expected to occur.
+14
+
+Reaction a (Fig. 3a) is a deprotection reaction in the forward direction in which
+the trifluoroacetamide protecting group (Fig. 3ab) is reacted with sodium borohydride
+in an ethanol solution to produce a primary amine at at the N1 position (Fig. 3aa).
+The diffusion ensemble does not predict this reactant, however, instead opting for the
+reduction of a nitro group, predicted 89.4% of the time, (Fig. 3ac) at the N1 position.
+This is a widely used and viable reaction involving metal catalyzed reduction of the
+nitro group using Fe, Zn, Pd or Ni. Similarly, the third ranked choice (Fig. 3ae) is
+also a viable option involving a debenzylation reaction which is commonly performed
+in the presence of a metal catalyst under a hydrogen atmosphere. The second choice
+reaction (Fig. 3ad), however, undergoes amide hydrolysis under harsh conditions such
+as a strong acid. While this is also a viable synthesis, a harsh condition such as a
+strong acid would likely interact with the tert-butyl ester group leading to unwanted
+side products. Notably, the diffusion ensemble does not predict the patented reactant,
+primarily predicting the reduction of a nitro group 89.4% of the time. We hypothesize
+that this is a result of the specific use-case of the ground-truth reaction, which is
+likely used in an industrial setting. Unlike the top-1 (Fig. 3ac) reactant, the ground-
+truth (Fig. 3ab) does not use the metal catalyzed reduction of a nitro group (top-1) or
+debenzylation (top-3) under a hydrogen atmosphere because it is not a safe reaction on
+industrial scale. While the top-1 or top-3 reactants may actually be more common in
+an academic lab setting, the ground-truth reactant is likely preferable on a large-scale
+industrial setting.
+Reaction b (Fig. 3b) is a common reduction reaction of a ketone at C1 (Fig.
+3bb) with sodium borohydride in a methanol solution to produce a secondary alcohol
+(Fig. 3ba). This same reaction is also predicted by the diffusion models 38.3% of
+the time to give the second most popular predicted reactants (Fig. 3bd). The most
+popular predicted reactants is an aldehyde and Grignard reagent, predicted 42.2% of
+the time, in which the methylmagnesium bromide reacts with the aldehyde at position
+C1 (Fig. 3bc) to produce the desired product in the forward reaction. However, the
+Grignard reagent (MeMgBr), which is a more nucleophilic reagent, is likely to react
+with other functional groups present in the molecule as well, such as the two amides
+at C2 and C4 or displace the fluorine at C5 via a nucleophilic aromatic substitution-
+like type reaction. In contrast, while the ground-truth/second-most predicted reaction
+(Fig. 3bb/3bd) could lead to unwanted products, such as the reduction the carbonyl
+groups at C2 and C4, these reactions are less likely to occur compared to the Grignard
+reaction under a proper choice of reagents such as sodium borohydride in ethanol.
+The top-3 reactant is predicted just 9.7% of the time, and unlike the other proposed
+reactants, it does not interact with the C1 carbon. Instead, it disconnects the molecule
+at the C1-N3 amide to reveal a C1 carboxylic acid and an N3 amine. (Fig. 3be).
+The amide bond can be constructed in the forward reaction using a suitable amide
+coupling reaction condition. Yet again, this reaction is viable but would likely produce
+unwanted byproducts if other functional groups such as the free secondary alcohol or
+the primary amide in the proposed reaction were not protected first.
+Reaction c (Fig. 3c) is an ester hydrolysis in which the C1 ester (Fig. 3cb) is reacted
+with sodium hydroxide and a water/ethanol mixture to produce a carboxylic acid (Fig.
+3ca). This reaction is also predicted by the diffusion ensemble a vast majority of the
+15
+
+time, forming 61.3% of the sampled reactants (Fig. 3cc). The top-2 reactant is also a
+viable alternative to the ground-truth reactant, just with a ethyl ester at C1 instead
+of a methyl ester, which is also a common reaction. Interestingly, the top-3 reactant
+sampled by the diffusion models is a Paal-Knorr-type pyrrole synthesis [48, 49] from
+an aniline (N2) and the diketone (C3-C6)(Fig. 3cd). The Paal-Knorr reactions usually
+involves harsh conditions such as strong acids which may not be compatible with the
+ether or the lactam functional groups [48, 49]. Also, the free C1 carboxylic acid may
+need to be protected as an ester before the pyrrole synthesis to produce the ground-
+truth reactant molecule (Fig. 3cb) which would need to undergo the aforementioned
+ester hydrolysis to produce the target molecule. Thus, 3cd could be viewed as one-step
+further back in the retrosynthesis chain compared to the ground-truth/top-1 reactant.
+Finally, reaction d (Fig. 3d) is a Borch reductive amination [50] between cyclobu-
+tanone and a secondary amine in the presence of a reducing agent (Fig. 3db) to form a
+tertiary amine with a cyclobutyl group at N1 (Fig. 3db). The ground-truth reactants
+are the top-predicted reactants by DiffER, making up 74.3% of the predicted reactants.
+Both the second and third most predicted reactants are amine alkylations involving
+halides, in which an alkyl halide at C3 (Fig. 3dd/3de) reacts with the N1 amine to
+form a tertiary amine. Such N-alkylation reactions are commonly used when reduction
+amination does not work, and are valid alternative reactions. However, potential side
+reactions such as N-1 overalkylation or intramolecular N-4 alkylation would likely lead
+to unwanted byproducts. As such, the ground-truth/top-1 reactants are preferred.
+These case studies demonstrate that the diffusion models are capable of learning
+a variety of viable reactions for organic synthesis, but like many other models, strug-
+gle to understand greater domain requirements or the likelihood of byproducts, as
+exemplified in the top-1 reactant for reaction b (Fig. 3bc) and top-2/3 reactants for
+reaction d (Fig. 3dd/3de). However, the models also demonstrate significant capabil-
+ity to properly utilize common and routine reactions (Fig. 3ac and Fig. 3cc) as well
+as more complex reactions such as ring formations (Fig. 3ce). Even in cases where the
+ground-truth reactants were not predicted in the top-3 reactants, the diffusion mod-
+els produced suitable alternatives used in other reactions (Fig. 3ac) to accomplish the
+same goal. This highlights a key difficulty in assessing the accuracy and performance of
+models for retrosynthesis; oftentimes, multiple different reactions may be viable, and
+the use case for each reaction may depend on information not present in the molecu-
+lar structure, such as the case of reaction a. Metrics of ground-truth accuracy do not
+capture the viability of a reaction, just that they match the patented reaction, which
+may lead to misrepresentation of the model’s capabilities when a suitable alternative
+is predicted.
+4 Discussions and Conclusions
+Our results show that categorical diffusion models offer a competitive alternative
+to auto-regressive models for template-free single step retrosynthesis prediction and
+are able to outperform many state-of-the-art template-based, semi-template, and
+template-free methods on top-1 accuracy, and achieve similar performance to state-of-
+the-art models on top-3, top-5, and top-10 accuracy. The proposed DiffER ensemble is
+16
+
+able to efficiently sample from the posterior distribution of possible reactant SMILES
+strings while maintaining the viability of output SMILES. DiffER is capable of repro-
+ducing existing patented reactions as well as proposing new and viable reactants
+(Section 3.4).
+4.1 Comparison to Other Template-free Methods
+Compared to other template-free methods, our diffusion ensemble is able to construct
+the entire reactant SMILES string in unison, rather than token by token. Methods
+like Chemformer [7] or R-SMILES [6] build the SMILES sequence by predicting a
+distribution of probabilities for the next token conditioned on the current sequence and
+then selecting the token with the highest probability and adding it to the sequence.
+To generate multiple possible reactants, auto-regressive methods generally use beam-
+search algorithms to generate multiple possible reactants [7]. Beam-search algorithms
+explore multiple options at each step, and only continue exploring the top-k sequences
+with the highest probability. In contrast, our diffusion approach directly samples an
+entire reactant SMILES string from the approximated posterior distribution of possible
+reactants. Thus, the proportion of times a molecule is sampled from DiffER can be
+interpreted as a approximation of the posterior probability of that reactant. This offers
+an interpretable measure of confidence in the model outputs. However, this form of
+sampling also results in limited diversity in the output reactant set: when the model is
+highly confident or little diversity exists in the space of possible reactants, only a few
+possible reactants may be produced. In contrast, when the model is unsure or there
+is a high number of possible reactions, more reactants will be produced. This trade-
+off can be disadvantageous in certain circumstances, particularly when there is a low
+number of predicted reactants and the top-predicted reactant is unsuitable.
+4.2 Comparison to Template-based and Semi-template
+Methods
+Unlike template-based and semi-template methods, diffusion models do not directly
+utilize a static set of reaction templates. Rather, DiffER learn suitable reactions
+directly from the data, allowing for greater generalization to reactions that may occur
+outside the realm of existing templates. However, this comes at a notable cost in
+interpretability: because the diffusion method constructs the proposed reactants from
+randomly generated uniform noise, it is not always clear what causes the emergence of
+a particular reactant over another possible reactant. A greater analysis of the latent
+noise would need to be done to further understand the workings of DiffER. In contrast,
+template-based and semi-template based methods directly utilize the existing molec-
+ular structure and set of reaction templates when determining where reaction centers
+are and which reaction templates apply. This offers a greater level of interpretability
+and scientific backing than template-free methods.
+4.3 Limitations and Directions of Future Work
+Despite the strong performance of DiffER, there are a few notable limitations to the
+modeling approach. Firstly, raw diffusion models are highly sensitive to the predicted
+17
+
+size of the output. Thus, methods such as our novel variant length padding (Section
+1.3) must be employed to diversify target lengths and allow diffusion models to pre-
+dict molecules of varying size. Secondly, DiffER suffers from a lack of output variety,
+often producing just a few possible reactants. Because diffusion models sample from
+an approximated posterior, reactants which the model deems more probable will be
+sampled at a higher rate, resulting in fewer reactants being sampled overall for a static
+sample size. This is particularly true in cases where the model is confident in its pre-
+diction. Finally, the model sometimes produces sub-optimal reactions, such as some of
+those displayed in Figure 3. Such reactions often undergo additional reactions along-
+side the target reaction, and while the desired product is a possible outcome, additional
+byproducts would likely be produced in many cases. These limitations highlight nec-
+essary areas of future research for not only categorical diffusion models in chemical
+retrosynthesis, but also categorical diffusion models for sequence generation in general:
+1. Categorical diffusion models must be able to adapt to differently sized outputs.
+Prior work relies on predictable padding tokens to predict differently sized sequences
+[9, 10], but this reliance can introduce its own biases due to the prevalence of
+padding tokens for shorter sequences. DiffER overcomes reliance on predicting
+padding tokens by adding limited variability in the number of possible padding
+tokens, with some success; however, results still pale in comparison to a model with
+perfect sequence length prediction.
+2. Additional techniques to sample categorical diffusion models must be developed
+in order to improve sequence diversity and coverage. Compared to the traditional
+applications of diffusion models in image generation, molecular SMILES genera-
+tion has significantly fewer possible outputs, making the models more likely to
+converge to a single prediction. This effect is heightened by the the presence of mul-
+tiple SMILES strings mapping to the same molecular structure: while the sequence
+itself may be different, the same molecule is produced. We must develop methods
+to encourage greater output diversity in the sampled molecules. DiffER attempts
+encourages output diversity using an ensemble approach, and while the results are
+significantly more diverse than single model approaches, the number of differently
+sampled molecules remains low.
+The case studies of DiffER additionally demonstrate directions of future research for
+retrosynthetic modeling as a whole, many of which are echoed in other work [20]:
+3. Machine learning models for retrosynthesis are generally unaware of possible side
+products as a result of the generally available training data. Because these models
+are most commonly trained on patent reaction datasets, models are not generally
+exposed to explicit examples where multiple possible outcomes could occur. Indeed,
+the UPSTO-50K dataset has no reactant sets which map to more than one molecule,
+limiting the ability of the model to learn that multiple reactions may be possible
+for a single set of reactants. To improve the ability of ML models to understand
+chemical processes, incorporating additional examples into the training datasets
+may be beneficial, and with proper learning techniques, may lead to improved
+performance.
+18
+
+4. Evaluating the performance of ML models on chemical retrosynthesis most com-
+monly relies on a) matching to patented reactions and b) analyzing individual case
+studies. Evaluating models by matching to patented reactions limits the discov-
+ery of novel techniques and pathways, as models may produce valid results that
+do not match patent data. In contrast, evaluating individual case studies is more
+adaptable to understanding the model’s true performance, but is a time consuming
+process requiring considerable chemical knowledge. To enhance the development
+of ML models for chemical retrosynthesis, we must develop new methods of anal-
+ysis that take into account the abundance of viable reactions as well as existing
+chemical knowledge.
+Further research in these four tasks would greatly benefit the application of dif-
+fusion models in chemical retrosynthesis, as well as both diffusion modeling and
+retrosynthetic prediction models individually.
+4.4 Conclusion
+Our ensemble of categorical diffusion models provides state-of-the-art top-1 accuracy
+as well as competitive top-3, top-5, and top-10 accuracy for template-free methods.
+We demonstrate that our ensemble model is capable of not only reproducing patented
+reactions, but also producing viable alternative reactions for the same product. Addi-
+tionally, we offer insight into the importance of length prediction and length variation
+methods when training diffusion models for sequence prediction tasks. Finally, we
+include an analysis and discussion of the limitations of our approach. In doing so, we
+hope to provide a suitable baseline and open new avenues of exploration for a new
+class of template-free retrosynthesis model which differs from current autoregressive
+approaches. In future work, we plan to investigate additional methods of length predic-
+tion, as well as apply different diffusion sampling techniques to improve the diversity
+of sampled molecules. Finally, we plan to continue improving upon the diffusion
+model that comprise DiffER, introducing methods such as adaptive noise scheduling
+[33] as well as other advancements in categorical diffusion models to improve model
+performance.
+Declarations
+Availability of Data and Materials.
+Our data and code is publicly available at
+https://github.com/sfcurre/DiffER.
+Funding.
+This project was made possible, in part, by support from the National Sci-
+ence Foundation grant no. IIS-2133650 and the National Library of Medicine grant no.
+1R01LM014385. Any opinions, findings and conclusions or recommendations expressed
+in this paper are those of the authors and do not necessarily reflect the views of the
+funding agency.
+Authors’ Contributions.
+SC designed, conceptualized, and implemented the
+methodology and wrote the manuscript. ZC assisted in reviewing the methodology
+and code. DAA assisted in the case study. All authors helped write the manuscript.
+All authors read and approved the final manuscript.
+19
+
+Appendix A
+Overview of Retrosynthesis Models
+Used for Comparison
+We compare and report results against a variety of retrosynthesis models, as seen in
+Table 1. Models are grouped according to their model type, which includes template-
+based, semi-template, and template-free models.
+The template-based models we compare against are:
+• Retrosim [19], which applies reaction templates derived from molecules similar to
+the target product, and ranks reactions by similarity to existing reactions;
+• Neuralsym [1], which utilizes multi-layer perceptrons with molecular fingerprints of
+the product to predict applicable reaction templates;
+• GLN [37], which uses graph neural networks to learn when and where in molecules
+reaction rules can be applied, while scoring the feasibility of the reaction;
+• LocalRetro [38], which focuses on the local environment of atoms in the product
+and classifies reaction templates on an atomic level.
+Each of these methods utilize reaction templates sourced from known reactions. The
+primary goals are to 1.) select where in the molecule the reaction will take place and
+2.) select which reaction template is applicable.
+The semi-template models we compare against are:
+• G2Gs [39], which predicts reactions centers and sequentially completes synthons
+through the use of a variational graph autoencoder;
+• GraphRetro [21], which uses message-passing neural networks to classify reaction
+centers and completes synthons by predicting which leaving groups to add from
+among a pre-selected set;
+• RetroXpert [40], which uses edge-enhanced graph attention networks to predict
+reaction centers and completes synthons using a transformer network;
+• RetroPrime [41], which uses two separate transformers, one to predict reaction
+centers, and the other to map synthons to reactants;
+• G2Retro [20], which uses a message passing network to predict three different types
+of reaction centers and sequentially adds substructures on to the synthons until
+complete reactants are formed.
+• GDiffRetro [42], which uses a dual graph molecular representation to train a reaction
+center prediction model and uses a conditional diffusion model to complete the
+produced synthons.
+Each of these methods first divide the product into synthons and then transform
+the synthons into complete reactants. The primary goals are to 1.) select where in
+the molecule the reaction will take place and 2.) complete synthons formed from the
+divided product into complete molecules which will react as needed.
+The template-free models we compare against are:
+• Seq2Seq [5], which applies sequence-to-sequnece encoder-decoder recurrent neural
+networks to predict reactant SMILES from the product SMILES;
+20

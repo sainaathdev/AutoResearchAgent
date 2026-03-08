@@ -1,0 +1,1381 @@
+RLHF DECIPHERED:
+A CRITICAL ANALYSIS OF REINFORCEMENT LEARNING FROM
+HUMAN FEEDBACK FOR LLMS
+Shreyas Chaudhari*1
+Pranjal Aggarwal*2
+Vishvak Murahari3
+Tanmay Rajpurohit4
+Ashwin Kalyan5
+Karthik Narasimhan3
+Ameet Deshpande3
+Bruno Castro da Silva1
+1University of Massachusetts Amherst
+2Department of Computer Science, Indian Institute of Technology, Delhi
+3Department of Computer Science, Princeton University
+4Georgia Tech
+5Independent Researcher
+*Equal Contribution
+schaudhari@cs.umass.edu, pranjal2041@gmail.com
+ABSTRACT
+State-of-the-art large language models (LLMs) have become indispensable tools for various tasks.
+However, training LLMs to serve as effective assistants for humans requires careful consideration.
+A promising approach is reinforcement learning from human feedback (RLHF), which leverages
+human feedback to update the model in accordance with human preferences and mitigate issues like
+toxicity and hallucinations. Yet, an understanding of RLHF for LLMs is largely entangled with initial
+design choices that popularized the method and current research focuses on augmenting those choices
+rather than fundamentally improving the framework. In this paper, we analyze RLHF through the
+lens of reinforcement learning principles to develop an understanding of its fundamentals, dedicating
+substantial focus to the core component of RLHF—the reward model. Our study investigates
+modeling choices, caveats of function approximation, and their implications on RLHF training
+algorithms, highlighting the underlying assumptions made about the expressivity of reward. Our
+analysis improves the understanding of the role of reward models and methods for their training,
+concurrently revealing limitations of the current methodology. We characterize these limitations,
+including incorrect generalization, model misspecification, and the sparsity of feedback, along with
+their impact on the performance of a language model. The discussion and analysis are substantiated
+by a categorical review of current literature, serving as a reference for researchers and practitioners to
+understand the challenges of RLHF and build upon existing efforts.
+arXiv:2404.08555v2  [cs.LG]  16 Apr 2024
+
+Contents
+1
+Introduction
+3
+2
+Motivation: Eliminating Objective Mismatch in Pre-Trained Language Models
+4
+2.1
+Bayesian Interpretation of RLHF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5
+3
+Formulation: Text Generation as Sequential Decision-Making
+5
+4
+The Role of Reward
+7
+4.1
+Oracular Reward and the Role of Human Feedback . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7
+4.2
+Reward Modeling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8
+4.3
+Measuring Alignment . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9
+5
+Inferring the Reward from Human Feedback
+9
+5.1
+Limitations of the Reward Model . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+10
+6
+Reinforcement Learning with Imperfect Rewards
+11
+6.1
+Policy Gradient Algorithms . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11
+6.2
+Misalignment due to Imperfect Rewards . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12
+6.3
+Why use Reinforcement Learning Algorithms?
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13
+7
+Review of Reinforcement Learning from Human Feedback for Language Models
+14
+7.1
+Language Model Pre-Training: Foundation for Large Language Models . . . . . . . . . . . . . . . .
+14
+7.2
+Reinforcement Learning from Human Feedback (RLHF): Overview and Motivation . . . . . . . . . .
+14
+7.3
+Human Feedback . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17
+7.3.1
+Nature and Objectives of Human Feedback . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17
+7.3.2
+Types of Human Feedback . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17
+7.3.3
+Collection of High-Quality Human Feedback . . . . . . . . . . . . . . . . . . . . . . . . . .
+19
+7.4
+Supervised Fine-Tuning: Limitations and Role . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+19
+7.5
+Reward Modeling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+20
+7.6
+RLHF Finetuning of Language Models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+22
+7.6.1
+Training Procedure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+22
+7.6.2
+Training Algorithms
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+22
+7.6.3
+Improving Training Stability . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+22
+7.6.4
+Iterated RLHF
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+23
+7.7
+Limitations of RLHF Models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+23
+7.8
+Enriching Reward Signals in Reinforcement Learning . . . . . . . . . . . . . . . . . . . . . . . . . .
+24
+7.9
+Moving Beyond RL Training . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+24
+7.9.1
+Alternatives to RL using Reward Model . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+25
+7.9.2
+Alternatives to RL without Explicit Reward Models . . . . . . . . . . . . . . . . . . . . . . .
+25
+8
+Discussion and Conclusion
+26
+2
+
+       Model Outputs sent for Human Feedback
+      Annotators provide  
+feedback used to train  
+RM
+       Model 
+queries RM for 
+reward
+           Reward signal sent 
+to Policy Model for 
+training using RL
+       Challenges
+  1.  Misgeneralization
+  2.  Averaged Preferences
+  3.  Sparse Feedback
+      Evaluation
+  1.  Accuracy
+  2.  Calibration
+      Challenges
+  1.  Misalignment
+  2.  Out-of-distribution 
+generalization
+       Evaluation
+  1.  Downstream Tasks
+  2.  User Response
+Human Annotators
+      Challenges
+  1.  Miscalibrated  
+  2.  Noisy Feedback
+      Evaluation
+  1.  Inter-Annotator 
+  2.  Expert Agreement
+      Challenges
+  1.  Model Class Assumption
+  2.  Preference Aggregation
+Lan
+Language Model Policy
+Reward 
+Model
+Figure 1: Overview of the RLHF procedure, illustrating the challenges encountered at each step. The paper conducts a
+detailed examination of these challenges, providing valuable insights into each stage of the procedure.
+1
+Introduction
+Large Language Models (LLMs) demonstrate remarkable capabilities that extend beyond basic language tasks, leading
+to their widespread adoption across various industries. The remarkable utility of these models holds the potential to
+transform established workflows in critical sectors such as technology, healthcare, finance, and education [Singhal et al.
+2022; Wu et al. 2023a; Yan et al. 2023]. As they become integral to these domains, it’s crucial to ensure that the behavior
+of LLMs is predictable, safe, and trustworthy—–meeting the expectations set for a human performing the same tasks.
+This challenge of making LLMs exhibit human-like qualities, known as alignment with human objectives, is central to
+making these models suitable for diverse tasks. An effective method for addressing this challenge is reinforcement
+learning from human feedback (RLHF).
+RLHF first gained popularity due to its ability to solve reinforcement learning (RL) problems like simulated robotic
+locomotion and playing Atari games [Christiano et al. 2017] without access to a reward function, by simply leveraging
+human feedback about preferences on demonstrated behaviors. It has since been adopted for fine-tuning LLMs using
+human feedback. This leads to a natural inquiry: How can a method designed to master games be effectively used
+to align LLMs with human objectives? The method has proven to be immensely successful [OpenAI 2022], but not
+without well-documented limitations [Casper et al. 2023]. A comprehensive understanding of why it achieves its success
+remains largely elusive. Consequently, research efforts on the topic are stuck in a local minima, with variants focused
+on augmenting the components of the method—including the training algorithm [Ramamurthy et al. 2022], reward
+model [Wu et al. 2023c], and even RL-free approaches [Rafailov et al. 2023]. However, some fundamental limitations
+of the approach remain obscured due to the overarching goal of recent work to refine the initial design choices.
+In this work, we develop a comprehensive understanding of RLHF by analyzing the core components of the method. We
+begin the study by motivating the necessity for RLHF by highlighting the problem of objective mismatch in pre-trained
+LMs (Section 2). To formulate foundational questions about the framework, we adopt a Bayesian perspective of RLHF.
+It serves to highlight the significance of the reward function in particular (Section 4). The reward function forms the
+central cog of the RLHF procedure, and the design choices used to model it form a major focus of our study.
+The current formulation of RLHF relies on a set of assumptions to model the reward function (Section 4.1, 4.2).
+Following the delineation of these assumptions, an analysis of the reward model independent of specific modeling
+choices follows. The analysis, in a principled manner, provides an understanding of issues such as:
+1. The impractical requirement for extensive amounts of feedback data for training accurate reward models.
+2. The combination of very limited feedback data and the use of function approximation results in misgeneraliza-
+tion, wherein inaccurate reward values are assigned to inputs not seen during training.
+These imperfections of the reward model, along with challenges such as reward sparsity and reward model misspecifica-
+tion, are highlighted in the paper (Section 5.1). Their impact on the performance of a language model is explored in
+detail (Section 6.2). The course of the analysis leads to the formalization of concepts such as an oracular reward that
+serve as the theoretical golden standard for future efforts (Section 4.1). An overview of the RLHF procedure along with
+the various challenges studied in this work is provided in Figure 1.
+3
+
+The discussion is followed by an extensive survey of an expanding body of literature related to the topic. The survey is
+organized into sections that outline the framework of RLHF. Starting with a high-level overview of Large Language
+Models (LLMs), the survey systematically covers various aspects:
+• Different types of human (and non-human) feedback (Section 7.3),
+• The training methods in RLHF (Section 7.6),
+• Alternative approaches that do not rely on RL or reward models (Section 7.9).
+This structure aims to provide a comprehensive overview of the extensive landscape of works that have contributed to
+the remarkable success of RLHF.
+2
+Motivation: Eliminating Objective Mismatch in Pre-Trained Language Models
+Large pre-trained language models (PLMs) are massive neural networks that are trained on a huge corpus of texts
+using a self-supervised learning objective. Originally utilized for representation learning [Devlin et al. 2019; Liu et al.
+2019] with encoder-only models, recent research, particularly influenced by Brown et al. [2020], has shifted its focus
+towards training PLMs to directly generate answers for textual problems. State-of-the-art PLMs typically employ an
+auto-regressive transformer architecture [Vaswani et al. 2017] and are trained with a causal language modeling objective.
+These models implicitly capture a conditional probability distribution πθ, reflecting the likelihood of sampling the next
+token after observing a sequence of previous tokens. The probability of a text sequence x := (x1, . . . , xT ), under this
+model is denoted as Pr(x; πθ) = QT −1
+t=1 πθ(xt+1 | xt, . . . , x1). The model is trained to estimate the pre-training data
+generating probability distribution over text sequences by minimizing the (forward) KL divergence between the model’s
+data-generating distribution and the pre-training data distribution, denoted by Ppre-train(·).
+min
+θ
+DKL(Ppre-train(x) || Pr(x; πθ)) = min
+θ
+Ex∼Ppre-train[log Ppre-train(x)] −Ex∼Ppre-train[log Pr(x; πθ)].
+(1)
+The first term, representing the entropy of Ppre-train, is independent of θ and can be disregarded during optimization.
+Consequently, the objective simplifies to the following cross-entropy minimization form:
+min
+θ
+−Ex∼Ppre-train[log Pr(x; πθ)].
+(2)
+The expectation is approximated using samples from an unsupervised pretraining text corpus D, which comprises text
+sequences sampled from Ppre-train. This leads us to the following objective:
+min
+θ
+−1
+|D|
+X
+x∈D
+T −1
+X
+t=1
+log πθ(xt+1 | xt, . . . , x1).
+(3)
+The remarkable property about PLMs lies in the contrast between the simplicity of the training recipe and the remarkable
+results that they deliver [Brown et al. 2020]. Simply capturing language statistics along with scaling up the number of
+trainable parameters, endows PLMs with robust semantic representations, vast commonsense knowledge, and strong
+pattern-following capabilities. However, for adopting PLMs to assist humans with tasks that require an understanding
+of human intentions and the ability to follow instructions, the simple training recipe of PLMs is insufficient. These
+models demonstrate a shallow understanding of human intentions, often generating undesirable outputs, including
+incorrect facts or conveying biased and toxic opinions.
+Fundamentally, PLMs suffer from an objective mismatch problem: the training-time objective of capturing language
+statistics does not necessarily align with the deployment-time objective of fulfilling a human user’s specific goals.
+Eliminating this mismatch at first glance seems feasible: just train PLMs to optimize for the user objective. Unfortunately,
+for many tasks, it is impossible to express the user objective as an optimization target. For example, when a user’s
+objective pertains to eliciting humorous responses, establishing specific criteria for objectively evaluating the humor in
+a generated response becomes an inherently challenging task.
+There are currently two primary ways to deal with the problem: the behaviorist approach and the cognition-driven
+approach. The behaviorist approach, implemented by supervised fine-tuning (SFT), aims to replicate observable
+behaviors that humans perceive as desirable without explicit consideration of the underlying user objective. For instance,
+if a user desires good summaries of articles, this approach trains a model to imitate examples of good summaries
+without explicitly defining the criteria for a good summary. In contrast, the cognition-driven approach, implemented
+by reinforcement learning from human feedback (RLHF), aims to uncover the underlying user objective that governs
+4
+
+the observed behaviors. It then updates the model by optimizing the uncovered objective. This approach relies on
+certain assumptions—which in the case of RLHF are: (i) the user objective can bear the form of a reward function,
+which can assign a numerical score to behaviors of the model, and (ii) this function can be approximated by a machine
+learning model (e.g., a neural network). RLHF estimates this reward function and updates the PLM via reinforcement
+learning to optimize for rewards. Regardless of the approach, the process of addressing the objective mismatch problem
+is commonly referred to as the fine-tuning or alignment process. Presently, state-of-the-art language models typically
+initiate this process with the behaviorist approach, followed by the cognition-driven approach.
+2.1
+Bayesian Interpretation of RLHF
+RLHF relies on observing human feedback to deduce the (latent) user reward function. Human feedback is provided
+on the outputs from a language model. RLHF assumes that there exists an underlying human reward function that
+governs the feedback they provide in a particular manner, i.e., there exists some mapping from reward to actions of
+a human. Suppose the reward function is being inferred by a model Rϕ parameterized by ϕ. Adopting a Bayesian
+inference perspective [Korbak et al. 2022], the parameters ϕ can be viewed as a hypothesis with the dataset of human
+feedback DHF as the evidence for this hypothesis. Given a prior distribution over the hypothesis Pr(ϕ), we can apply
+Bayes’ rule to derive the posterior distribution over the hypotheses after observing the evidence as:
+Pr(ϕ | DHF) ∝Pr(DHF | Rϕ) Pr(ϕ)
+(4)
+Reward modeling in RLHF can be seen as computing the maximum a posteriori (MAP) estimate of the parameters of a
+reward model,
+ϕMAP = arg max
+ϕ
+Pr(ϕ | DHF) = arg max
+ϕ
+Pr(DHF | Rϕ)
+|
+{z
+}
+(a)
+Pr(ϕ)
+| {z }
+(b)
+(5)
+The first term (a) is the log-likelihood of the feedback dataset, specifying how a human’s internal objective (reward
+function) governs their feedback. The second term (b) represents constraints on the hypothesis space, which is enforced
+through explicit and implicit regularization techniques in neural-network training.
+The presented framework raises two major questions:
+1. What is the form of the likelihood function Pr(DHF | Rϕ)? In other words, how do we mathematically model
+the influence of a human’s latent objective on their observable feedback?
+2. What is the reinforcement learning algorithm used for optimizing the reward model? In other words, how do
+we ensure the model acts consistently with its objective?
+A set of answers to these questions forms the basis for an RLHF algorithm. The RLHF methodology, popularized by
+Christiano et al. [2017], employs pairwise ranking feedback and uses the Bradley-Terry model [Bradley and Terry 1952]
+as the likelihood function. Proximal Policy Optimization (PPO) [Schulman et al. 2017] is elected as the reinforcement
+learning algorithm.
+Before we move into the analysis of this method, we urge the readers to take a moment to reflect on the choices
+and assumptions we have made so far to derive the general recipe of RLHF. Are there alternative choices? Can the
+assumptions be relaxed or improved? Thinking critically about these foundational decisions is the key to understanding
+the strengths and weaknesses of RLHF algorithms and innovating them. For example, the recently proposed direct
+preference optimization (DPO) approach [Rafailov et al. 2023] replaces reinforcement learning with a reformulation of
+the objective. Next, we formalize the problem setup of text generation as an agent interacting with a sequential decision
+process, laying the foundation for the analysis of RLHF. We refer the reader to Section 7.6 for a detailed outline of the
+RLHF procedure, and Figure 5 for a summarized overview.
+3
+Formulation: Text Generation as Sequential Decision-Making
+In this section, we formulate the text generation procedure from a language model as a sequential decision-making
+process. This formulation is essential for constructing reinforcement learning algorithms.
+Markov decision process.
+A common framework for modeling sequential decision-making processes is Markov
+Decision Process (MDP) [Markov 1954]. An MDP is defined as a tuple (S, A, p, R, ρ) where S is the set of states,
+A is the set of actions, p : S × A →∆(S) is the transition function, R : S × A →R is the reward function,
+and ρ : S →∆(S) is the initial state distribution. Each sequential time step of the process is denoted by t, and
+5
+
+πθ
+πθ
+πθ
+c
+o1
+o2
+o3
+o1
+state 
+action 
+transition 
+reward 
+policy
+t=1
+t=2
+t=3
+…
+…
+c
+o1
+c
+o2
+r1
+r2
+r3
+ri
+Figure 2: Text generation from LLMs modeled as a Markov decision process. The generation process is auto-regressive,
+utilizing the token output (action) from the previous time step and the context (state) as input to produce the next token
+through the language model (policy). Given a context c, the language model produces the token o1 at the first timestep.
+A concatenation of the two [c, o1] forms the input to the policy at the next timestep (Table 1). A reward function scores
+the generated output for a given context.
+st, at, rt denote the values of the state, action, and reward at time step t. A discounting factor γ ∈(0, 1] is defined for
+discounting rewards over time, particularly useful for modeling an MDP with an infinite number of time steps (i.e., an
+infinite-horizon MDP). However, the outputs of language models are truncated after a finite number of steps. We use T
+to denote the maximum time step.
+An agent acts in an MDP using a policy π : S →∆(A). The agent starts in state s1 ∼ρ(·). At time step t, it chooses
+an action at ∼π( · | st), executes the action, transitions to a new state st+1 ∼p( · | st, at), and receives a reward
+rt = R(st, at). The term “Markov” in MDP refers to the Markov property, in that the distribution over the next state
+st+1 depends on only the current state st and action at.
+Language models as agents in MDP.
+For simplicity, we consider text generation tasks that include only one turn of
+interaction between the user and the model. We make a distinction between the text that a user inputs into the model,
+denoted by c and referred to as the context or the prompt, and the text that the model generates by itself to the context,
+denoted by o and referred to as the output or simply the generated text.
+Let V be the set of all tokens that the model can generate (the vocabulary), C the set of all possible contexts, and
+O the set of all possible outputs. Given a context c ∈C as input, the model generates an output o ∈O token by
+token. Specifically, let ot be the t-th token in generated output o, then the model parameterized by θ first outputs token
+o1 ∼πθ( · | c), and then conditioned on the concatenation of o1 and c it generates o2 ∼πθ( · | [c, o1]), and so on.
+We can see that this generation process resembles an agent traversing in an MDP (Figure 2). The model acts according
+to a policy πθ. The start-state distribution ρ is the distribution over user-provided contexts. The action space is the
+vocabulary V . The action at is the generated token ot. The state st is the concatenation of the context c and all the
+tokens the model has generated up to time step t −1. The transition function p( · | st, at) = δ([st, at]) is a delta
+distribution, i.e., the next state is deterministic given the current state and action. Reward rt given at time step t is
+computed by the reward model as Rϕ(st, at) which is either a human or a function learned from human feedback.
+The text generation MDP has several special properties:
+1. The action space is extremely large. For example, the LLaMa model [Touvron et al. 2023a,b] employs a
+vocabulary of size 32K. Having a gigantic action space blows up the search space for reinforcement learning
+algorithms.
+2. The structure of the state space is complex, as a state is essentially a text sequence. Pre-training on large
+amounts of texts is necessary to learn an initially good representation of this space.
+6
+
+MDP element
+Description
+Text generation equivalence
+s1
+Initial state
+c
+st
+State at time step t
+[c, o1:t−1] = [s1, a1:t−1] = [st−1, at−1]
+at
+Action taken at time step t
+ot
+π(at | st)
+Policy
+πθ(ot | [c, o1:t−1])
+rt
+Reward at time step t
+Rϕ([c, o1:t−1])
+ρ(s1)
+Initial state distribution
+Pr(c)
+p(st+1 | st, at)
+Transition function
+δ([st, at])
+Table 1: Mapping from text generation to MDP
+3. The initial state distribution has an enormous support. All conceivable contexts lie in the support, thus strongly
+testing the ability of the policy to generalize to out-of-distribution states.
+4. The reward function used for training can differ from the evaluation reward function. This is because the
+humans providing rewards during evaluation may be different from the humans involved in trainnig the reward
+model. Analogous to transfer learning in RL, the agent must then adapt to the new reward function.
+5. The transition function is deterministic. Algorithmic and analysis tools tailored for deterministic MDPs can be
+applied.
+Thus, solving a text generation MDP requires specialized treatment that takes advantage of its properties and overcomes
+its inherent challenges. Reinforcement learning [Sutton and Barto 2018; Bertsekas and Tsitsiklis 1996] provides
+solutions for optimally solving an MDP, i.e., learning a policy that maximizes the accumulated reward. Consequently,
+RLHF updates the language model to generate more rewarding outputs. Naturally, the reward function plays a critical
+role in the process of fine-tuning model outputs, determining practical and fundamental limits [Casper et al. 2023] of
+the efficacy of RLHF.
+4
+The Role of Reward
+The goal of reward learning in RLHF is to convert human feedback into an optimizable reward function. The reward
+serves a dual purpose: it encodes the task information (for example, identical input-output pairs would receive distinct
+rewards depending on whether the task involved summarization or text expansion) 1 as well as preferences over those
+outputs (a condescending summary is rewarded less than a neutral summary). The reward thus encodes relevant
+information for measuring (Section 4.3) as well as inducing alignment with human objectives. By setting the reward
+function of the sequential decision process to the one estimated from human feedback Rϕ, reinforcement learning
+algorithms can be used to learn a language model policy that maximizes the cumulative reward, resulting in an aligned
+language model.
+4.1
+Oracular Reward and the Role of Human Feedback
+An implicit assumption made in RLHF is that a human’s feedback behavior is governed by and can be represented as
+an oracular reward function R⋆: C × O →R. We assume that this function is deterministic in line with the current
+methodology. The function takes as input a context c and an output o, and outputs a scalar number reflecting the
+preference on o as a continuation of c. Because the [c, o] is essentially a state in the MDP formulation, the reward function
+is essentially defined over states of the MDP. The language model that maximizes the oracular reward accurately
+reflects the goals and preferences inherent in the human feedback, and maximization of this reward consequently aligns
+the model with the human preferences. The oracular reward may not be accessible or learnable, but under the reward
+hypothesis [Sutton 2004; Silver et al. 2021], the mere existence of such a reward may be assumed—though this may be
+challenged [Knox et al. 2022]. The oracular reward forms the golden standard for training as well as evaluating any
+language model.
+In general, humans can give a variety of feedback. RLHF operates with feedback that discloses information about the
+oracular reward function. Most methods focus on two types of feedback: point-wise numerical feedback (or rating),
+and pairwise ranking feedback (or preferences). Providing ratings is the most straightforward way to communicate
+the reward function. Given a pair (c, o), the rating is a scalar r = R⋆(c, o). While ratings can be fed directly into a
+1Unless the task is specified in the input prompt itself, in which case the inputs differ.
+7
+
+reinforcement learning algorithm, learning a reward model takes advantage of the generalizability of the reward model
+on unseen outputs and contexts.
+Preference feedback compares two outputs generated for the same context. Given two outputs o and o′ generated for
+context c, a human denoted a preference o ≻o′ if the first input is preferred and o′ ≻o otherwise. Preferences in their
+raw form are not compatible learning signals for reinforcement learning algorithms. Hence, a reward model must be
+learned for this type of feedback. To do so, an assumption must be made about the relationship between preferences
+and R⋆. We will discuss this in more detail in the next section. A discussion about the various methodologies used
+for encoding preferences can be found in Section 7.5. An alternative approach for ranking outputs on the basis of
+preferences is provided by the learning-to-rank paradigm [Liu et al. 2009].
+Using preference feedback offers several advantages compared to using ratings. Firstly, we get more training data for
+the reward model. In practice, people collect a ranking of N outputs and create preference pairs [Ouyang et al. 2022].
+Collecting N ratings for N outputs provides we get N training points. Ranking N outputs provided N(N −1)/2
+pairwise comparisons. Second, preferences require assigning a only relative order rather than an absolute precise score
+to an output; the latter task could take significantly more cognitive effort and is more prone to inconsistency. Finally, a
+preference is presumably easier to provide because it offers a “baseline” for comparison (the worse output). In contrast,
+when giving a rating, a human can rely on only the evaluation guidelines.
+A note on stochastic rewards: The reward function is considered to be a deterministic mapping from text to a scalar
+value. This amounts to averaging the preferences of all humans that provided human feedback. Moreover, it assumes
+that a human must always rate an input-output pair with the same score, discounting the inherent variability of human
+preferences. There are numerous scenarios—like personalization, in-context adaptation to ongoing dialogue, and
+diverse output generation—where a deterministic mapping is limiting. The rewards are more appropriately modeled as
+being stochastic, wherein each input-output pair is scored by a distribution over scalar rewards, say r ∼Rhuman(· | c, o).
+This modeling accounts for the two sources of uncertainty: (i) uncertainty over the specific human from a group of
+humans who provide feedback, and (ii) variability in a human’s preferences due to changes in unobserved factors
+[Nguyen et al. 2017]. Some work in reinforcement learning aims to address this by learning Bayesian preferences,
+primarily for uncertainty quantification and safety analysis [Ramachandran and Amir 2007; Brown and Niekum 2019],
+and can be adapted to model a distribution of preferences over text. Some recent efforts along these lines [Barnett et al.
+2023] have proven to be effective. We focus on deterministic rewards for the analysis that follows.
+4.2
+Reward Modeling
+Learning a reward model serves two purposes: (i) to convert RLHF into a canonical reinforcement learning problem,
+and (ii) to reduce the cost of online feedback-collection. Reinforcement learning algorithms define their objective in
+terms of a reward function. To apply these algorithms, we need to infer a reward function from a feedback dataset,
+collecting which is notoriously expensive. Currently, large language models require thousands to millions of feedback
+data points. To gather that amount, many human evaluators need to be recruited to work in parallel. To ensure the
+assumptions regarding the oracular reward function hold, the evaluators must be trained to agree with one another
+on the evaluation criteria. This process is continual: multiple rounds of feedback collections need to be conducted to
+iteratively improve the model. The premise of approaches that learn a reward model is that the generalization error of
+the reward model is expected to decrease faster than that of the policy as a function of the number of labeled data points,
+arising from the notion that supervised learning is often considered a simpler problem than generative modeling.
+Following the previous section, we denote the reward model by Rϕ(c, o) and the feedback dataset by DHF. Our goal is
+to decide a likelihood function Pr(DHF | ϕ) and find ϕ that maximizes this function:
+max
+ϕ
+Pr(DHF | ϕ)
+(6)
+With rating feedback, the reward-modeling problem can be formulated as a prediction problem with continuous output.
+A common objective for this type of problem is the minimization of the mean squared error (MSE):
+min
+ϕ
+X
+(c,o,r)∈DHF
+(Rϕ(c, o) −r)2
+(7)
+To incorporate preference feedback, we need to choose the form of the likelihood function denoting each preference,
+i.e., Pr((o ≻o′, c) | ϕ). The RLHF method of Ouyang et al. [2022] employs the Bradley-Terry model to represent the
+likelihood of a data point:
+Pr((o ≻o′, c) | ϕ) =
+exp(Rϕ(c, o))
+exp(Rϕ(c, o)) + exp(Rϕ(c, o′))
+(8)
+8
+
+=
+1
+1 + exp(Rϕ(c, o′) −Rϕ(c, o))
+(9)
+= σ[Rϕ(c, o) −Rϕ(c, o′)]
+(10)
+where σ(x) =
+1
+1+e−x is the sigmoid function. The learning objective for maximizing the log-likelihood of the dataset
+DHF is,
+max
+ϕ
+X
+(c,o,o′)∈DHF
+log Pr((o ≻o′, c) | ϕ) = max
+ϕ
+X
+(c,o,o′)∈DHF
+log σ[Rϕ(c, o) −Rϕ(c, o′)] .
+(11)
+In Section 5, we further generalize the form of feedback and the likelihood function to conduct an analysis independent
+of the specifics of particular design choices.
+4.3
+Measuring Alignment
+Evaluation of natural language tasks is a difficult problem, and the study of evaluation metrics is an active area of
+research. Of particular importance, and difficulty, is to measure the alignment of a language model to a human’s
+objectives, which in practice is evaluated along the axes of helpfulness, harmlessness, and honesty. The oracular reward
+that governs a human’s preferences serves as a yardstick for measuring the degree of alignment. The task of alignment
+is then reformulated as encoding the preferences demonstrated by a human into a reward function, and updating the
+parameters of the language model to produce output that maximizes this reward.
+A reward provides an analytical metric to measure the overall performance of a language model π, where the performance
+captures the degree of alignment with human preferences along with the degree of satisfaction of the task itself [Ngo
+et al. 2022]. The performance of a model π, for distribution over contexts dC(·), can be measured by averaging the
+rewards for the outputs generated by π given the contexts. Let the performance be denoted by J(π):
+J(π) :=
+X
+c
+X
+o
+dC(c)π(o | c)R⋆(c, o) = Ec∼dC(·)
+
+EO∼π(·|c) [R⋆(c, O)|C = c]
+
+(12)
+The context distribution dC(·) can be the distribution of contexts in the training data, test data, or a held-out validation
+dataset, depending on the data on which the performance of the model is being evaluated. The sequential nature of the
+output generation equivalently allows us to express J(π) as:
+J(π) := Eπ
+"X
+t
+R⋆(st, at)
+#
+= Eπ
+"X
+t
+R⋆(c, o1:t−1, ot)
+#
+=
+X
+t
+Eπ [R⋆(c, o1:t−1, ot)]
+(13)
+In practice, most current reward models only provide a reward after the complete output has been generated and
+Equation 13 reduces to Equation 12. The definition of J(π) uses the oracular reward that is not accessible in practice.
+An estimate of the performance can obtained from the estimated reward Rϕ, by plugging it into Equation 12:
+bJ(π) := Ec∼dC(·)
+
+EO∼π(·|c) [Rϕ(c, O)|C = c]
+
+(14)
+The pre-trained language model is denoted by πpre : C →∆(O) and the model updated using RLHF by πrlhf : C →
+∆(O). The goal of RLHF is to update the parameters of πrlhf such that J(πrlhf) ≥J(πpre), i.e., as evaluated using the
+oracular reward. In practice, it is only possible to verify that bJ(πrlhf) ≥bJ(πpre), which may be non-informative when
+the estimated reward model Rϕ has inaccuracies for the context-output pairs being evaluated (Section 6.2).
+5
+Inferring the Reward from Human Feedback
+In the following sections, we study the properties of the reward estimated from human feedback. As reviewed in Section
+7.5, various procedures exist for encoding human feedback into a reward model. Both the form of human feedback
+and the encoding mechanism continue to be studied further, with the procedures continually evolving and improving.
+Currently, the most common form of human feedback is pair-wise preference feedback that is encoded into a reward
+according to the Bradley-Terry model (Section 4.2). To perform an analysis agnostic to specifics of a particular reward
+learning method,
+1. Let feedback denote a general form of sufficiently informative feedback.
+2. Let Ωdenote the model of human behavior, or the encoding mechanism, that maps the feedback and the text to
+a reward value.
+9
+
+The generality of this formulation allows the following analysis to cover all existing RLHF-style approaches (for
+example, RLAIF [Bai et al. 2022b]) as well as future methods for fine-tuning LLMs, that employ a reward model.
+Let D := {(c, o) : c ∈C, o ∈O} denote a hypothetical dataset of all possible contexts and outputs that a language
+model can encounter, i.e., a humongous dataset of size |C| × |O| = |V |T . This dataset cannot be realized in practice and
+is invoked to shed light on the practical limitations of the existing methodology. Denote the dataset of collected human
+feedback by DHF := {(c, o, feedback) : c ∈CHF, o ∈OHF} where CHF ⊂C, OHF ⊂O are the subsets of context-
+output pairs (human-)annotated with feedback.2 The reward encoding mechanism that maps context-output pairs
+along human feedback to rewards (for instance, the Bradley-Terry model) is denoted by Ω: (c, o, feedback) →R.3
+To uncover R⋆, it is assumed that Ωaccurately maps back human feedback to the oracular reward, i.e., for sufficiently
+informative feedback, we have
+Ω(c, o, feedback) = R⋆(c, o), ∀c, o ∈CHF, OHF.
+Under that assumption, Ωcan operate on DHF to create a dataset of context-output-reward tuples, Drew = {(c, o, r) :
+c ∈CHF, o ∈OHF} where r = R⋆(c, o). With Drew, learning the reward model Rϕ reduces to a regression problem
+employing a function approximator. The regression problem is however underdetermined [Bishop 2006], and conse-
+quently multiple Rϕ functions can perfectly fit the training data Drew. However, almost all of these functions fail to
+accurately represent the oracular reward (Figure 3). Due to the cost of human annotation, practically human feedback
+can be collected on a very small subset of context and output pairs, i.e., CHF, OHF ⊂C, O. The size of the reward and
+feedback datasets relative to the hypothetical dataset of all possible inputs and outputs D can be measured by:
+1. Context coverage: κ := |CHF|
+|C|
+2. Output coverage: ρ := |OHF|
+|O′| , where O′ = {o : (c, o) ∈D, ∀c ∈CHF}
+Well-understood results in supervised learning suggest that the ratios ρ and κ along with the generalization capabilities
+of the function approximator [Nakkiran et al. 2019; Schaeffer et al. 2023; Bailly et al. 2022] determine the generalization
+performance of the reward model for (c, o) ∈C, O. In practice, the values of ρ and κ are extremely small and consquently
+the reward model often incorrectly generalizes on unseen (out-of-distribution) context-output pairs, assigning incorrect
+rewards to such inputs. In the following sections, we study practical limitations of estimating reward models.
+5.1
+Limitations of the Reward Model
+The reward model parameterized Rϕ : C × O →R is trained on Drew using a sufficiently representative function
+approximator, to perfectly fit the training data, that is Rϕ(c, o) = R⋆(c, o), ∀o, c ∈Drew. The limitations of the
+resultant reward model may be studied under the following categories:
+Misgeneralization: Human feedback is obtained on a very small subset of all possible context-output pairs. This
+partial coverage over contexts and outputs in Drew combined with the use of function approximators for learning the
+reward model results in the reward model Rϕ(c, o) incorrectly generalizing to data points that are out-of-distribution
+relative to Drew. We have assumed a sufficiently representative function approximator that perfectly fits the training
+data, Ec,o∼Drew
+
+(R⋆(c, o) −Rϕ(c, o))2
+= 0. However, it cannot be ensured that Ec,o/∈Drew
+
+(R⋆(c, o) −Rϕ(c, o))2
+will be zero. It would require a function approximator to perfectly generalize outside the training data distribution,
+which is not generally attainable, especially when the ratios ρ, κ are minuscule.
+The benefits of reinforcement learning algorithms over other methods for finetuning are contingent on access to an
+accurate reward function (Section 6.3), necessitating accurate out-of-distribution generalization of the reward model.
+The inaccurate extrapolation out-of-distribution results in an ‘imperfect’ reward model that provides feedback on
+context-output pairs in a manner that when optimized, arbitrarily misaligns with human feedback (and resultant
+preferences) for those context-output pairs. The output distribution of πrlhf trained on this inaccurate feedback and
+can only be as good (or bad) as the reward signal provided by the reward model. This inaccurate generalization in
+the reward model is one of the primary causes of phenomena like ‘reward hacking’ and ‘hallucinations’ [Kalai and
+Vempala 2023], observed in practice.
+Delayed feedback and Reward Sparsity: Reinforcement learning algorithms benefit from dense rewards as they
+serve to quickly guide the agent to rewarding states, providing informative feedback to intermediate actions along the
+2The subsets are significantly smaller than C and O. Additionally, the feedback can be of any form: ratings, pair-wise feedback,
+or language feedback (Section 7.3).
+3feedback is overloaded to capture additional mechanism-specific meta-data. For instance, for pair-wise preference, feedback
+can store the preference relation and the (c, o) pair compared against.
+10
+
+o ∉풟rew
+o ∈풟rew
+reward value
+outputs o
+oracular reward 
+  
+estimated reward 
+R⋆(c, ⋅)
+Rϕ(c, ⋅)
+o ∈풟rew
+o ∈풟rew
+o ∉풟rew
+Figure 3: The reward model tends to misgeneralize for inputs not found in its training data, i.e., for (c, o) /∈Drew.
+This occurs in two ways: 1) when the context is not sampled by the prompting distribution for generating output and
+receiving feedback on (represented by κ), and 2) when the support of the output generating distribution—the language
+model—for a context does not span all possible outputs (represented by ρ). The latter is depicted in this figure.
+trajectory. In RLHF, the feedback from human annotators is obtained for complete output generations. Consequently,
+the reward model is trained to provide reward feedback only at the end of the generated output for a given context.
+This delayed feedback increases the difficulty of optimization with RL algorithms, increasing their sample complexity.
+Sparse feedback is a constraint inherent to dealing with text and language [Sokolov et al. 2016], as it is often unlikely
+for a human to provide feedback on incomplete sentences. Methods in RL developed to deal with sparse feedback, for
+instance by stitching together information from partial trajectories [Andrychowicz et al. 2017], cannot be applied directly
+to textual output due to the semantic constraints of dealing with partial sentences. Denser rewards and corresponding
+feedback result in faster training, improved sample efficiency [Wu et al. 2023d], and potentially better generalization.
+Insights from linguistics may be employed to obtain feedback on partial output generations and in turn denser rewards.
+Marginalization over preferences: The reward model averages over the preferences of all human annotators (and
+other sources of feedback) to output a deterministic scalar reward for a given context-output pair. The expectation is
+that averaging over the preferences of multiple sources would be representative of the preferences of an average human
+persona [Deshpande et al. 2023b]. The results in rewards that are inconsistent with any single human’s preferences.
+Such preferences are more appropriately denoted by an distribution of rewards for a context-output pair. A deterministic
+model, in addition to discounting the uncertainty and variability of human preferences, cannot model such a distribution,
+highlighting a case of model misspecification.
+The reward model forms the core component of RLHF and dictates the performance of a language model. The
+aforementioned shortcomings of the reward model highlight the need for safety measures that must be employed while
+using a language model fine-tuned using RLHF.
+6
+Reinforcement Learning with Imperfect Rewards
+Reinforcement learning algorithms can be broadly categorized into value-based methods and policy-gradient methods
+[Sutton and Barto 2018]. Value-based methods aim to learn the value of states (or state-action pairs) as measured by the
+expected cumulative future reward from that state under a policy. These values serve as guides for picking the most
+rewarding actions from each state, and the policy can be inferred from the value functions. Policy-gradient methods
+directly train a parameterized policy using reward feedback to perform gradient ascent over the policy parameters and
+maximize the expected cumulative reward. A benefit of policy gradient methods for language tasks is that they naturally
+permit the optimization of stochastic policies, making them amendable for optimizing language models with stochastic
+decoding algorithms. Below we provide a brief overview of policy gradient algorithms and refer interested readers to
+Sutton et al. [1999]; Williams [1992]; Weng [2018] for a more rigorous treatment of the topic.
+6.1
+Policy Gradient Algorithms
+Policy gradient algorithms update the parameters of an agent’s policy using reward feedback. Being gradient-based
+algorithms, their update rule is of the form:
+θ ←−θ + α∇θJ(πθ)
+(15)
+11
+
+where J(πθ) is the performance (Equation (12)) of the policy parameterized by θ. The gradient of the performance of a
+policy ∇θJ(πθ) can be estimated from samples in numerous ways, each affording varying degrees of variance and
+estimation error. In sparse rewards settings, the gradient estimation variance is a common issue that baselines [Mei
+et al. 2022] help address. A class of methods called actor-critic methods update the policy by leveraging estimated
+value functions, called critics, to reduce gradient estimation variance. The algorithm used for training most current
+state-of-the-art large language models, Proximal Policy Optimization (PPO) [Schulman et al. 2017] is an actor-critic
+algorithm with improvements over vanilla actor-critic to ensure stability during training. The improvements restrict
+parameter updates at each iteration to prevent the policy distribution from drastically changing. The training loss
+objective for PPO (PPO-Clip) takes the form:
+Lppo-clip (θ) = E
+
+min
+ πθ (at | st)
+πθold (at | st)
+ˆA(st, at), clip
+ πθ (at | st)
+πθold (at | st), 1 −ϵ, 1 + ϵ
+
+ˆA(st, at)
+
+(16)
+where ˆA(st, at) is the estimate of the advantage function A(st, at) := Q(st, at) −V (st) that captures the advantage
+obtained in terms of cumulative reward by taking an action at from state st and then following the current policy,
+relative to following the policy starting from state st. While this background suffices for the discussion in this paper, we
+urge the reader to refer to Weng [2018] for a more in-depth explanation of the topic.
+6.2
+Misalignment due to Imperfect Rewards
+In practice, a KL penalty DKL (πθ||πpre) with some weight β is added to the PPO training objective. This can be
+interpreted either as a regularizer or a prior which helps prevent overoptimization of an imperfect reward model. Using
+a reward model Rϕ, the policy at convergence learnt by training with the updated PPO objective can expressed directly
+as a function of the reward [Scheurer et al. 2023; Rafailov et al. 2023] as,
+πrlhf(o | c) ∝πpre(o | c) exp
+ 1
+β Rϕ(c, o)
+
+(17)
+where β is the weight on the KL penalty. Let Crew ⊂C be the set of contexts in Drew.4 After training, πrlhf must generate
+desirable (most rewarding) outputs when prompted with c ∈Crew. But for out-of-distribution contexts, where the reward
+estimation may be erroneous, the output distribution of πrlhf may be arbitrarily misaligned with human preferences and
+generate undesirable output. This misalignment can be quantified by comparing against the policy trained with the
+oracular reward. The set of contexts on which the performance of πrlhf is evaluated is denoted by Ceval with dCeval being
+the distribution over those contexts. Let C′ = Ceval/Crew be the set of contexts in the evaluation set that are not present
+in Crew. The performance of πrlhf is given by:
+J(πrlhf) = Ec∼dCeval(·), o∼πrlhf(·|c) [R⋆(c, o)]
+=
+X
+c∈Crew,
+o∈O
+dCeval(c)πrlhf(o | c)R⋆(c, o) +
+X
+c∈C′,
+o∈O
+dCeval(c)πrlhf(o | c)R⋆(c, o)
+(a)
+=
+X
+c∈Crew,
+o∈O
+dCeval(c)πpre(o | c)
+πrlhf(o|c)
+πpre(o|c) R⋆(c, o)
+
++
+X
+c∈C′,
+o∈O
+dCeval(c)πpre(o | c)
+πrlhf(o|c)
+πpre(o|c) R⋆(c, o)
+
+(b)
+∝
+X
+c∈Crew,
+o∈O
+dCeval(c)πpre(o | c)
+
+exp
+ 1
+β R⋆(c, o)
+
+R⋆(c, o)
+
++
+X
+c∈C′,
+o∈O
+dCeval(c)πpre(o | c)
+
+exp
+ 1
+β Rϕ(c, o)
+
+R⋆(c, o)
+
+|
+{z
+}
+out-of-distribution
+where (a) is permitted by the following: ∀o, c : πrlhf(o|c) > 0, πpre(o|c) > 0 and (b) follows from Equation (17). Let π∗
+be the policy trained using the oracular reward with RLHF. It can be expressed as:
+π∗
+rlhf(o | c) ∝πpre(o | c) exp
+ 1
+β R⋆(c, o)
+
+4Note that Crew is the same as CHF. The subscript is used for clarity under the current context.
+12
+
+The performance of π∗
+rlhf can be written as:
+J(π∗
+rlhf) = Ec∼dCeval(·), o∼π∗
+rlhf(·|c) [R⋆(c, o)]
+∝
+X
+c∈Crew,
+o∈O
+dCeval(c)πpre(o | c)
+
+exp
+ 1
+β R⋆(c, o)
+
+R⋆(c, o)
+
++
+X
+c∈C′,
+o∈O
+dCeval(c)πpre(o | c)
+
+exp
+ 1
+β R⋆(c, o)
+
+R⋆(c, o)
+
+|
+{z
+}
+out-of-distribution
+The performance gap ∆J := |J(π∗
+rlhf) −J(πrlhf)| caused by the imperfections in the reward model can be quantified as,
+∆J ∝
+X
+c∈C′, o∈O
+dCeval(c)πpre(o | c)
+
+|
+
+exp
+ 1
+β R⋆(c, o)
+
+−exp
+ 1
+β Rϕ(c, o)
+
+R⋆(c, o)
+
+
+For out-of-distribution contexts and outputs, the reward model is known to misgeneralize. The performance gap
+increases with increasing discrepancy from the oracular reward, and the discrepancy is further weighted by the
+likelihood of that (c, o) pair and its oracular reward value. Some observations from the above analysis:
+• πrlhf assigns high probability to highly rewarding outputs (Equation (17)), which is beneficial in-distribution
+contexts but can be harmful for out-of-distribution contexts when the reward model is erroneous.
+• The deviation of the estimated reward from the oracular reward on unseen contexts exacerbates misalignment,
+which can be mitigated by increasing the weight on the KL penalty due to the 1/β dependence in the exponent.
+• However, there is a trade-off. Increasing the value of β results in π∗
+rlhf and πrlhf being closer to πpre and have a
+lowered performance—due to increased weight in the KL penalty.
+6.3
+Why use Reinforcement Learning Algorithms?
+The efficacy of RLHF heavily relies on the quality of the reward model, and thus a large fraction of future research
+must focus on improving the reward model. Before allocating resources to that effort, it is essential to evaluate the
+merits and downsides of employing reinforcement learning as the fine-tuning paradigm. In comparison to supervised
+learning as an alternative approach, examining the gradient updates of a (vanilla) policy gradient algorithm alongside
+those of a supervised learning algorithm (such as supervised fine-tuning) offers some insights.
+Comparing Update Rules of Supervised Fine-Tuning and RLHF:
+In supervised fine-tuning (SFT), supervision is
+provided with positive samples, and the language model is updated to increase the likelihood of those samples under the
+model. Notably, there is no supervision provided for neutral or undesirable outputs, although it is a feasible option.
+Given the optimal policy π∗(which may be a human expert), the objective of SFT is,
+max
+θ
+Ec∼dC,ow∼π∗(·|c)
+
+ln πθ(ow|c)
+
+and thus the gradients used to update the parameters of the language model are of the form:
+∇θ := Ec∼dC,ow∼π∗(·|c)
+
+∇θ ln πθ(ow|c)
+
+.
+This is analogous to behavior cloning in RL [Pomerleau 1988] which is known to struggle when faced with out-of-
+distribution inputs.
+The primary benefit that reinforcement learning algorithms provide is that they allow the language model to explore the
+output space. Through its decoding algorithm, the language model exercises control over the distribution of outputs on
+which feedback is acquired. This facilitates learning from both positive as well as negative feedback, i.e.,
+max
+θ
+Ec∼dC,o∼πθ(·|c)
+
+R⋆(c, o)
+
+and the (vanilla) policy gradient update is:
+∇θ := Ec∼dC,o∼πθ(·|c)
+
+R⋆(c, o)∇θ ln πθ(o|c)
+
+.
+As highlighted in color, in SFT, the gradient is estimated only from the positive samples, while in RL, it is computed for
+all samples (positive, negative, or neutral) weighted by their corresponding rewards. The gradient updates in RL are
+more informative, leading to better generalization for the language model and improved sample efficiency. Beyond
+exploration and richer gradients, the field of inverse reinforcement learning provides a natural formulation for training a
+language model with human feedback [Arora and Doshi 2021].
+In the following sections, we present a review of works that lead up to and are being rapidly added to this active area of
+research. This review provides context for the first half of this work and also serves as a comprehensive introduction for
+readers interested in getting started and understanding the topic of RLHF for language models.
+13
+
+7
+Review of Reinforcement Learning from Human Feedback for Language Models
+7.1
+Language Model Pre-Training: Foundation for Large Language Models
+Language Models (LMs) have gained significant attention in recent years due to their impressive abilities to model
+language and retain textual knowledge. The Transformer architecture, characterized by its use of self-attention
+mechanisms, has become the standard for LMs [Vaswani et al. 2017]. It is employed in a range of models, including
+BERT, T5, LLaMA, GPT-3, PALM, GLaM [Devlin et al. 2019; Raffel et al. 2019; Touvron et al. 2023a; Brown et al.
+2020; Chowdhery et al. 2022; Du et al. 2021].
+Pre-training has played an important role in the development of Large Language Models (LLMs), significantly
+contributing to their remarkable performance across a myriad of downstream tasks [Brown et al. 2020; Chowdhery
+et al. 2022; Zhang et al. 2022]. This process involves training models with an unsupervised training objective on
+extensive datasets, often comprised of a diverse mix of web content, literary works, scientific documents, and code
+repositories [Rae et al. 2021; Xie et al. 2023]. The scale of these datasets is critical, with studies highlighting the
+superior performance of smaller models trained on larger datasets [Kaplan et al. 2020; Hoffmann et al. 2022; Touvron
+et al. 2023a]. In addition to scale, the quality of training data, ensured through deduplication and filtering of low-quality
+content, is a key determinant of model performance [Rae et al. 2021; Du et al. 2021; Hernandez et al. 2022; Lee
+et al. 2021]. Masked Language Modeling (MLM) [Devlin et al. 2019] and Causal Language Modeling [Radford and
+Narasimhan 2018] are the most common objectives used for pretraining, with latter showing notable success in recent
+Large Language Model series such as GPT, PaLM, OPT [Anil et al. 2023; OpenAI 2023; Zhang et al. 2022].
+Studies demonstrate that pre-training by itself is responsible for the bulk of the observed capabilities even in downstream
+tasks [Brown et al. 2020; Raffel et al. 2019]. The simple pre-training objective of next, or masked, token prediction
+imbibes the LMs with a range of capabilities. They are few-task learners, without the need for fine-tuning. This applies
+to a variety of tasks from text generation, reasoning, question answering, summarization, and translation to name a few.
+However, though scaling pretrained language models (PLMs) exhibit remarkable performance across a variety of tasks,
+they suffer from several limitations, such as the inability to follow human instructions [Ouyang et al. 2022]. This is
+because PLMs suffer from objective mismatch problems (See Section 2), as they are trained on generic internet data. As
+a result, PLMs need to learn to mimic the conflicting behavior of billions of humans. Further, the Maximum Likelihood
+Estimate on the next token prediction for such data doesn’t explicitly penalize the model for hallucinating concepts,
+i.e., generating concepts not encapsulated within its internal representation, and even important & unimportant errors
+are given equal weightage. Moreover, pretrained models often show unintended behavior such as generating harmful,
+biased, untruthful, and low-quality content [Perez et al. 2022].
+Supervised-Finetuning
+To address the shortcomings faced by PLMs, a straightforward approach is to fine-tune them
+on a set of high-quality downstream datasets that are indicative of the intended task and behavior. For example, for
+instruction-following, human annotations can be collected on a set of input prompts, or input instances of existing
+public datasets can be re-formatted for instruction-following format. The model is then simply fine-tuned on these
+human demonstrations, often with the same pretraining objective. This increases the likelihood of generating desirable
+text and makes the model less biased and harmful. Nonetheless, in order to generate high-quality text, it is crucial to
+note that the task of distinguishing between high and low-quality text is inherently subjective and challenging, with end
+users being humans. Thus, quality assessment rests on human judgment and varies significantly based on the individual
+evaluator’s perspective [Yi et al. 2019; Fan et al. 2022; Ziegler et al. 2019]. Incorporating human feedback into such a
+process can be challenging, and collecting high-quality human demonstrations can be expensive and not scalable.
+7.2
+Reinforcement Learning from Human Feedback (RLHF): Overview and Motivation
+The Importance of Human Feedback in Language Models
+The alignment of a model with the user’s intentions and
+preferences is critical, and incorporating human feedback in model training is a key step towards achieving this (Section
+2). However, the process of obtaining high-quality human feedback, particularly in the form of human demonstrations,
+can be a resource-intensive process, both in terms of time and cost. A more efficient approach is to collect feedback on
+the outputs generated by the model and train the language model to incorporate this feedback. However, collecting such
+a large amount of feedback is also costly and impractical for real-time/online collection during training.
+The Role of RLHF in Language Models
+Reinforcement Learning from Human Feedback (RLHF) offers a solution to
+these challenges. In RLHF, human feedback is collected offline and used to train a reward model. This reward model then
+acts as a surrogate for human feedback during training, providing reward signals to the Language Model. Reinforcement
+learning algorithms form the natural candidates for training a model from scalar evaluative feedback, as provided by the
+reward model. This forms the essence of Reinforcement Learning from Human Feedback (RLHF) [Christiano et al.
+14
+
+Reinforcement Learning from Human Feedback in Language Models
+Pretrained
+Language
+Models
+(§7.1)
+GPT-3 [Brown et al. 2020], PALM [Chowdhery et al. 2022], OPT [Zhang et al. 2022],
+LLaMA [Touvron et al. 2023a]
+Human
+Feedback
+(§7.3)
+Preference Based
+[Kreutzer et al. 2018b], InstructGPT [Ouyang et al. 2022], [Bai et al. 2022a],
+Sparrow [Glaese et al. 2022]
+Rating Based
+[Kreutzer et al. 2018a], [Liu et al. 2018], [Fan et al. 2022]
+Language Based
+[Li et al. 2016], [Scheurer et al. 2023], [Nguyen et al. 2021]
+Miscellaneous
+Feedback
+Sparrow [Glaese et al. 2022], [Uesato et al. 2022], [Wu et al. 2023c],
+Supervised
+Fine-Tuning
+(§7.4)
+[Wei et al. 2021], [Zhou et al. 2023], [Chiang et al. 2023]
+Reward
+Models
+RL-Training
+(§7.6)
+Algorithm
+PPO
+[Schulman et al. 2017]
+InstructGPT [Ouyang et al. 2022], [Bai et al. 2022a], [Touvron et al. 2023b]
+Actor-critic
+[Bahdanau et al. 2016]
+[Nguyen et al. 2017]
+Sparrow [Glaese et al. 2022], GopherCite [Menick et al. 2022], [Perez et al. 2022]
+Others
+[Ramamurthy et al. 2022], [Scheurer et al. 2023], [Munos et al. 2023]
+Task
+Translation
+[Nguyen et al. 2017], [Kreutzer et al. 2018a], [Kiegeland and Kreutzer 2021]
+Summarization
+[Stiennon et al. 2020], [Nguyen et al. 2022], [Ziegler et al. 2019],
+Dialogue
+InstructGPT [Ouyang et al. 2022], [Bai et al. 2022a], Nano [Fan et al. 2022],
+Citing
+Answers
+[Menick et al. 2022], [Nakano et al. 2021]
+Non-RL
+Training
+[Dong et al. 2023], [Yuan et al. 2023], [Scheurer et al. 2022]
+Reward
+Alternatives
+(§7.9)
+[Zhao et al. 2023], [Liu et al. 2023a], [Bai et al. 2022b],
+Figure 4: Categorization of different components in the RLHF and example representative works from literature.
+2017] as used to train Language Models. This approach is more sample-efficient and has shown more promising results
+compared to supervised fine-tuning alone [Ouyang et al. 2022].
+Applications of RLHF in Language Models
+In early works, RL has been used in training Language models
+across various domains such as dialogue generation [Yi et al. 2019; Li et al. 2016; Jaques et al. 2019], machine
+translation [Kreutzer et al. 2018a; Nguyen et al. 2017; Fernandes et al. 2022; Sokolov et al. 2016], text generation [Li
+et al. 2017; Shi et al. 2018; Zhou and Xu 2020; Ziebart et al. 2008], semantic parsing [Lawrence and Riezler 2018],
+summarization [Stiennon et al. 2020; Ziegler et al. 2019; Wu et al. 2021]. More commonly, these methods were trained
+using non-differentiable automated evaluation metrics such as BLEU, ROUGE [Ranzato et al. 2015; Shen et al. 2015;
+Keneshloo et al. 2018], or simulated feedback [Nguyen et al. 2017]. However, while the combination of RL and human
+feedback has been extensively studied [Knox and Stone 2008; Christiano et al. 2017], it is only recently that RLHF with
+LLMs has achieved significant success in sequence-to-sequence tasks such as Summarization [Stiennon et al. 2020;
+Ziegler et al. 2019; Wu et al. 2021], providing reliable answers with citations to queries [Nakano et al. 2021; Glaese
+et al. 2022], creating Helpful, Harmless and Honest dialogue agents aligned with broad human values [Ouyang et al.
+2022; Bai et al. 2022a].
+Formulating Language Modeling as a RL Problem
+Reinforcement Learning (RL) is a learning paradigm for
+a setting where an agent must make a sequence of decisions while interacting with an environment and obtaining
+evaluative feedback in the form of rewards. The agent’s objective is to maximize the total reward it receives over time.
+In the context of language models, the agent is the language model itself, and its actions consist of generating tokens
+from its vocabulary. The agent’s policy, which maps states to actions, is represented by the language model’s parameters.
+The agent receives rewards from the environment, which in this case is a reward function that forms a surrogate from
+human feedback (Section 4). The agent’s objective is to optimize its actions (by updating its policy) to maximize
+the cumulative reward. A thorough mathematical formulation can be found Section 3, and has been summarized in
+Table 2 and Figure 2. While these details are sufficient for further discussion in the paper, we refer interested readers to
+Arulkumaran et al. [2017]; Sutton and Barto [2018] for more details about reinforcement learning.
+The Workflow of RLHF
+RLHF, as first popularized by [Christiano et al. 2017] for mastering Atari Games consists
+of three crucial stages. An overview of standard RLHF workflow is highlighted in Figure 5. The first stage involves the
+15
+
+Figure 5: Workflow of RLHF. A pretraining phase, and optionally supervised finetuning (SFT) on human demonstrations,
+is followed by all RLHF workflows for training language models. This is followed by an iterative loop starting with
+collecting human feedback on model-generated outputs, training a reward model, and updating the language model
+using a suitable RL algorithm.
+RL Component
+Language Model Equivalent
+Agent
+Language Model
+State
+Input prompt + currently generated text
+Action
+Predicted next token from vocabulary
+Policy
+Output Distribution of language model
+Reward
+Evaluative Feedback from the reward model
+Trajectory
+Input + completely generated text
+Table 2: Mapping of terms used in RL literature to training of language models through RLHF. See Table 1 for
+mathematical formulation.
+collection of human feedback on a set of <input, output> pairs. These pairs can be sourced from existing datasets
+or generated by the pre-trained model for a given set of input prompts. The second stage involves learning a reward
+model from the collected human feedback. The reward model is trained to output a scalar reward for a given <input,
+output> pair, indicating the favorability of the pair. In essence, the reward model is trained to mimic human feedback,
+such that for a given input, desirable outputs are scored higher than undesirable outputs. The final stage involves the
+RLHF training of the language model, where the reward model provides reward signals on model outputs, usually in the
+form of scalar reward. The parameters of the language model are then updated based on these reward signals using an
+appropriate policy-gradient RL algorithm, updating the model to produce more rewarding outputs.
+These stages can be performed iteratively, with the intermediately trained model generating more prompts to collect
+additional human feedback. This feedback is then used to train the reward model, and the process is repeated multiple
+16
+
+times [Stiennon et al. 2020; Bai et al. 2022a; Menick et al. 2022]. In the following sections, we discuss each of
+these stages in detail. We start with Human Feedback Collection (Section 7.3), followed by training the Initial Policy
+(Section 7.4), Reward Model Training (Section 7.5), and finally RLHF Training (Section 7.6). Finally, we discuss the
+properties of RLHF-trained models and their limitations in Section 7.7.
+7.3
+Human Feedback
+In this section, we discuss the nature, objectives, and different types of human feedback, followed by the challenges and
+strategies associated with collecting high-quality feedback.
+7.3.1
+Nature and Objectives of Human Feedback
+Tasks such as summarization and providing helpful answers are inherently ambiguous and require human judgment to
+evaluate the quality of the generated text. Automated metrics like BLEU and ROUGE [Lin and Och 2004] often do
+not correlate with human judgment [Liu et al. 2016; Schluter 2017; Sellam et al. 2020; Stiennon et al. 2020], making
+them unreliable for evaluation and training. Thus, acquiring high-quality human feedback to align the model with
+human behavior becomes crucial. Feedback is typically provided on the outputs generated by the model (or input-output
+pairs from the dataset), and subsequently, the model is trained to learn from this feedback. However, capturing diverse
+human preferences is a challenging task. One approach to encapsulate subjective human preferences is to approximate
+them using “models of human behavior”. This concept of human behavior models has roots in diverse fields such
+as econometrics [McFadden 1981], psychology [O’Connor 1989], and inverse reinforcement learning. A notable
+example is the Bradley-Terry model [Bradley and Terry 1952], a probabilistic model that encodes the preference of one
+output over another in pairwise competitions. In the context of RLHF, reward models that form surrogates for human
+preferences serve as such models of human behavior.
+The type of feedback collected depends on the intended objective to be displayed by the fine-tuned language model.
+Askell et al. [2021] proposes three objectives for an aligned Language Model: Helpfulness, Honesty, and Harmlessness
+(HHH). These objectives can be broadly defined as follows:
+- Helpful: A Language Model is considered helpful if it can efficiently complete tasks or answer questions (while
+being harmless), ask relevant follow-up questions when necessary, and appropriately redirect ill-informed requests.
+Helpfulness includes context-dependent aspects such as informativeness, coherence, relevance, creativity, and specificity.
+- Honest: Honesty in a Language Model implies providing accurate information, expressing appropriate levels of
+uncertainty, and honestly conveying its capabilities, knowledge, and internal state. Language Models are particularly
+susceptible to hallucination [Khandelwal et al. 2019; Maynez et al. 2020], making it essential to penalize such behavior.
+Unlike helpfulness, honesty is more objectively evaluated.
+- Harmless: A harmless Language Model should avoid offensive or biased behavior, refuse to aid in dangerous acts,
+recognize disguised nefarious attempts, and act with modesty and care when providing advice with potentially sensitive
+or consequential impacts.
+These broad objectives, as mentioned above, encompass specific objectives, which can be considered subcategories.
+For example, in the case of summarization, the summary should be helpful to the reader and should not contain any
+false or harmful information. Similarly, the goal of reducing bias in a dialogue agent’s responses can be considered a
+subset of the Harmless objective. At the same time, coherence and creativity in the generated text are aspects of being
+helpful. These objectives are not mutually exclusive and are context and task-dependent. Even human labelers and
+researchers have shown disagreements in annotation [Kreutzer et al. 2018b].
+7.3.2
+Types of Human Feedback
+Human Feedback is usually collected on model-generated outputs. Good feedback should incorporate information on
+where the model output is lacking and how to improve it. A simple process is to let human labelers provide feedback on
+a set of model outputs generated from a dataset of prompts or inputs. Alternatively, existing datasets can be repurposed
+to incorporate implicit feedback, such as rating different user choices [Kreutzer et al. 2018a]. Regardless of the process,
+human feedback can be collected in various forms, such as binary responses, preference ranking, language feedback,
+etc. While the choice of feedback type depends on the downstream task, it is essential to note that the feedback should
+be collected in a way that is easy for humans (labelers) to provide; there is high agreement among the labelers, and it
+is also informative. In this section, we classify the feedback into four different categories: rating feedback, ranking
+feedback, language feedback, and miscellaneous feedback.
+17
+
+Rating Feedback
+The simplest form of rating feedback is binary feedback, where the labeler is asked to provide a
+binary response (yes/no) to a given input [Li et al. 2016; Scheurer et al. 2023]. Binary feedback is easy to collect and
+interpret. Some works have used binary responses to get feedback on multiple questions (such as if the generated text is
+coherent) [Yi et al. 2019]. A richer form of feedback is to ask labelers to provide a rating on a scale. The scale can be
+continuous [Graham et al. 2013], or be similar to Likert Scale [Likert 1932] (where user rate using an integer from 1 to
+k) [Kreutzer et al. 2018a; Jaques et al. 2019]. A different variant of rating feedback is to provide categorical feedback
+such as ‘incorrect’, ‘partially-correct’, and ‘correct’ [Gao et al. 2023]. While rating feedback is easy to specify, often
+inter-annotator agreement is low because of the subjective nature of the task [Kreutzer et al. 2018b]. Further, the order
+of examples presented to the annotator may bias the results [Yannakakis and Hallam 2011]. Moreover, it is challenging
+to differentiate between data points with outputs of similar quality since feedback is provided individually to each
+output without comparison.
+Ranking or Preference Feedback
+Ranking feedback or Preference-based feedback has been extensively used in
+the recent development of AI assistants and found to be both convenient to collect and performative. Specifically, the
+labeler is offered with binary [Stiennon et al. 2020] or multiple choice options [Ziegler et al. 2019], and asked to select
+the most appropriate response based on a certain set of instructions (directions). Recently, [Zhu et al. 2023a] has shown
+convergence guarantees for reward models trained using this feedback form. Moreover, given an input prompt, it is
+common to ask labelers to rank k (> 2) generated responses, which are then repurposed as pairwise comparisons for
+the reward model [Ouyang et al. 2022]. However, collecting pairwise feedback might still be difficult for near similar
+responses and may result in much time spent by the labelers even on single input [Scheurer et al. 2023]. Additionally,
+preference-based feedback provides a very sparse signal, conveying limited information about the reasoning behind the
+provided feedback. Moreover, it is provided only on the complete text generated by the model (trajectory) and not on
+specific parts of the text (particular state) [Pang et al. 2022; Lewis et al. 2017]. Moreover, preference-based feedback
+provides no further improvement in terms of inter-annotator agreement when compared to rating feedback [Kreutzer
+et al. 2018b].
+Language Feedback
+A more informative way to provide feedback is in free-form language. This provides a dense
+reward signal, specifying more precisely where the model goes wrong or needs improvement. For example, consider
+the case where the output generated by the model is “A humorous story about a specific profession involving person A
+and person B.“ The previous feedback forms would provide only sparse signals, such as indicating that the output is
+inappropriate. However, this feedback alone will not help the model identify the cause of inappropriateness, and the
+single example alone can imply that the text is inappropriate because: “it is wrong to create humor in general,“ “it is
+wrong to create humor about specific professions“ or “it is wrong to involve individuals in humorous stories“ and so
+on. On the other hand, free-form feedback can provide more precise feedback, such as “It is inappropriate to create
+humor that targets specific professions.“ This enables the model to understand the issue from a single example better
+and generalize to similar cases without learning from more examples.
+Language Feedback has been extensively used in various domains such as Dialogue models [Li et al. 2016; Hancock
+et al. 2019], Summarization [Scheurer et al. 2023], Question-Answering [Li et al. 2022], Code generation [Chen 2023].
+Recently, [Scheurer et al. 2023] has shown that language feedback is more effective than preference-based feedback in
+the context of summarization systems. Also, as [Hancock et al. 2019] discusses, getting preference-based feedback
+is plausible for paid labelers but not for real users using real deployed systems. Real users interact with the system
+through free-form language; hence, getting human feedback in the free-form language is more natural. Although task-
+dependent, [Scheurer et al. 2023] further find that labelers take only 3x times to provide language feedback compared to
+preference-based feedback, despite providing much granular information. However, incorporating language feedback in
+the RLHF pipeline is not straightforward, and there has been limited work in this direction.
+Miscellaneous Feedback
+Apart from providing single feedback, methods have experimented with using a combination
+of feedback types or altogether different types. For example, [Glaese et al. 2022] uses a combination of rule violation
+feedback (binary), preference-based feedback, and rating of evidence. [Uesato et al. 2022; Korbak et al. 2023] provide
+segment-level feedback instead of the whole text, and [Wu et al. 2023c] provide feedback at the token level. Moreover,
+some studies employ indirect methods for collecting feedback. For example, [Kreutzer et al. 2018a] uses human
+interactions on translated eBay titles to find more preferred translations.
+Further, it is also possible to provide computational feedback, for example, from automated metrics [Bahdanau et al.
+2016], forms of synthetic feedback [Kim et al. 2023; Black et al. 2023], web descriptions [Hanjie et al. 2022; Aggarwal
+et al. 2023], LLM generated feeedback [Shinn et al. 2023; Madaan et al. 2023; Yang et al. 2022a], which might, in
+turn, be generated based on certain human requisites or instructions [Bai et al. 2022b; Sun et al. 2023; Kundu et al.
+2023]. However, these methods still use little to no human feedback and may have several unexplored limitations such
+as instability and lack of robustness [Shumailov et al. 2023; Alemohammad et al. 2023; Gudibande et al. 2023] and are
+18
+
+not the focus of this survey. We refer readers to Fernandes et al. [2023] for discussion on different type of feedback
+used in Natural Language Generation.
+7.3.3
+Collection of High-Quality Human Feedback
+Collecting high-quality human feedback is a challenging task that has been the focus of extensive research. The quality
+of feedback is pivotal; subpar or noisy feedback can significantly hamper the performance of the final trained model. For
+example, for summarization tasks, [Ziegler et al. 2019] discovered that their model predominantly extracted verbatim
+lines from the document. This was later attributed to low-quality feedback by [Stiennon et al. 2020]. Similarly, the
+size of the feedback is also crucial. For example, despite employing similar methodologies, [Lightman et al. 2023]
+identified a need for a ‘greater amount of feedback’ for the methods in [Uesato et al. 2022] to be effective, as the
+intended objective was not even observed in the latter work.
+The provision of clear and unambiguous instructions to the labelers is a fundamental requirement [Ziegler et al. 2019;
+Nakano et al. 2021]. Failure to do so can not only result in low-quality feedback but also introduce systematic bias
+in the collected feedback and, consequently, the model [Parmar et al. 2022]. Typically, labelers are provided with a
+comprehensive set of instructions, including guidelines for handling edge cases [Bai et al. 2022a]. [Glaese et al. 2022]
+even provides a tutorial to the selected few labelers.
+Researchers typically screen labelers to ensure they possess the necessary skills to provide feedback. For instance, in
+the case of translation tasks, bilingual labelers with native proficiency in both languages are preferred [Kreutzer et al.
+2018b]. Additionally, a minimum educational qualification is generally preferred. For example, [Stiennon et al. 2020]
+requires labelers to have at least a high-school degree, whereas [Nakano et al. 2021], [Glaese et al. 2022] and [Bai et al.
+2022a] require a minimum undergraduate and master’s degree respectively. The end goal also influences the selection
+of labelers. For instance, creating a harmless and helpful chatbot necessitates a diverse group of labelers with varying
+backgrounds and demographics [Ouyang et al. 2022; Bai et al. 2022a] as otherwise this may result in implicit biases in
+the model [Peng et al. 2022]. For instance, currently deployed language models have been shown to reflect views more
+aligned with western audiences [Durmus et al. 2023] and may have systematic political biases [Santurkar et al. 2023],
+partly owing to the lack of annotators from diverse demographic groups.
+However, despite screening, there may be low agreement among the annotators themselves, or even between researchers
+and annotators [Kreutzer et al. 2018a]. The labelers are further screened based on two standard criteria 1.) inter-annotator
+agreement, i.e., the agreement between different annotators on the same example, and 2.) expert-annotator agreement,
+i.e., the agreement between annotators and experts [Kreutzer et al. 2018b]. Specifically, the former metric ensures that
+the labelers are consistent in their feedback, and the latter metric is used to keep only those labelers that have a high
+agreement with experts. [Menick et al. 2022] creates a group of super-raters who have a high agreement with experts,
+and the group is expanded upon iteratively. Even after filtering, some methods ensure a hands-on relationship with
+labellers [Stiennon et al. 2020] and have also created Slack groups for discussing any bugs, issues, or edge cases [Bai
+et al. 2022a].
+7.4
+Supervised Fine-Tuning: Limitations and Role
+Upon the collection of high-quality feedback, the subsequent step is to assimilate this feedback to train the model. The
+most direct method to achieve this is to perform supervised fine-tuning of the language model based on the collected
+feedback. Specifically, human feedback is gathered in the form of expert outputs on input prompts, also referred to as
+human demonstrations. These human demonstrations can be perceived as positive example outputs to prompts that
+should be generated by the language model. The model is then fine-tuned on these demonstrations using the same
+pretraining objective, and this process in RL terminology is often termed behavior cloning [Nakano et al. 2021].
+Additionally, when dealing with preference data, the model can be directly fine-tuned on preferred feedback. However,
+this approach exhibits limitations by not accounting for negative feedback—outputs that the model should avoid
+generating. This is crucial for training robust models that can handle adversarial situations and identify and rectify
+errors. To tackle this limitation, alternative methods that incorporate both positive and negative feedback have been
+developed, as discussed in Section 7.9.
+In addition to human demonstrations, existing public instances from NLP datasets can be used as instruction tuning
+demonstrations [Wei et al. 2021]. This usually involves creating new instruction-tuning datasets by adding task
+instructions to existing examples from the dataset [Ajith et al. 2023]. In another field of work, prompts from the initial
+iterations of GPT-3 [Brown et al. 2020] served to real customers through Web API were used to fine-tune the model on
+expert (human) demonstrations provided by contracted labelers [Ouyang et al. 2022].
+19
+
+Limitations of Supervised Finetuning
+While finetuning on supervised data enhances the model beyond its pretrained
+version in following instructions and intended tasks, it suffers from numerous limitations. For instance, it does not
+penalize the model for hallucinating or permit it to learn from neutral or negative feedback. This can lead to harmful
+and unintended behavior, making it easier to prompt such models to elicit them [Ganguli et al. 2022; Perez et al. 2022].
+Furthermore, behavior cloning is likely to perform poorly in out-of-distribution prompts [Pomerleau 1988]. These
+limitations may stem from the fact that during behavior cloning, the model is not allowed to explore the vast space of
+possible actions, i.e., the model is not allowed to generate outputs that are not present in the demonstrations and, in turn,
+get feedback for them. We refer readers to Section 6.3 for theoretical discussion on the limitations of SFT.
+SFT as Initial Policy in RLHF models
+Despite its caveats, supervised fine-tuning plays a pivotal role in RLHF as it
+provides a robust initial policy, which allows RLHF methods to work well. From an RL perspective, learning algorithms
+such as the widely used Proximal Policy Optimization (PPO) in training sequence-to-sequence models, struggle to
+improve from poor initializations, especially when the action space is large, as in the case of text generation. This is
+because these methods use model-based exploration, which is ineffective when the transition probabilities over many
+actions are similar [Nguyen et al. 2017] i.e., different text outputs have similar probabilities of generation.
+Furthermore, as we discuss in Section 7.6, usually a KL penalty is applied to ensure the output text generated by our
+RL-tuned model is close to the initial model. Thus, during RL training, it is preferable to start with an initial model that
+already generates decent-quality text.
+Empirical studies have demonstrated that starting with fine-tuning on high-quality human demonstrations results in
+significant improvements over starting with pretrained language models [Stiennon et al. 2020; Ouyang et al. 2022]. For
+instance, InstructGPT collects API customer and labeler written prompts and outputs to fine-tune their model before
+initiating with the RLHF training [Ouyang et al. 2022].
+[Glaese et al. 2022] has also shown that starting with a prompted model (dialogue) instead of fine-tuning on label
+demonstrations is possible. However, they start with a large model (70B parameters) and do not perform a comparative
+study starting with fine-tuning on human demonstrations. Thus, it cannot be definitively concluded that starting with a
+prompted model is equivalent to fine-tuning on human demonstrations. Moreover, prompting has the limitation of using
+up a major portion of the context length of the model, which, apart from the computational burden, can also be crucial
+for some tasks because of limited context length. [Askell et al. 2021] propose using context distillation by training the
+model to generate output similar to its prompted counterpart using KL divergence loss. They find similar performance
+to the prompted model, and the method has been used in their subsequent works [Bai et al. 2022a].
+In conclusion, while supervised fine-tuning can be utilized independently of the RLHF pipeline, it still suffers from
+several significant limitations. However, it still serves as an integral step in the RLHF pipeline, providing a robust initial
+policy crucial for subsequent RL training.
+7.5
+Reward Modeling
+Reward as a Proxy for Human Feedback
+After the collection of human feedback, the next challenge is training
+the language model effectively. Although supervised fine-tuning offers a straightforward method, its effectiveness is
+limited by the volume of human feedback. In contrast, RLHF introduces a reward model to emulate human feedback,
+thereby acting as a stand-in for the true reward function, i.e., the actual human feedback. This reward model, usually
+much smaller than the language model, facilitates fine-tuning the language model using feedback generated by it on
+new model outputs, avoiding the need for additional costly human annotation. In practice, using a reward model over
+supervised fine-tuning has been found more data-efficient [Ramamurthy et al. 2022].
+Training a Reward Model
+The reward model is a fine-tuned language model that assigns a scalar reward score
+to an input-output pair. The last embedding layer is replaced with a single projection layer that outputs this scalar
+reward. While the reward model can learn from various types of feedback, recent studies highlight the simplicity and
+effectiveness of preference-based feedback [Ouyang et al. 2022; Bai et al. 2022a]. This approach involves fine-tuning
+the initialized reward model to predict the preference between two trajectories (output text) given the same input
+prompt or context. The reward is typically modeled as a Bradley-Terry-Luce (BTL) model [Bradley and Terry 1952],
+where the probability of preferring one trajectory over another is a function of the difference in their reward scores.
+Mathematically, this can be represented as:
+Pr((o ≻o′, c) | ϕ) = σ[Rϕ(c, o) −Rϕ(c, o′)]
+(18)
+where σ(x) =
+1
+1+e−x is the sigmoid function, o and o’ represent the two trajectories, and their rewards are represented
+as Rϕ(c, o) and Rϕ(c, o′) respectively. This form of reward modeling has been found to provide smoother rewards and
+is less noisy [Christiano et al. 2017]. A similar method can then be used for ranking between k trajectories (k > 2),
+20

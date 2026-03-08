@@ -1,0 +1,1323 @@
+Iterative Preference Learning from Human Feedback: Bridging
+Theory and Practice for RLHF under KL-constraint
+Wei Xiong1 ∗
+Hanze Dong2
+Chenlu Ye3
+Ziqi Wang1
+Han Zhong4
+Heng Ji1
+Nan Jiang1
+Tong Zhang1
+Abstract
+This paper studies the alignment process of generative models with Reinforcement Learning from Hu-
+man Feedback (RLHF). We first identify the primary challenges of existing popular methods like offline
+PPO and offline DPO as lacking in strategical exploration of the environment. Then, to understand the
+mathematical principle of RLHF, we consider a standard mathematical formulation, the reverse-KL reg-
+ularized contextual bandit for RLHF. Despite its widespread practical application, a rigorous theoretical
+analysis of this formulation remains open. We investigate its behavior in three distinct settings—offline,
+online, and hybrid—and propose efficient algorithms with finite-sample theoretical guarantees.
+Moving towards practical applications, our framework, with a robust approximation of the information-
+theoretical policy improvement oracle, naturally gives rise to several novel RLHF algorithms. This in-
+cludes an iterative version of the Direct Preference Optimization (DPO) algorithm for online settings,
+and a multi-step rejection sampling strategy for offline scenarios. Our empirical evaluations on real-world
+alignment experiment of large language model demonstrate that these proposed methods significantly
+surpass existing strong baselines, such as DPO and Rejection Sampling Optimization (RSO), showcasing
+the connections between solid theoretical foundations and their potent practical implementations.
+Contents
+1
+Introduction
+3
+1.1
+Related Work . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5
+2
+Formulation and Existing Approaches
+6
+2.1
+Formulation of RLHF
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6
+2.2
+The Insufficiency of Classic Frameworks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7
+2.3
+Preliminary . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8
+3
+Offline Learning with Pessimism
+11
+3.1
+Setup
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11
+∗The first three authors contribute equally to this work.
+1University of Illinois Urbana-Champaign. 2Salesforce AI Research. 3The Hong Kong University of Science and Technology. 4
+Work done during an internship at The Hong Kong University of Science and Technology. Correspondence to wx13@illinois.edu,
+tongzhang@tongzhang-ml.org
+1
+arXiv:2312.11456v4  [cs.LG]  1 May 2024
+
+3.2
+Algorithms
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11
+3.3
+Main Results: Pessimism is Provably Efficient . . . . . . . . . . . . . . . . . . . . . . . . . . .
+12
+4
+Online Iterative Learning with Batch Exploration
+13
+4.1
+Setup: Batch Hybrid Learning
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13
+4.2
+Algorithms
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+13
+4.3
+Main Results: RLHF Benefits from Online Exploration . . . . . . . . . . . . . . . . . . . . . .
+14
+5
+Implementations of GSHF
+16
+5.1
+Direct Preference Learning with Pessimism
+. . . . . . . . . . . . . . . . . . . . . . . . . . . .
+17
+5.2
+Enhancer Explores with Variants of Main Agent Policy . . . . . . . . . . . . . . . . . . . . . .
+17
+5.3
+Offline Learning with Pseudo-Labeling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+18
+6
+Experiments
+19
+6.1
+Experiments Setup . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+19
+Comment 6.1
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+20
+6.2
+Main Results: RLHF Benefits from Online and/or Pseudo Labelling Data . . . . . . . . . . .
+21
+6.2.1
+Online Exploration Improves Model Performance . . . . . . . . . . . . . . . . . . . . .
+21
+6.2.2
+RLHF Benefits from Pseudo Labelling and Iterative Learning . . . . . . . . . . . . . .
+22
+6.2.3
+Robustness to Sampling Temperature and Length Bias . . . . . . . . . . . . . . . . . .
+23
+6.3
+Scaling-up Experiments
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+24
+7
+Conclusion
+25
+8
+Acknowledgement
+25
+A Notation Table, Backgrounds, and Organization of Appendix
+32
+A.1 Rejection Sampling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+32
+A.2 Organization of the Appendix . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+33
+B Proof of Online Learning
+33
+B.1
+Batch Online Learning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+33
+B.2
+Sequential Online Setting
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+35
+B.3
+Construction of the Confidence Set . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+38
+2
+
+C Proof of the Offline Learning
+38
+C.1 Proof of Theorem 1 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+38
+C.2 Proof of the Direct Preference Learning with Pessimism . . . . . . . . . . . . . . . . . . . . .
+39
+D Proof of the Hybrid Learning
+40
+D.1 More Discussions on α(mT, Doff) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+40
+D.2 Sequential Hybrid Setting . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+41
+D.3 Proof of Theorem 2 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+43
+E Discussion on the Coverage Condition for Vanilla RLHF
+43
+F Technical Lemma Proofs
+45
+G Technical Lemmas
+45
+H More Experiment Details
+47
+H.1 Implementation Details
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+47
+H.2 Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+48
+Comment H.1
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+49
+Comment H.2
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+50
+Comment H.3
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+51
+1
+Introduction
+Reinforcement Learning from Human Feedback (RLHF) (Christiano et al., 2017; Ziegler et al., 2019) has
+emerged as a powerful paradigm to align modern generative models like Large Language Models (LLMs)
+and diffusion models with human values and preferences. This approach has shown significant effectiveness
+in applications such as ChatGPT (OpenAI, 2023), Claude (Anthropic, 2023), Bard (Google, 2023), and
+LLaMA2 (Touvron et al., 2023), by making the built AI system helpful, harmless, honest and controllable
+(Ouyang et al., 2022; Bai et al., 2022).
+Despite its effectiveness, RLHF’s implementation often involves ad-hoc practices and extensive algorithmic
+tuning in the entire pipeline, including preference data collection (it is hard to select representative hu-
+mans (Bai et al., 2022), larger language models (Wang et al., 2024) or program compiler (Wang et al.,
+2023b)), preference/reward modeling (reward misspecification and misgeneralization (Hong et al., 2022; Gao
+et al., 2023)), and model optimization (instability of training (Choshen et al., 2019) and distribution shift is-
+sue (Michaud et al., 2020; Tien et al., 2022)). Meanwhile, the resulting models of RLHF typically suffer from
+issues like performance degeneration if we impose strong optimization pressure toward an imperfect reward
+function (Michaud et al., 2020; Tien et al., 2022; Gao et al., 2023), which contains bias and approximation
+error from the data collection and preference modeling (Gao et al., 2023; Wang et al., 2023d). Casper et al.
+(2023) also discussed many other challenges of RLHF. Thus, it is important to understand the mathematical
+3
+
+principle of the RLHF process, as well as the connections among its different steps, which should be able to
+motivate future algorithmic design in principle.
+In current RLHF theory, the agent’s objective is to maximize an observed reward function, with the optimal
+policy typically being deterministic and reward-greedy (Agarwal et al., 2019). However, in practical RLHF
+applications, merely maximizing the reward function is often insufficient and probably results in overfitting,
+as the generative model must simultaneously ensure both diversity and high fidelity in its outputs.
+A
+deterministic maximizer of the reward tends to compromise on these aspects significantly. For example, the
+maximizer of the “safety reward” tends to avoid providing answers all the time, which contradicts the LLM’s
+training objective. The situation worsens due to bias and approximation errors in reward modeling, leading
+to the critical problem of reward hacking, where the model often repeats superfluous, pleasing yet irrelevant
+words to appease the reward model (Michaud et al., 2020; Tien et al., 2022; Casper et al., 2023). Thus, it is
+important to model diversity and high fidelity in the theoretical framework beyond the reward. Notably, the
+most widely used mathematical objective function for this goal can be regarded as a reverse-KL regularized
+contextual bandit problem (Ziegler et al., 2019; Wu et al., 2021a; Ouyang et al., 2022; Rafailov et al., 2023;
+Liu et al., 2023a). The KL regularized contextual bandit additionally imposes a constraint that the optimal
+policy cannot move too far away from the original policy (i.e. the starting checkpoint of the LLM). A major
+difference between this objective function from traditional contextual bandit (Langford and Zhang, 2007)
+is that the optimal policy is stochastic, which is closer to the practical generative models. See an intuitive
+illustration why such a target is appealing in Figure 1.
+Despite numerous proposed procedures for this
+formulation, a rigorous theoretical analysis remains open. This paper provides a theoretical analysis of the
+regularized contextual bandit problem in both offline and online settings, aiming to inform and motivate
+practical algorithmic designs.
+We summarize the contributions and take-away messages of this work as
+follows:
+• We identify the challenges of existing RLHF methods in Section 2: they require a preference dataset
+with uniform coverage over the entire prompt-response space to converge to the optimal policy, which
+is extremely hard to satisfy in practice due to the exponentially large response space;
+• To understand the mathematical principle of RLHF, we first formally formulate the RLHF process
+as a reverse-KL regularized contextual bandit problem in RLHF theory in Section 2, which more
+accurately reflects real-world alignment practices (Ouyang et al., 2022; Bai et al., 2022; Rafailov et al.,
+2023) compared to existing theoretical frameworks. Meanwhile, we deliver a comprehensive theoretical
+analysis in offline, online, and hybrid settings for the formulated framework, where the three settings
+are complementary to each other and hold their own values in practical applications.
+– For offline learning from a fixed dataset, we show that RLHF with pessimism (a conservative
+reward estimation) is sample efficient in Section 3. Moreover, we derive the way of implementing
+the pessimism with both the PPO and DPO;
+– For the online/hybrid learning, we discuss how to strategically explore and continuously enhance
+the policy by online interactions with the humans in Section 4. Specifically, by establishing the
+theoretical guarantee of the proposed algorithms, we show that the RLHF can benefit from online
+exploration.
+• Moving towards practical applications, in Section 5, we demonstrate that the proposed frameworks can
+be practically implemented when combined with existing planning algorithms like offline PPO, offline
+DPO, and InfoNCA, that optimize against a fixed reward function. In other words, our framework can
+be viewed as built on the top of existing methods, and serve as to boost their performance;
+• In Section 6, we demonstrate that the proposed algorithms empirically outperform existing strong
+baselines like DPO (Rafailov et al., 2023) and RSO (Liu et al., 2023a) in real-world LLM experiments.
+In particular, with the Zephyr-SFT-7B as the initial model, the resulting aligned policy enjoys an
+impressive win-rate 34.79% in the AlpacaEval2 benchmark that beats many larger LLMs.
+4
+
+1.1
+Related Work
+There is a rich literature in RLHF and we refer the interested readers to the survey papers like Casper et al.
+(2023) for a more comprehensive review. We focus on the papers that are most related to our work here.
+RLHF has attracted considerable attention in the past few years, especially after its tremendous success
+in ChatGPT (OpenAI, 2023). We refer interested readers to Wirth et al. (2017); Casper et al. (2023) for a
+detailed survey but focus on the most related works here. The standard RLHF was popularized by Christiano
+et al. (2017), which served to direct the attention of the RL community to the preference-based feedback. The
+most popular and standard RLHF framework is outlined in the InstructGPT paper (Ouyang et al., 2022),
+Claude (Bai et al., 2022) and the LLaMA2 report (Touvron et al., 2023) in detail, which typically consists
+of three steps starting from the pretrained model: supervised finetuning, reward modeling, and reward
+optimization. The effectiveness of this framework has been showcased by many recent generative models,
+like ChatGPT (OpenAI, 2023), Bard (Google, 2023), Claude (Anthropic, 2023), and LLaMA2 (Touvron
+et al., 2023). However, it is also noteworthy to indicate that the RLHF process often leads to degeneration
+in the performance of generation, commonly referred to as the “alignment tax” in the literature (Askell
+et al., 2021). This is usually because of the imperfection of the reward model and the model can make use
+of these imperfections to chase for a high reward. This phenomenon is referred to as the reward hacking
+(Michaud et al., 2020; Tien et al., 2022). It is also possible to apply RLHF to general generative models, like
+the diffusion model (Hao et al., 2022; Wu et al., 2023; Lee et al., 2023; Dong et al., 2023). In this work, we
+use the terminology and analysis of LLMs for better illustration, and defer the study of general generative
+models to future work.
+RLHF algorithms. Proximal Policy Optimization (PPO) (Schulman et al., 2017) is the most well-known
+algorithm in LLM alignment literature. However, its instability, inefficiency, and sensitivity to hyperpa-
+rameters (Choshen et al., 2019) and code-level optimizations (Engstrom et al., 2020) present significant
+challenges in tuning for optimal performance and its tremendous success in Chat-GPT4 (OpenAI, 2023) has
+not been widely reproduced so far. Additionally, it often necessitates incorporating an extra reward model,
+a value network (known as a critic), and a reference model, potentially as large as the aligned LLM (Ouyang
+et al., 2022; Touvron et al., 2023). This imposes a significant demand on GPU memory resources. Thus,
+researchers have attempted to design alternative approaches for LLM alignment to resolve the aforemen-
+tioned issues. Dong et al. (2023); Yuan et al. (2023); Touvron et al. (2023); Gulcehre et al. (2023) propose
+reward ranked finetuning (RAFT) (also known as the iterative finetuning, rejection sampling finetuning) by
+iteratively learning from the best-of-n policy (Nakano et al., 2021) to maximize the reward, which is a stable
+baseline with minimal hyper-parameter configuration and was applied to the alignment of LLaMA2 project.
+There is also a line of work focusing on deriving an algorithm from the KL-regularized formulation (Rafailov
+et al., 2023; Zhu et al., 2023b; Wang et al., 2023a; Liu et al., 2023a; Li et al., 2023b). Among them, Direct
+Preference Optimization (DPO) (Rafailov et al., 2023) has emerged as an attractive alternative approach
+to PPO with notable stability and competitive performance. The innovative idea of DPO is to train the
+LLMs directly as a reward model based on the offline preference dataset and bypassing the reward modeling.
+Similar to DPO, there are also other works aiming to optimize the LLMs directly from the preference data,
+including (Zhao et al., 2023; Azar et al., 2023), and has sparked considerable debate on whether reward
+modeling, as well as RL, is necessary for alignment. However, while these algorithms are partly inspired by
+mathematical principles and intuitions, a comprehensive theoretical analysis remains open.
+Theoretical study of RLHF. The theoretical understanding of RLHF can be traced back to research on
+dueling bandits (e.g., Yue et al., 2012; Saha, 2021; Bengs et al., 2021), a simplified setting within the RLHF
+framework. Recently, many works have focused on the more challenging RLHF problem (also known as
+the preference-based RL). Xu et al. (2020); Novoseller et al. (2020); Pacchiano et al. (2021) delve into the
+study of tabular online RLHF, where the state space is finite and small. Moving beyond the tabular setting,
+Chen et al. (2022) provides the first results for online RLHF with general function approximation, capturing
+real-world problems with large state spaces. Wang et al. (2023c) presents a reduction-based framework,
+5
+
+which transforms some sample-efficient algorithms for standard reward-based RL to efficient algorithms for
+online RLHF. Further advancements in algorithm designs are introduced by Zhan et al. (2023b); Wu and Sun
+(2023), encompassing the development of reward-free learning type algorithms and posterior sampling-based
+algorithms tailored for online RLHF. Initiating exploration into offline RLHF, Zhu et al. (2023a) presents a
+pessimistic algorithm that is provably efficient for offline RLHF. Additionally, Zhan et al. (2023a) and Li et al.
+(2023c) extend these investigations into the broader scope of general function approximation settings within
+offline RLHF. In comparison to these existing studies, our work introduces a new theoretical formulation and
+goal for RLHF, as well as novel problem settings, such as hybrid RLHF. The new mathematical formulation
+allows our framework to align more closely with recent advancements in LLMs, and we discuss the connections
+between our theoretical findings and practical algorithmic designs in Section 5. We mention in passing that
+Tiapkin et al. (2023) also considers the KL constraint in offline RL but mainly focuses on the scenario where
+an expert policy is available for imitation learning, thus differing from ours.
+Finally, concurrent to this work, Hoang Tran (2024) and Yuan et al. (2024) consider variants of iterative
+DPO that may share similar insights with us in terms of algorithmic design. We comment on the similarities
+and differences between our work and theirs as follows. Hoang Tran (2024) focus on the batch online setting,
+which will be thoroughly developed in Section 4.
+One notable difference is that they set the reference
+policy as the one from last iteration, while we always use the π0 as the reference policy. From a theoretical
+perspective, their algorithmic design resembles the classic policy gradient algorithm (Cai et al., 2020; Zhong
+and Zhang, 2023) that optimizes the non-regularized reward, while we optimize the KL-regularized one as
+most of the Instruct-GPT (Ouyang et al., 2022) and Claude (Bai et al., 2022) did. Yuan et al. (2024) also
+consider iterative DPO-type training. However, both our algorithm and Hoang Tran (2024) leverage the
+reward signal from the external model or human, while Yuan et al. (2024) adopts a clever idea by using the
+LLM itself as the reward model to provide preference signal, hence the name “self-rewarding”. We remark
+that the primary goal of this project is to formally formulate the RLHF as a KL-regularized contextual
+bandit problem and establish its mathematical foundation. The online iterative DPO is a natural corollary
+of the established framework but the framework can also be implemented by combining it with other oracle
+algorithms. See Section 5 for details. Finally, we expect that the techniques presented in this paper also
+extend to analyze the general preference learning like Azar et al. (2023) beyond the reward-based learning.
+2
+Formulation and Existing Approaches
+In this section, we present the mathematical framework for the RLHF process, inspired by the standard
+LLM alignment workflow (Ouyang et al., 2022; Touvron et al., 2023).
+2.1
+Formulation of RLHF
+Specifically, the LLM can take a prompt, denoted by x ∈X, and produce a response, denoted by a =
+[w1, w2, . . .], where wi is the i-th token generated by the model. Accordingly, we can take X as the state
+space of the contextual bandit and the A as the action space. Following Ouyang et al. (2022); Zhu et al.
+(2023a); Rafailov et al. (2023); Liu et al. (2023a), we assume that there exists a ground-truth reward function
+r∗(x, a) : X × A →[0, 1] and the preference satisfies the Bradley-Terry model (Bradley and Terry, 1952):
+P(a1 ≻a2|x, a1, a2) =
+exp(r∗(x, a1))
+exp(r∗(x, a1)) + exp(r∗(x, a2)) = σ
+ r∗(x, a1) −r∗(x, a2)
+
+,
+(1)
+where a1 ≻a2 means that a1 is preferred to a2, and σ(z) = 1/(1 + exp(−z)) is the sigmoid function. We
+denote an LLM by a policy π that maps x to a distribution over A.
+6
+
+2
+0
+2
+2
+0
+2
+Pretrained data
+2
+0
+2
+2
+0
+2
+0
+r
+2
+0
+2
+4
+2
+0
+2
+0
+r
+0
+5
+2
+0
+2
+0
+r
+(a) Pretrained π0
+(b) Preferred πr (η−1 = 0.5)
+(c) Preferred πr (η−1 = 1.0)
+(d) Preferred πr (η−1 = 10)
+Figure 1:
+A two-dimensional illustrating example of human preference in generative modeling. We consider
+a scenario where the initial data distribution π0, referred to as “pretrained”, is represented by a multi-modal
+Gaussian mixture, reflecting real-world data complexities. The “human preference” is expressed as a bias
+towards the right, as we set r = [1, 0]⊤a. The KL penalty is critical in maintaining the desired behavior of
+πr. By varying the values of η, we demonstrate the impact of KL regularization in (b)-(d). As η approaches
+zero, πr increasingly focuses on maximizing rewards, often at the expense of the pretrained data’s structure,
+leading to a Gibbs distribution that potentially diverges infinitely.
+In a typical LLM training pipeline, the tuning process begins with a pretrained LLM, which is subsequently
+fine-tuned using specialized and instructional data, yielding an initial LLM policy denoted as π0. We will
+then align the LLM on RLHF data (prompt set), which we assume is taken from a distribution x ∼d0. For
+preference learning, the way to gather information from the environment is to compare two different actions
+under the same state. Considering this, we assume that the agent can perform a pair of actions, aligning
+with precedents in existing literature (Novoseller et al., 2020; Pacchiano et al., 2021). In applications, we
+want the resulting LLM π to be close to π0, and our goal is to find a policy π from some policy class Π to
+maximize
+J(π) = Ex∼d0Ea∼π(·|x)
+
+r∗(x, a) + η log π0(a|x)
+π(a|x)
+
+= Ex∼d0
+
+Ea∼π(·|x)[r∗(x, a)] −ηDKL(π(·|x)∥π0(·|x))
+
+, (2)
+where η > 0 is the KL penalty coefficient. This formulation is widely studied in practice (Ziegler et al., 2019;
+Wu et al., 2021a; Ouyang et al., 2022; Rafailov et al., 2023; Liu et al., 2023a), and our paper aims to study
+its theoretical property.
+Usually, we have a function class F for approximating the ground truth r∗. Following Pacchiano et al.
+(2021); Kong and Yang (2022); Zhu et al. (2023a), we make the following assumption for a clear presentation
+because it suffices to illustrate our ideas and the algorithmic design in this paper can also apply to the general
+case. The analysis also readily generalizes to general function class using standard complexity measures in
+RL theory literature (Russo and Van Roy, 2013; Gentile et al., 2022), which essentially state that there are
+some low-rank structures in reward model.
+Assumption 1. Assume that the reward function is parameterized by rθ(x, a) = ⟨θ, ϕ(x, a)⟩for feature
+extractor ϕ : X ×A →Rd. We also assume that r∗(x, a) = ⟨θ∗, ϕ(x, a)⟩for some θ∗∈Rd. For regularization,
+we assume that ∥ϕ(x, a)∥≤1 for all possible (x, a) ∈X × A and ∥θ∥≤B. We also denote γ = 1/(2 +
+exp(−B) + exp(B)).
+Notation. We use ∥z∥Σ to denote the induced norm
+√
+z⊤Σz for some positive-definite matrix. We also
+define ϕ(x, π) := Ea∼π(·|x)ϕ(x, a) to simplify the presentation. We use eO when we omit the logarithmic
+factors. A notation table is provided in Table 4 to improve the readability of this paper.
+2.2
+The Insufficiency of Classic Frameworks
+The classic RLHF framework adopted by Ziegler et al. (2019); Ouyang et al. (2022) can be divided into
+two stages: 1) reward modeling, and 2) policy optimization against the learned reward. We summarize the
+7
+
+details of this method in this subsection.
+Maximum Likelihood Estimation for reward modeling. Given a preference dataset D consists of
+numerous tuples, such as (x, a1, a2, y), where y is the preference signal. Specifically, y = 1 means a preference
+for a1 ≻a2, while y = 0 indicates a1 ≺a2. Given a dataset D = {(x, a1, a2, y)}, we can write the log-
+likelihood function of the BT models as follows:
+ℓD(θ) =
+X
+(x,a1,a2,y)∈D
+h
+y log
+
+σ
+ rθ(x, a1) −rθ(x, a2)
+
++ (1 −y) log
+
+σ
+ rθ(x, a2) −rθ(x, a1)
+i
+.
+(3)
+We can compute the maximum likelihood estimator (MLE) rMLE based on D as θMLE = argmaxθ∈Θ(B) ℓD(θ)
+with Θ(B) = {θ ∈Rd : ∥θ∥≤B}. In practice, the MLE is also conducted with the LLMs (Ouyang et al.,
+2022; Bai et al., 2022; Touvron et al., 2023) on the preference dataset.
+Policy Optimization and Oracle. With the learned reward in hand, to approximately optimize the target
+given in Equation (2), we simply call the seminal DRL method PPO with the following regularized reward:
+ˆr(x, a) = rMLE(x, a) −η log π(a|x)
+π0(a|x).
+To simplify the discussion, we first omit the computational challenges by defining the following information-
+theoretical policy improvement oracle, and defer a discussion on its practical implementations in Section 5.
+Definition 1 (Policy Improvement Oracle). For reward function r : X × A →R and a reference policy π0,
+for all x ∈X, we can compute the Gibbs policy (Lemma 11):
+πr(·|x) := argmax
+π∈Π
+Ea∼π(·|x)
+h
+r(x, a) + η log π0(a|x)
+π(a|x)
+i
+∝π0(·|x) · exp
+ 1
+η r(x, ·)
+
+.
+Accordingly, we take the policy class as Π :=
+
+π(·|x) ∝π0(·|x) · exp
+  1
+η ⟨θ, ϕ(x, ·)⟩
+
+: θ ∈Θ(B)
+	
+. However,
+even in this ideal case without worrying about tuning the RL method to its best performance, this useful
+framework suffers from the reward over-optimization issue (Gao et al., 2023).
+Intuitively, the finite D cannot cover the whole prompt-response space, and the fine-tuned reward model
+often performs poorly in the face of out-of-distribution data (Burns et al., 2023).
+Accordingly, the learned rMLE only aligns well with the ground truth r∗in certain distributions and we
+further illustrate this phenomena in Figure 2.
+In addition to the PPO algorithm, the direct preference learning methods have attracted significant attention
+recently due to its stability and competitive performance (Zhao et al., 2023; Rafailov et al., 2023; Azar et al.,
+2023; Ethayarajh et al., 2024). We use the DPO as a representative example and the intuition extends to
+other algorithms. We show that the DPO can be viewed as imposing constraints on the resulting policy by
+D. Informally, to converge to π∗, the DPO requires an infinite D to cover the whole prompt-response space.
+We defer the discussion to Appendix E.
+In recognition of the above issues, the primary goal of this work is to formally formulate the RLHF process,
+establish the mathematical foundation, and advance the practical algorithmic designs with the developed
+theoretical insights.
+2.3
+Preliminary
+In this section, we present some useful technical tools and lemmas for subsequent analysis.
+Value decomposition. We have the following lemma to decompose the value difference.
+8
+
+0
+20
+40
+60
+80
+100
+KL divergence between policy and initial policy
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2
+Ground Truth/Proxy Reward
+Proxy Reward
+Ground Truth Reward
+Figure 2: An illustration of the reward over-optimization adapted from Gao et al. (2023). Here the proxy
+reward is trained from the responses of π0.
+Therefore, in the early stage, the proxy reward aligns well
+with the gold reward in terms of the in-distribution responses. As reward gets higher, the distribution shift
+becomes larger, and since the training set is lacking in the coverage over these out-of-distribution responses,
+the proxy reward does not align with the gold reward in this stage.
+Lemma 1. Given a comparator policy π, we can decompose the suboptimality of ˆπ as follows:
+J(π) −J(ˆπ) = Ex∼d0
+h
+Eπ[r∗(x, a) −ˆr(x, a)] + Eˆπ[ˆr(x, a) −r∗(x, a)] + Eπ[ˆr(x, a)] −Eˆπ[ˆr(x, a)]
++ ηDKL(ˆπ(·|x)∥π0(·|x)) −ηDKL(π(·|x)∥π0(·|x))
+i
+,
+where ˆr : X × A →R is arbitrary.
+Proof. The equality can be verified directly by the definition of J(·) in Equation (2) and basic algebra.
+Policy improvement error. In standard RL setting, ˆπ is typically taken as a greedy policy of ˆr, leading
+to
+Eπ[ˆr(x, a)] −Eˆπ[ˆr(x, a)] ≤0.
+In the KL-constrained case, since the policy cannot be greedy or deterministic, we need to additionally
+handle the policy improvement error. The following lemma provides such an estimation when our policy is
+obtained by calling the Oracle 1 with ˆr.
+Lemma 2 (Policy optimization error). Suppose that π, ˆπ ∈Π so that π0, π, ˆπ have the same support. If ˆπ
+is induced by calling Oracle 1 with ˆr, it holds that
+Ex∼d0
+h
+Eπ[ˆr(x, a)] −Eˆπ[ˆr(x, a)] + ηDKL(ˆπ∥π0) −ηDKL(π∥π0)
+i
+= −ηEx∼d0DKL(π∥ˆπ).
+Here DKL(π∥π0) is short for DKL(π(·|x)∥π0(·|x)).
+We will provide the proof of the lemma in Appendix F. The analysis techniques are most similar to the
+policy gradient literature since they also consider the soft-max policies (Chen and Teboulle, 1993; Agarwal
+9
+
+et al., 2021; Cai et al., 2020; Zanette et al., 2021b; Yuan et al., 2022; Xiao, 2022; Zhong and Zhang, 2023;
+Uehara et al., 2024; Alfano et al., 2024). The main difference is that in their iterative choices of policy, for
+choosing πt, the reference policy they use is the policy of the last round, i.e., πt−1, while we always use the
+SFT-model π0 as our reference. We note that their algorithms essentially still use the non-KL-regularized
+reward as the target because though we prevent the policy from moving too far away in each individual step,
+the cumulative updates makes the reward estimations dominating in the final policy.
+Covariance matrix. Given a preference dataset D, a fixed λ > 0, we denote ΣD as the covariance matrix
+estimation:
+λI +
+X
+(x,a1,a2)∈D
+ ϕ(x, a1) −ϕ(x, a2)
+ ϕ(x, a1) −ϕ(x, a2)
+⊤.
+Both the algorithmic design and analysis will be centered on the covariance matrix. For the readers that
+are not familiar with the eluder-type techniques (or elliptical potential lemma in this case), we provide a
+brief introduction to the high-level intuition as follows. Given a training set D, the in-sample error on the
+observed data in D is given by
+∥θ1 −θ2∥2
+ΣD = λ∥θ1 −θ2∥2 +
+X
+(x,a1,a2)∈D
+ rθ1(x, a1) −rθ1(x, a2)
+
+−
+ rθ2(x, a1) −rθ2(x, a2)
+2
+,
+where we additionally add a regularization term λ∥θ1 −θ2∥2. Meanwhile, if we test the hypothesis (θ1 −θ2)
+on a newly observed data, the out-of-sample error would be given by |
+
+θ1 −θ2, ϕ(x, a1) −ϕ(x, a2)
+
+|. The
+ideal case would be that we can infer the out-of-sample error via the in-sample error, so we look at the ratio
+between them:
+|
+
+θ1 −θ2, ϕ(x, a1) −ϕ(x, a2)
+
+|
+∥θ1 −θ2∥ΣD
+≤
+∥ϕ(x, a1) −ϕ(x, a2)∥Σ−1
+D · ∥θ1 −θ2∥ΣD
+∥θ1 −θ2∥ΣD
+= ∥ϕ(x, a1) −ϕ(x, a2)∥Σ−1
+D ,
+where we take a square root on the in-sample error to keep them being of the same order and use Cauchy-
+Schwarz inequality (Lemma 7). Here, the ∥ϕ(x, a1) −ϕ(x, a2)∥Σ−1
+D is referred to as the elliptical potential in
+the literature of linear function approximation (Abbasi-Yadkori et al., 2011). The elliptical potential can be
+viewed as the uncertainty of ϕ(x, a1) −ϕ(x, a2), given the historical samples in D, and can be used to guide
+our exploration. The complexity of the reward model space is characterized by the following fact:
+Lemma 3 (Elliptical potential is usually small (Hu et al., 2022)). For a fixed λ > 0 and {zt}T
+t=1 ⊂Rd with
+∥zt∥≤1, we define Zt = λI + Pt−1
+s=1 zsz⊤
+s . Then, for any constant c > 0, ∥zt∥Z−1
+t
+> c happens at most
+3d
+log(1+c2) log
+
+1 +
+1
+λ log(1+c2)
+
+.
+The ratio between the out-of-sample error and the in-sample error in the linear case can be readily generalized
+to the general function approximation using the variant of eluder dimension considered in Gentile et al.
+(2022); Zhang (2023); Ye et al. (2023); Agarwal et al. (2023), which essentially states that there is some
+low-rank structure in the reward model space so the generalization is limited (the elliptical potential cannot
+be large for too many times). Moreover, if we can effectively estimate the in-sample error from the preference
+data, by Lemma 3, we can infer the out-of-sample error safely most of the time. Such an in-sample error
+estimation is provided in Lemma 8. Essentially, the eluder-type complexity measures and techniques reduce
+the learning problem to an online supervised learning (in-sample error estimation and minimization) (Zhong
+et al., 2022).
+10
+
+3
+Offline Learning with Pessimism
+3.1
+Setup
+In this section, we consider the offline setting, where we aim to learn a good policy from a pre-collected
+dataset without further interactions with the human. We suppose that we are given an offline preference
+dataset: Doff = {(xi, a1
+i , a2
+i , yi)}noff
+i=1. We denote Σoff := ΣDoff for offline setting. To motivate the algorithmic
+design, with a comparator policy π, we recall Lemma 1 and Lemma 2 to obtain that
+J(π) −J(ˆπ) = Ex∼d0
+h
+Eπ[r∗(x, a) −ˆr(x, a)] + Eˆπ[ˆr(x, a) −r∗(x, a)] −η · Ex∼d0
+
+DKL(π∗(·|x)∥ˆπ(·|x))
+i
+,
+(4)
+where ˆπ is induced by calling the Oracle 1 with ˆr. In other words, the sub-optimality depends on the quality
+of the learned reward ˆr, under the distributions induced by π and ˆπ, separately. As we have mentioned in
+Figure 2, the finite Doff from the behavior policy can hardly cover the whole prompt-space. The standard
+way to handle this issue is to leverage the principle of pessimism with a conservative reward (Jin et al.,
+2021b; Rashidinejad et al., 2021; Xie et al., 2021a; Zanette et al., 2021b), which means that we adopt an
+estimator that is a lower bound of the true value with high probability. A technical motivation for doing so
+is that in Equation (4), the second term Eˆπ[ˆr(x, a) −r∗(x, a)] is hard to control because both the estimation
+target (ˆr −r∗) and the distribution induced by ˆπ depend on Doff. Therefore, they are statistically dependent
+and characterizing this term is challenging.
+In this section, we connect the newly formulated KL-regularized bandit problem with the pessimism and
+show that the modified variants are sample efficient.
+3.2
+Algorithms
+We introduce two different ways to achieve pessimism.
+The first one is to directly penalize the reward
+estimation by an uncertainty estimator ˆr(x, a) = rMLE(x, a) −β · Γ(x, a, ν, Doff) so that ˆr(x, a) −r∗(x, a) ≤0
+for all (x, a) ∈X × A. The construction of the uncertainty bonus is a standard application of concentration
+inequality. Intuitively, the ˆr is an estimation of the ground truth r∗, and ˆr will converge to r∗with infinitely
+many samples that cover the whole feature space well. With finite samples, we can use the statistical tool
+(concentration inequalities) to quantify the estimation error, in the sense that with high probability,
+|r∗(x, a) −ˆr(x, a)| ≤Γ(x, a, ν, Doff),
+where ν is a reference vector so that the uncertainty is relative to feature ν, which makes sense under the
+preference learning nature. We omit the mathematical details here for a clear presentation and we defer the
+details to Appendix C.
+In addition to adopting a reward estimator with point-wise pessimism, we may also use a modified target
+that is biased toward pessimism by penalizing the uncertainty as in Equation (5). Here we do not maintain
+a confidence set but use a modified target that is biased toward pessimism, similar to Xie et al. (2021a);
+Zhang (2022), which may be easier to approximate in practice (Liu et al., 2023b). Moreover, to handle the
+additional trade-off between the reward and the KL term, we also incorporate the KL divergence into the
+policy computation.
+The full algorithmic framework is presented in Algorithm 1 and is referred to as the offline Gibbs Sampling
+from Human Feedback (GSHF) because the output policy is the Gibbs distribution with some reward.
+11
+
+Algorithm 1 Offline GSHF
+1: Input: Doff, λ > 0, β > 0, reference vector ν, and prompt distribution d0.
+2: Compute θMLE based on Doff by maximizing the likelihood given in Equation (3)
+3: Option I: Output ˆπ by constructing expected uncertainty estimator Γe(π, ν, Doff) and solving
+ˆπ = argmax
+π∈Π
+h
+Ex∼d0,a∼π(·|x)[rMLE(x, a)] −β · Γe(π, ν, Doff) −η · Ex∼d0[DKL(π(·|x)∥π0(·|x))]
+i
+.
+(5)
+4: Option II: Output ˆπ by constructing uncertainty estimator Γ(x, a, ν, Doff) and calling Oracle 1 with
+ˆr(x, a) = rMLE(x, a) −β · Γ(x, a, ν, Doff).
+3.3
+Main Results: Pessimism is Provably Efficient
+We now present the main theoretical guarantee for Offline GSHF.
+Theorem 1. Under Assumption 1, if we set β := O
+ q
+d+log(1/δ)
+γ2
++ λB2
+, for any λ > 0 and comparator
+policy π ∈Π, with probability at least 1−δ, the output policy of Algorithm 1 with Option I and Γe(π, ν, Doff) =
+∥Ex∼d0[ϕ(x, π) −ν]∥Σ−1
+off satisfies
+J(π) −J(ˆπ) ≤2β · ∥Ex∼d0[ϕ(x, π)] −ν∥Σ−1
+off ,
+and the output policy of Algorithm 1 with Option II and Γ(x, a, ν, Doff) = ∥ϕ(x, a) −ν∥Σ−1
+off satisfies
+J(π) −J(ˆπ) ≤2β · Ex∼d0,a∼π(·|x)∥ϕ(x, a) −ν∥Σ−1
+off −η · Ex∼d0
+
+DKL(π(·|x)∥ˆπ(·|x))
+
+.
+We can combine the guarantee with dataset property, usually referred to as the coverage on the comparator
+policy π (Jin et al., 2021b; Xie et al., 2021a), to obtain the concrete bound. See Proposition 2 for an concrete
+example. The proof of the theorem is rather standard in offline learning based on the principle of pessimism
+but with a different analysis to handle the KL and the stochastic policy. We defer the proof of the theorem
+to Appendix C. The reference vector ν in Algorithm 1 is typically set as Ex∼d0[ϕ(x, πref)] for some available
+πref. As showcased by Zhu et al. (2023a), the subtracted reference vector can serve as a pre-conditioner for
+a better suboptimality bound. For instance, one typically choice is πref = π0 so that π0 achieves a reward of
+zero (Ouyang et al., 2022; Gao et al., 2023; Dong et al., 2023).
+Comparison of two implementations of pessimism. In comparison, the Option I achieves a sharper
+bound in the uncertainty bonus because the expectation is inside the norm and by Jensen’s inequality
+(Lemma 6) we know that
+∥Ex∼d0[ϕ(x, π)] −ν∥Σ−1
+off ≤Ex∼d0,a∼π(·|x)∥ϕ(x, a) −ν∥Σ−1
+off .
+Moreover, Option I has a desirable robust improvement property.
+If we take ν = Ex∼d0[ϕ(x, πref)], the
+resulting policy will be better than πref, regardless of the coverage of the Doff according to Theorem 1,
+which is similar to the original offline RL literature for a robust policy improvement (Bhardwaj et al.,
+2023). We will also see that the use of a reference policy πref can also simplify the algorithmic design in
+subsequent Section 4. However, the main advantage of Option II is that the Oracle 1 can be empirically well
+approximated. For instance, we can directly plug the pessimistic reward into the PPO algorithm. Moreover,
+we have the following algorithm in a direct preference learning manner that resembles that of Rafailov et al.
+(2023); Zhao et al. (2023); Azar et al. (2023). We defer a detailed discussion to Section 5.
+12
+
+4
+Online Iterative Learning with Batch Exploration
+4.1
+Setup: Batch Hybrid Learning
+Beyond the offline learning, it is also common to query human feedback during the training process. For in-
+stance, Bai et al. (2022); Touvron et al. (2023) typically iterate the RLHF process on a weekly cadence, where
+the fresh RLHF models are deployed to interact with crowdworkers and to collect new human preference
+data.
+We consider a slightly more general setting here, where we refer it to as the hybrid learning. This is because
+while it is possible to learn from scratch, in many cases, we tend to start with the offline open-source datasets
+(Touvron et al., 2023; Bai et al., 2023). For instance, in LLaMA2 (Touvron et al., 2023), the authors start
+with 1500K open-source comparison pairs Doff and keep Doff in the data mixture for the entire RLHF
+process. Motivated by the practical applications, we formulate the process as a batch hybrid framework in
+this section. It is shown that such a batch online framework can significantly improve the aligned LLMs as
+evaluated by the humans (Bai et al., 2022; Touvron et al., 2023). For completeness, we also develop the pure
+online setting in Appendix B. Mathematically, consider the batch hybrid setting of T batches with a fixed
+batch size m.
+The agent initializes with the Doff (if applicable, otherwise initialize as empty). For each iteration t ∈[T],
+• we first update the policy pair (π1
+t , π2
+t ) based on the historical data collected so far: Doff and D1:t−1;
+• we collect m tuples as Dt: we sample a random prompt by xt,i ∼d0, collect two responses by
+(a1
+t,i, a2
+t,i) ∼(π1
+t , π2
+t ), and query the preference signal yt,i from the underlying BT model;
+• the next iteration begins.
+The main technical challenge here is to decide the behavior policy pairs (π1
+t , π2
+t ). It is well known that it is
+important to strike a balance between exploration and exploitation to get RL works (Auer et al., 2002), and
+we study such a trade-off in the context of online iterative RLHF.
+4.2
+Algorithms
+Non-symmetric algorithmic structure. Our first idea is to adopt a non-symmetric structure in choosing
+π1
+t and π2
+t . Specifically, we refer the π1
+t as the main agent, which aims to learn a good policy so that the
+suboptimality gap J(π∗) −J(π1
+t ) is small. In contrast, the second agent, referred to as the enhancer, seeks
+to enhance the learning of the main agent by choosing appropriate π2
+t .
+The main advantage of such a
+non-symmetric structure is that we have a lot of freedoms to choose π2
+t because we do not worry about the
+sub-optimality incurred by it (Jin et al., 2021a; Xiong et al., 2022b; Huang et al., 2021).
+From a high level, the Online Iterative GSHF Algorithm continuously enhances the historical dataset by
+strategically interacting with the human labeller. Specifically, in Algorithm 2, the main agent always ex-
+ploits all the historical information by taking the optimal policy induced from the MLE rMLE. This process,
+however, requires the newly collected data can provide more information, compared to those collected pre-
+viously. We divide the problem into two different situations.
+Option I. If the Doff is diverse enough and provides us with a good coverage in terms of the (π∗, πref), we
+do not need to actively explore and can take π2
+t = πref directly2;
+2We also mention in passing that for most of the cases, πref = π0. We use πref for a slightly more general formulation.
+13
+
+Algorithm 2 Online Iterative GSHF
+1: Input: m, Π, Doff (if applicable, otherwise Doff = ∅), β.
+2: for t = 1, 2, · · · , T do
+3:
+Observe xt,i ∼d0 for i = 1, 2, · · · , m 1.
+4:
+Exploitation with the main agent: denote the MLE rMLE with the likelihood in Equation (3) and
+compute the best guess we have so far:
+π1
+t = argmax
+π∈Π
+Ex∼d0Ea∼π(·|x)
+h
+rMLE(x, a) −ηDKL(π(·|x)∥π0(·|x))
+i
+.
+(6)
+5:
+Exploration with the enhancer:
+6:
+Option I: if Doff can provide good coverage, no need to explore so π2
+t = πref;
+7:
+Option II: otherwise, choose π2
+t by maximizing the relative uncertainty relative to π1
+t :
+argmax
+eπ
+Γm
+t (λ, π1
+t , eπ) := β ·
+m
+X
+i=1
+∥ϕ(xt,i, eπ) −ϕ(xt,i, π1
+t )∥Σ−1
+t,m
+subject to: eπ ∈Πt = {π′ ∈Π : η · Ex∼d0DKL(π′(·|x), π1
+t (·|x)) ≤Γm
+t (λ, π1
+t , π′)},
+where Σt,m = λI + 1
+m
+t−1
+X
+i=1
+m
+X
+j=1
+(ϕ(xi,j, a1
+i,j) −ϕ(xi,j, a2
+i,j))(ϕ(xi,j, a1
+i,j) −ϕ(xi,j, a2
+i,j))⊤.
+(7)
+8:
+Sample a1
+t,i ∼πt and a2
+t,i ∼π2
+t , receive human feedback for all i ∈[m], and collect them as Dt.
+9: end for
+10: Output: the best model in π1
+1:T by a validation set.
+Option II. If we cannot expect to have a diverse Doff, the enhancer aims to maximizes the uncertainty
+relative to the main agent π1
+t , while maintaining a moderate KL divergence3. In this case, the π2
+t aims to
+explore toward the direction that maximizes the uncertainty relative the main agent π1
+t . We additionally
+impose a constraint:
+eπ ∈Πt = {π′ ∈Π : η · Ex∼d0DKL(π′(·|x), π1
+t (·|x))
+|
+{z
+}
+How far does the enhancer go.
+≤
+Γm
+t (λ, π1
+t , π′)
+|
+{z
+}
+How much information we can get.
+},
+where this set is never empty because π1
+t always belongs to it so the choice is well-defined. Intuitively, we
+require that the information we can get is worth the cost we pay by moving away from π1
+t .
+Essentially, we are trying to boost our dataset by strategically choose the behavior policies at each iteration.
+If we learn from scratch or the offline dataset is not good enough, we need to explicitly incorporate the
+uncertainty into algorithmic design, and explore the direction where we are uncertain about so that we can
+gain more information. On the other hand, if Doff is already good enough, our analysis shows that it is also
+beneficial to collect more online data, as we now discuss in the next subsection.
+4.3
+Main Results: RLHF Benefits from Online Exploration
+We first consider the case of Option I: π2
+t = πref. In this case, it is essential to have a diverse Doff as we do
+not explicitly explore. This is most related to the study of hybrid RL in the classic RL theory (Song et al.,
+2022; Zhou et al., 2023). The major difference here is that for preference-based learning, the uncertainty
+3We remark that we impose an additional KL regularization on π2
+t is so that it also converges to π∗.
+14
+
+is evaluated on the feature difference instead of a single state-action pair, as we summaize in the following
+assumption.
+Assumption 2 (Partial Coverage of Offline Data). For the linear model, there exists a reference policy πref,
+a ratio coefficient α(mT, Doff) ∈(0, 1) and a coverage constant Ccov > 0 such that
+(mT)1−α(mT,Doff)∥Ex∼d0[ϕ(x, π∗) −ϕ(x, πref)]∥(Σoff)−1 ≤Ccov.
+We remark that Assumption 2 implicitly assume that noff is comparable to the total number of online
+samples mT so that the influence of Doff will not be dominated by the online data. To provide a more
+detailed understanding and connection to existing literature, we offer a more nuanced characterization of
+α(mT, Doff) under standard partial coverage conditions in Appendix D.1. In particular, when mT ≈noff, we
+show that α(mT, Doff) ≈1/2. It is worth emphasizing that this scenario appears to be realistic for LLMs.
+For example, in the LLaMA2 project (Touvron et al., 2023), we observe noff = 1500K and mT = 1400K.
+We are ready to present the results.
+Theorem 2. For any ϵ > 0, under Assumption 1 with T = min{n ∈N+ : n ≥d log(n)} and β =
+O
+ q
+d log(T/δ)
+γ2
+
+, with probability at least 1 −3δ, there exists a t0 ∈[T] such that Algorithm 2 with Option I
+holds
+J(π∗) −J(πt0) ≲
+s
+d
+γ2m + β · ∥Ex∼d0[ϕ(x, π∗) −ϕ(x, πref)]∥Σ−1
+off+D1:t0 −ηExt0∼d0
+
+DKL(π1
+t0(·|xt0)∥π∗(·|xt0))
+
+,
+where Σoff+D1:t0 denotes the covariance matrix computed on Doff ∪D1:t0. If we further assume that Assump-
+tion 2 holds, we have
+J(π∗) −J(πt0) ≲
+s
+d2
+γ2m + β(mT)α(mT,Doff)−1Ccov −ηExt0∼d0
+
+DKL(π∗(·|xt0)∥πt0(·|xt0))
+
+.
+The proof is deferred to Appendix D.3.
+Note that the second result is a conservative bound where we
+completely ignore the coverage provided by the online data D1:t0−1.
+We now qualitatively analyze the
+impact of the online data as follows.
+RLHF Benefits from Online Exploration. One natural question arises under Assumption 2: if we
+can directly apply Algorithm 1 to get a good policy, why should we collect online data? The difference is
+that now the second term corresponds to the coverage condition of Doff ∪D1:t0. Under Assumption 2, with
+suitable hyper-parameters (large enough m and suitable β), we know that π1
+t →π∗. Since the online data is
+collected by (π1
+t , πref) and the goal is to cover (π∗, πref), we expect that the intermediate policies can provide
+a much better coverage as compared to the Doff, i.e., a much smaller Ccov, for many average instances. We
+will partially verify this intuition in the experiment part.
+We now move to the case of Option II where we cannot expect to have a diverse Doff and need explicit
+exploration.
+We first show that with suitable β, the constructed confidence set contains π∗with high
+probability.
+Lemma 4 (Confidence set). For the linear model in Assumption 1, given the policy of the main agent π1
+t ,
+we consider the following confidence set with β = O
+ q
+d log(T/δ)
+γ2m
+
+:
+Πt =
+n
+eπ ∈Π : η
+m
+X
+i=1
+DKL(eπ(·|xt,i)∥π1
+t (·|xt,i)) ≤β
+m
+X
+i=1
+∥ϕ(xt,i, eπ) −ϕ(xt,i, π1
+t )∥Σ−1
+t,m
+o
+.
+Then, with probability at least 1 −δ, we know that π∗∈Πt for all t ∈[T].
+15
+
+We defer the proof to Appendix B.3 and present the main result for the Option II.
+Theorem 3. For any ϵ > 0, we set the batch size m = d/(γ2ϵ2).
+Under Assumption 1, with β :=
+O
+ q
+d log(T/δ)
+γ2m
+
+and λ = Θ
+ d log(T/δ)/(mγ2B2)
+
+, after T = min{n ∈N+ : n ≥d log(n)} iterations, we
+have with probability at least 1 −3δ, Algorithm 2 with Option II satisfies: there exists a t0 ∈[T],
+J(π∗) −J(π1
+t0) ≲ϵ −η · Ext0∼d0
+
+DKL(π∗(·|xt0)∥π1
+t0(·|xt0))
+
+,
+where the number of collected samples is at most mT = eO
+
+d2
+γ2ϵ2
+
+.
+Getting Rid of Data Coverage. One notable feature of Theorem 3 is that with explicit exploration,
+we do not need an offline dataset with good coverage, highlighting the importance of strategic explorations.
+This is particularly important in the context of LLMs because the distribution shift between LLMs are very
+large so data coverage is more sparse. For instance, along the way of finding the optimal policy of some
+learned reward function by PPO, the KL divergence to the initial checkpoint can be > 25 (Bai et al., 2022).
+Algorithmic Simplicity v.s. Data Coverage. We note that Option I and Option II are complementary
+to each other and hold their own values. Specifically, the Option I offers simplicity in algorithmic design,
+at the cost of demand for a high-quality Doff. In comparison, the online learning does not relies on the
+quality of Doff, but the choice of the enhancer is challenging because for the neural network, the uncertainty
+estimators do not admit a closed-form. In practice, we typically resort to heuristic methods (Wu et al.,
+2021b; Coste et al., 2023) to estimate the uncertainty, as we discuss in the experiment part of this paper.
+The advantage of reward modeling. Theorem 2 and Theorem 3 reveal a key characteristic of reward
+modeling: the sample complexity is dependent on the complexity of the reward model rather than the
+generative models. For simple reward functions, such as sentiment or politeness evaluation, the required
+function class is substantially smaller compared to the generative model. This is corroborated by evidence
+showing that even compact models like BERT (Devlin et al., 2018) can yield accurate reward assessments.
+This may illustrate the advantage of the most popular RLHF framework used by Ouyang et al. (2022); Bai
+et al. (2022); Touvron et al. (2023), in contrast to the idea of bypassing reward modeling (Rafailov et al.,
+2023; Zhao et al., 2023; Azar et al., 2023) and training based only on the offline dataset.
+5
+Implementations of GSHF
+In this section, we discuss how to practically implement the information-theoretical Algorithm 1 and Al-
+gorithm 2.
+From a high level, the GSHF framework can be implemented by combining many existing
+algorithms to approximate the computational Oracle 1. Notable examples include PPO, DPO, and InfoNCA
+(Chen et al., 2024). Here, we focus on the PPO and DPO and discuss several popular ways to implement it.
+In practice, the policy is represented by a deep neural network. In this case, one common choice (Ziegler
+et al., 2019; Wu et al., 2021a; Ouyang et al., 2022; Bai et al., 2022) is to use the standard deep RL algorithms
+like PPO to optimize the regularized reward:
+er(x, a) = r(x, a) −η log πθ(a|x)
+π0(a|x).
+However, PPO is significantly less stable and sensitive to implementation as compared to SFT (Choshen
+et al., 2019; Engstrom et al., 2020). Recently, another line of work considers a family of algorithms that
+directly learn from the preference data without reward modeling, including the DPO (Rafailov et al., 2023),
+SLIC (Zhao et al., 2023), IPO (Azar et al., 2023). These algorithms attracted significant attention due to
+16
+
+its stability and easy implementation. We use the DPO as a representative example here. Specifically, DPO
+chooses to train the LLM as a reward model, by optimizing the following loss:
+X
+(x,aw,al)∈Doff
+−
+h
+log σ
+
+η log πθ(aw|x)
+π0(aw|x) −η log πθ(al|x)
+π0(al|x)
+i
+,
+(8)
+where aw, al is the chosen/rejected response.
+It is shown that the optimal policy for the DPO loss in
+Equation (8) is identical to the one for the RLHF objective πr when r is the MLE (Azar et al., 2023). To fit
+the DPO into the GSHF framework, we generalize this result to incorporate the pessimism.
+5.1
+Direct Preference Learning with Pessimism
+For notation simplicity, we denote the uncertainty bonus as Γ(x, y) and omit the dependency on ν and Doff.
+Then, we have the following proposition.
+Proposition 1 (Direct Preference Learning with Pessimism). Given the preference dataset Doff, we can
+implement Option II of Algorithm 1 by minimizing the following loss function:
+LDoff(θ, π0) =
+X
+(x,aw,al)∈Doff
+log σ
+
+η log πθ(aw|x)
+π0(aw|x) −η log πθ(al|x)
+π0(al|x) + (Γ(x, aw) −Γ(x, al))
+|
+{z
+}
+m(x,aw,al)
+
+,
+(9)
+where yw is preferred over yl.
+Intuitively, we add an adaptive margin for each preference pair (x, aw, al) according to their uncertainty
+difference. We defer the proof to Appendix C.2.
+Uncertainty Estimation via Ensemble. The uncertainty estimation for the general neural network is
+still an open problem. In practical applications, we typically resort to heuristic methods. For instance, Coste
+et al. (2023) uses the idea of ensemble to get the pessimistic reward model. Specifically, they independently
+train 5 reward models {ri}5
+i=1 and subtract the variance:
+ˆr(x, a) := 1
+5
+5
+X
+i=1
+ri(x, a) −λ1
+5
+5
+X
+i=1
+ ri(x, a) −1
+5
+5
+X
+j=1
+rj(x, a)
+2.
+It is shown that such a pessimistic version of the reward model can significantly reduce the reward over-
+optimization for PPO and best-of-n sampling (Nakano et al., 2021).
+5.2
+Enhancer Explores with Variants of Main Agent Policy
+For the online exploration, selecting an appropriate optimistic policy for the enhancer to maximize the
+uncertainty with respect to the main agent π1
+t is largely less explored in practical applications.
+To be
+specific, we recall that our goal is to find an enhancer policy from the following policy subset:
+eπ ∈Πt = {π′ ∈Π : η · Ex∼d0DKL(π(·|x), π1
+t (·|x))
+|
+{z
+}
+How far does the enhancer go.
+≤
+Γm
+t (λ, π1
+t , π′)
+|
+{z
+}
+How much information we can get.
+}.
+While it is challenging to obtain the analytical solution of uncertainty, the insight here is to maximize the
+policy difference with π1
+t , while maintaining a moderate KL divergence. We discuss some popular heuristic
+implementations here.
+17
+
+Model Variants. In the project of Claude (Bai et al., 2022), the authors choose to use the models with
+different training steps as (π1
+t , π2
+t ). For instance, if we run PPO for 2 epoch in total, we may take π1
+t as the
+model saved at the end of the first epoch and take π1
+t as the one saved at the end of second epoch. Moreover,
+in addition to the model variants, the LLaMA2 project (Touvron et al., 2023) further adjusts the sampling
+temperature of π1
+t to induce π2
+t .
+Rejection Sampling. A popular ensemble-based approach in the literature is the so-called rejection sam-
+pling (Nakano et al., 2021; Dong et al., 2023; Liu et al., 2023a). We present a brief introduction to the
+concept of rejection sampling in Appendix A.1. In the context of LLM, however, the rejection sampling
+is usually restricted to the best-of-n sampling. Specifically, we sample n independent responses by π1
+t for
+each prompt, and then use a reward function to rank them and take the one with the highest reward as the
+final output. In other words, we take π2
+t as the best-of-n variant of π1
+t . In this way, the π2
+t enlarges the
+margins between π1
+t . Meanwhile, in this case, the KL divergence between the two policies is upper bounded
+by log n −n−1
+n
+and is usually far better than this conservative estimation (Beirami et al., 2024). We note
+that similar idea has been adopted in Liu et al. (2023a); Hoang Tran (2024); Yuan et al. (2024) for improving
+DPO.
+5.3
+Offline Learning with Pseudo-Labeling
+We now consider a family of approaches that may slightly deviate from the main story of the paper but are
+beneficial to clarify some confusing concepts in RLHF. In the formulation of RLHF, we define the offline
+learning as learning without further querying the human feedback (the underlying ground-truth BT model),
+while we define the online learning as the scenario where we can query the humans along the way of training.
+In this sense, there are several existing algorithms in the literature are classified as offline one:
+• PPO with a fixed reward (Christiano et al., 2017; Ziegler et al., 2019);
+• RAFT (rejection sampling fine-tuning, or iterative SFT) (Dong et al., 2023): we generate n responses
+for each prompt, and use a fixed reward to rank them, and fine-tune the model on those with high
+rewards;
+• RSO (DPO with rejection sampling) (Liu et al., 2023a): we generate n responses and use statistical
+rejection sampling to approximately sample from π0(·|x) exp( 1
+ηr(x, ·)) and use these samples to run
+DPO.
+All these algorithms do not query new human feedbacks during the training. Instead, they first train a proxy
+reward ˆr, and use ˆr to label the model-generated samples for the subsequent training. In particular, it is
+known that
+• PPO and RAFT outperform the SFT-baseline, which fine-tunes the models on the preferred samples
+(Dong et al., 2023; Yuan et al., 2023);
+• RSO outperforms DPO (Liu et al., 2023a).
+In other words, while we are prohibited from collecting the ground-truth preference label, the offline RLHF
+benefits from the pseudo labels from the learned reward, which resembles the insights of the semi-supervised
+learning. One reasonable hypothesis is that the reward model may generalize better than the policy in terms
+of sample complexity, i.e., reward model has better preference classification accuracy given a fixed number
+of samples. Some empirical results (Li et al., 2023a) can also support the hypothesis.
+multi-step RSO. Motivated by RSO (rejection sampling improves DPO) and RAFT (iterative learning is
+more efficient), we propose a multi-step rejection-sampling-based offline DPO algorithm, referred to as the
+18
+
+multi-step RSO. To motivate our method, we first review the main challenge of RSO. Liu et al. (2023a)
+found that the usage of offline datasets typically impedes the effectiveness of DPO-based algorithms. This
+negative impact is particularly pronounced when there is a disparity between the distribution of offline data
+and the target distribution. Consequently, they trained a reward model, denoted as r, and approximated
+samples from πr using rejection sampling. In this case, they generate samples from the optimal policy of
+the underlying BT model associated with r and get Dgen = {(x, a1, a2, y)}. The authors suggested that this
+is more suitable for DPO training and leads to better performance. The key basis of the success of RSO is
+that the rejection sampling can well approximate πr.
+However, in practice, the rejection rate can be so large that the sampling is not effective. Given a prompt-
+response pair (x, a), the rejection rate is 1 −exp(−η−1(R(x) −r(x, a))), where R(x) is the largest pos-
+sible reward over all a ∈A.
+For example, given η > 0, if the samples drawn from π0(a|x) satisfies
+Ea∼π0(a|x) exp(η−1r(x, a)) = exp(−η−1(rx −R(x))), the expected acceptance rate becomes exp(−rx
+η ), where
+rx is the reward gap between average sample and the best sample given prompt x. Setting rx = 1 and
+η = 0.1 yields a notably low acceptance rate of approximately 0.00004. Essentially, the majority of samples
+are rejected, necessitating a substantial number of sampled candidates to produce a single accepted com-
+parison pair. In the practical implementation of RSO (Liu et al., 2023a), we typically fix the total budget
+of candidate responses and the number of samples to be accepted. In this case, due to the low sampling
+efficiency, the collected samples may not well approximate the target distribution, and train on these samples
+can lead to inferior performance compared to the original DPO.
+To mitigate this issue and to make the algorithm more effective, we propose a multi-step approach to
+progressively achieve our ultimate target. Instead of using π0 to approximate π0 exp( 1
+ηr) directly, we divide
+the path into several steps by considering a sequence of distributions
+π0 →π0 exp( 1
+η1
+r) →· · · →π0 exp( 1
+ηN
+r),
+where η0 = ∞(i.e., π0), ηN = η.
+The high-level intuition is that while approximating πr from π0 is
+hard, approximating π0 exp( 1
+ηi r) with π0 exp(
+1
+ηi−1 r) is much easier.
+Therefore, we can do the rejection
+sampling step by step. Considering the case Ea∼π0(a|x) exp(η−1r(x, a)) = exp(−η−1(rx −R(x))), by choosing
+N = [rx/η] + 1 steps, the acceptance rate at each step becomes an O(1) probability exp(−
+rx
+η([rx/η]+1)) >
+exp(−1) > 0.367. The acceptance rate can be exponentially increased with the number of steps, i.e., N
+steps correspond to an exp(N) increase in the acceptance rate. We also provide a numerical example in the
+Appendix (Figure 7).
+6
+Experiments
+In this section, we conduct real-world alignment experiments to verify the theoretical findings in the previous
+sections. For a clear presentation, we refer the Algorithm 2 with Option I as Hybrid GSHF to stress that
+we need a good offline dataset Doff to avoid explicit exploration and take π2
+t = π0. Meanwhile, we refer
+Algorithm 2 with Option II as Online GSHF to stress the need of online explorations. We describe the main
+setup, competitors, and results in this section, and defer some omitted details to Appendix H for a clear
+presentation.
+6.1
+Experiments Setup
+Model, and Task. We use the Open-LLaMA-3B-V2 (Geng and Liu, 2023) as the pretrained model and
+use the helpful subset of the Anthropic HH-RLHF dataset (Bai et al., 2022) (see Table 1 for a sample
+example). We delete the noisy samples (e.g., with the same chosen and rejected responses), and prompts
+19
+
+longer than 400 tokens, and eventually get 103K training set and 5K test set. We also sample a subset
+of the UltraFeedback (Cui et al., 2023), consisting of 5K prompts, as another out-of-distribution test set.
+Meanwhile, the UltraRM-13B (Cui et al., 2023) will be used as the ground truth reward model, also referred
+to as the gold reward, which is trained on a mixture of UltraFeedback, Anthropic HH-RLHF, and other
+open-source datasets based on LLaMA2-13B. For all the experiments, we fix the KL penalty in the learning
+target Equation (2) as η = 0.1.
+Offline Data Doff Generation and Initial Checkpoint. Following Gao et al. (2023); Coste et al. (2023),
+we use the training prompts to generate responses by an Open-LLaMA-3B-V2 model that is fine-tuned on
+the preferred responses of the original HH-RLHF dataset4. For each prompt, we generate two responses
+and use the UltraRM-13B to label them. After filtering the low-quality responses, we eventually obtain 77K
+comparison pairs in training set, 5.6K pairs as the validation set. We also set 20K samples as the “SFT”
+split to get the RLHF starting checkpoint π0.
+HH-RLHF Examples
+Prompt:
+Human: How can I get my girlfriend to cook more?
+Assistant: Have you tried reminding her of how nice the food tastes?
+Human: I could do it more.
+Assistant:
+Responses:
+Chosen aw: That might work. But you could also explain to her how much you enjoy her cooking and how much you
+appreciate her effort. Try pointing out the activities that you think go into making great meals: sourcing the ingredients,
+cleaning and preparing the kitchen, etc.
+Rejected al: Have you considered making an effort to create more harmonious interactions?
+Table 1: An example of HH-RLHF dataset: A prompt-response pair with both chosen and rejected samples.
+Setup of offline learning and hybrid learning. For offline learning, we learn from the offline dataset
+Doff, and cannot further query human feedback in the training though it is possible to leverage the model
+itself to generate more responses. For hybrid learning, we start with a subset of Doff, consisting of 25K
+comparison pairs, and then fix the budget of online human feedback as 52K, leading to a total number of
+queries consistent with the offline learning for a fair comparison. For all the hybrid algorithms, we will iterate
+for three steps.
+Method, Competitor and Evaluation. In our experiments, we compare the performance of the following
+algorithms.
+• SFT on the preferred samples;
+• Offline DPO (Rafailov et al., 2023);
+• RSO (Liu et al., 2023a);
+• Hybrid-GSHF-DPO where we adopt the DPO as the computational oracle (this work);
+• Multi-step RSO (this work).
+The representative models of different RLHF methods will be measured by the gold reward of UltraRM-13B
+and the KL divergence Ex∼d0DKL(π(·|x)∥π0(·|x)), which are both evaluated on the split test set.
+4While it is possible to include other high-quality dialog datasets from Chat-GPT (like ShareGPT), we decide not to do
+this in this round of experiment. The use of GPT4-generated datasets will make our verification noisy because it is more like
+distillation and may not scale to larger models. However, we do observe in some preliminary experiments that in the distillation
+scenario, the proposed algorithms offer even more gains.
+20

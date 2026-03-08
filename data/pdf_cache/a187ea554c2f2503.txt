@@ -1,0 +1,2773 @@
+1
+Prompting Video-Language Foundation Models
+with Domain-specific Fine-grained Heuristics for
+Video Question Answering
+Ting Yu, Member, IEEE, Kunhao Fu, Shuhui Wang, Member, IEEE, Qingming Huang, Fellow, IEEE,
+Jun Yu, Senior Member, IEEE
+Abstract—Video Question Answering (VideoQA) represents a
+crucial intersection between video understanding and language
+processing, requiring both discriminative unimodal comprehen-
+sion and sophisticated cross-modal interaction for accurate in-
+ference. Despite advancements in multi-modal pre-trained mod-
+els and video-language foundation models, these systems often
+struggle with domain-specific VideoQA due to their generalized
+pre-training objectives. Addressing this gap necessitates bridging
+the divide between broad cross-modal knowledge and the specific
+inference demands of VideoQA tasks. To this end, we introduce
+HeurVidQA, a framework that leverages domain-specific entity-
+action heuristics to refine pre-trained video-language foundation
+models. Our approach treats these models as implicit knowledge
+engines, employing domain-specific entity-action prompters to
+direct the model’s focus toward precise cues that enhance
+reasoning. By delivering fine-grained heuristics, we improve the
+model’s ability to identify and interpret key entities and actions,
+thereby enhancing its reasoning capabilities. Extensive evalua-
+tions across multiple VideoQA datasets demonstrate that our
+method significantly outperforms existing models, underscoring
+the importance of integrating domain-specific knowledge into
+video-language models for more accurate and context-aware
+VideoQA.
+Index Terms—video question answering, discriminative uni-
+modal comprehension, cross-modal interaction, domain-specific
+heuristics, video-language foundation models, entity-action rela-
+tionships, context-aware reasoning.
+I. INTRODUCTION
+T
+HE evolution of large-scale text pre-training has sig-
+nificantly advanced the capabilities of Large Language
+Models (LLMs) [1], [2], [3] such as GPT-3 [4] and BERT [5],
+empowering them with an unprecedented ability to compre-
+hend and process complex linguistic structures. These break-
+throughs have paved the way for sophisticated natural language
+processing applications [6], [7]. Building on the success of
+This work was supported by National Natural Science Foundation of
+China under Grant No. 62002314 and Zhejiang Provincial Natural Science
+Foundation of China under Grant No. LY23F020005.
+T. Yu and K. Fu are with the School of Information Science and Tech-
+nology, Hangzhou Normal University, Hangzhou 311121, China (e-mail:
+yut@hznu.edu.cn; fukunhao@stu.hznu.edu.cn).
+S. Wang is with the Key Laboratory of Intelligent Information Processing,
+Institute of Computing Technology, Chinese Academy of Sciences, Beijing
+100190, China (e-mail: wangshuhui@ict.ac.cn).
+Q. Huang is with the School of Computer Science and Technology,
+University of Chinese Academy of Sciences, Beijing 101408, China (e-mail:
+qmhuang@ucas.ac.cn).
+J. Yu is with the Key Laboratory of Complex Systems Modeling and
+Simulation, School of Computer Science and Technology, Hangzhou Dianzi
+University, Hangzhou 310018, China (email: yujun@hdu.edu.cn).
+Action-Entity Heuristic Generation
+Heuristic Boosting Answer Inference
+A
+(Q)
+How did the bride 
+react when the lady 
+in grey hugged her?
+(V)
+(H)
+<Action - [verb],  0.78>
+<Entity - [noun],  0.38>
+…
+[CLS] A video of  [noun]
+[CLS] A video of  [verb]
+…
+A
+(Q)
+VFMs
+(V)
+VFMs
+Actions
+Entities
+(Q)
+(V)
+EAPrompter
+(P)
+(V)
+(He)
+(Ha)
+(P)
+QA Head
+EAPrompter
+VFMs
+QA Reasoner
+(1)
+(2)
+Fig. 1. Comparison of Recent Advanced VideoQA Models with the Proposed
+HeurVidQA Framework: (1) Recent methods utilize VFMs to generate gen-
+eral, domain-agnostic representations, complemented by task-specific heads
+for question-answering. (2) Our HeurVidQA framework enhances VFMs by
+integrating domain-specific entity-action prompts, blending implicit general
+knowledge with fine-grained domain-specific insights, to improve cross-modal
+understanding and reasoning in VideoQA tasks.
+LLMs, the development of Large Multi-modality Pre-trained
+Models (LMMs) [8], [9], [10], [11], exemplified by models
+like CLIP [12] and DALL-E [13], represents a significant
+leap forward by integrating textual and visual data during pre-
+training. This fusion has driven remarkable progress in fields
+requiring deep cross-modal understanding, including robotics
+[14], medical diagnostics [15], [16], and interactive gaming
+environments [17].
+Video Question Answering (VideoQA) [18], [19], [20], [21]
+stands out as a particularly challenging yet rapidly growing
+field within vision-language bridging research [22], [23]. It
+demands both discriminative unimodal understanding [5], [24],
+[25] and comprehensive cross-modal interaction [12], [22],
+[26], [27], integrating video understanding with language
+processing to infer reliable answers. While traditional ap-
+proaches have explored enhanced video-linguistic models [28],
+[29] and adaptive cross-modal interactions [30], the advent
+of Video Language Foundation Models (VFMs) [22], [31],
+[32], such as ALPRO [33] and SiaSamRea [34], has brought
+about a paradigm shift. These models, pre-trained on extensive
+video-text datasets [35], [36], have been pivotal in equipping
+machines with broad cross-modal knowledge, setting new
+standards for video content interpretation and advancing the
+boundaries of VideoQA [18], [19], [20].
+arXiv:2410.09380v1  [cs.CV]  12 Oct 2024
+
+2
+Despite the advanced capabilities of VFMs, their general-
+ized pre-training often underperforms in specialized VideoQA
+domains. This gap underscores the need for precise, context-
+aware adaptations to fully harness these models. Integrating
+prompt engineering with VFMs offers a promising solution
+by providing tailored prompts that steer the models toward
+domain-specific challenges, ensuring more accurate outcomes.
+However, the success of prompt-based approaches heavily
+relies on the design and quality of the prompts themselves.
+This is particularly true in VideoQA, where understanding the
+interplay between entities and their actions within videos is
+paramount. Generic prompts may not suffice for tasks that
+demand deep, context-specific insights, underscoring the need
+for a more refined strategy.
+In this study, we introduce HeurVidQA, a novel framework
+designed to enhance video-language foundation models with
+domain-specific entity-action heuristics to address the complex
+demands of VideoQA. These complex demands arise from the
+need to process diverse and intricate video content, requiring
+not only an understanding of temporal sequences and spatial
+relationships but also the ability to handle varied question
+types that demand nuanced, context-aware reasoning. Our
+approach transforms these large-scale models into dynamic
+knowledge engines capable of navigating such intricate content
+with high precision and adaptability. We employ a strategy
+that integrates domain-specific, fine-grained heuristics into
+the prompt design, refining focus on essential cross-modal
+elements. As depicted in Figure 1, we utilize instantiated
+prompt templates and specific regions within video frames to
+enable the prompter to accurately identify dynamic actions
+that vary spatially and evolve entities over time. This strategic
+use of heuristic-based prompts, informed by a deep under-
+standing of key entities and their interactions, sharpens the
+model’s focus and enhances analytical depth. Subsequently,
+leveraging these finely designed, context-aware entity-action
+heuristics, we prompt VFMs to generate coherent and con-
+textually aligned responses.HeurVidQA underscores the crit-
+icality of recognizing key entities and actions for effective
+video content analysis. By ensuring the model’s focus aligns
+with the question intricacies specific to a video, we enable a
+more contextually informed and impactful analysis, yielding
+answers that are accurate and deeply contextualized.
+In summary, our contributions are threefold:
+• We introduce HeurVidQA, a framework that enhances
+video-language foundation models for VideoQA by in-
+tegrating general implicit priors with domain-specific,
+fine-grained knowledge, thereby improving cross-modal
+understanding and reasoning capabilities.
+• We develop a domain-specific prompting mechanism
+utilizing fine-grained entity-action heuristics to guide the
+model in accurately identifying and interpreting dynamic
+actions and evolving entities within videos.
+• We validate the effectiveness of our approach through
+comprehensive evaluations on four VideoQA datasets
+across different domains, demonstrating robust and gen-
+eralizable performance compared to existing methods.
+II. RELATED WORK
+A. Video Question Answering
+Video Question Answering (VideoQA) has emerged as a
+critical area in cross-modal research, driven by significant
+advancements in vision-language integration. Early efforts in
+this domain focused on adapting ImageQA models to video
+contexts, primarily leveraging LSTM-based encoders [37],
+[38]. However, these approaches were limited by their reliance
+on unimodal understanding, often failing to capture the in-
+herent temporal dynamics of video content. This shortcoming
+underscores the necessity for advancing research towards
+cross-modal understanding approaches. To address this, atten-
+tion mechanisms [39], [40] have been investigated to extract
+linguistically guided visual features. Further advancements
+include the development of hierarchical attention mechanisms
+[38], [41], co-memory networks [42], and heterogeneous
+memory-enhanced models [43], which have proven effective
+in modeling the complex interplay between video and question
+features. The advent of the Transformer model [44] brought
+a revolutionary shift in natural language processing (NLP)
+and found application in VideoQA by Li et al. [39]. This
+advancement significantly enhanced unimodal understanding
+within VideoQA. However, the visual modality’s limitations
+necessitated the development of novel cross-modal frame-
+works. Leveraging self-attention and co-attention mechanisms,
+Transformers facilitated deeper cross-modal interaction, en-
+abling the extraction of pertinent visual features. Addition-
+ally, structured representations, including heterogeneous graph
+alignment networks [45], structure-aware interaction models
+[46], and Dynamic Graph Transformers [18], further advanced
+reasoning capabilities in VideoQA. Recent studies in VideoQA
+have also tackled challenges related to confounders and com-
+positional reasoning. Grounding indicators [47] have been
+developed to mitigate spurious correlations, while question de-
+composition engines [48] offer valuable insights into composi-
+tional reasoning. To address confounding factors, multimodal
+causal reasoning frameworks [19] have been introduced, along
+with adaptive spatial-temporal attention mechanisms [20]. As
+research into multi-granularity advances, emerging approaches
+increasingly explore the impact of varying granularities on
+VideoQA performance [49], [50], [51], [52], focusing on
+multi-level intra- and inter-granularity relations to enhance
+cross-modal comprehension. Another approach [47], [53] to
+solving VideoQA tasks focuses on identifying video frames
+relevant to the question, drawing inspiration from similar
+text-to-video retrieval (TVR) tasks. For example, Wu et al.
+[54] explored both text-free and text-guided frame selection
+strategies in TVR, determining an optimal strategy that bal-
+ances accuracy and computational efficiency. In the context of
+multi-modal pre-training on large-scale vision-text data [55],
+[22], [9], [33], [26], [56], [12], Transformer-based models
+have demonstrated remarkable advancements. While prompt
+learning and engineering [12] have enhanced pre-training, the
+customization of prompts specifically tailored to entities and
+actions in videos remains underexplored. This paper addresses
+this gap by constructing task-specific prompts finely tuned to
+entities and actions, thereby enabling superior spatiotemporal
+
+3
+reasoning in VideoQA. Our novel approach enriches video
+content understanding, pushing the boundaries of VideoQA
+performance. In this paper, we introduce a novel heuristic
+knowledge engine, EAPropmter, designed to extract detailed
+action and entity information embedded in videos. By lever-
+aging diverse cropping strategies and customized prompt tem-
+plates, EAPropmter significantly elevates the model’s ability to
+identify and interpret fine-grained information. This innovative
+data-centric approach offers a groundbreaking solution to
+VideoQA, paving the way for further exploration in this field.
+B. Vision-and-Language Pre-training
+The paradigm of pre-training on large-scale visual-language
+data followed by fine-tuning for specific downstream tasks has
+demonstrated significant success in cross-modal applications,
+including VideoQA. Vision-and-Language Pre-trained (VLP)
+models [12], [57], such as CLIP [12] and ALIGN [57], com-
+monly use standardized pre-training objectives like masked
+language modeling (MLM) and image-text matching (ITM) on
+extensive vision-text datasets. However, earlier VLP models,
+such as OSCAR [56], depended heavily on pre-trained object
+detectors for visual feature extraction. This reliance led to
+increased computational overhead and introduced noise into
+the image-text data, which ultimately impacted downstream
+performance. Despite their strong performance across various
+tasks, these VLP models face two significant limitations: first,
+they often struggle to effectively model complex vision-text
+interactions, and second, they tend to overfit to the noisy data
+prevalent in large-scale image-text datasets, which ultimately
+hampers their generalization performance. To overcome these
+limitations, various strategies have been proposed. For in-
+stance, Li et al. [26] introduced an intermediate image-text
+contrastive loss to enhance cross-modal alignment and seman-
+tic understanding while mitigating the effects of noisy data
+using Momentum Distillation. Similarly, BLIP [22] advanced
+the quality of vision-text pairs through the Captioning and Fil-
+tering (CapFilt) approach, which fine-tunes a captioner using
+language modeling and a filter with cross-modal tasks, thereby
+improving the model’s handling of vision-text relationships.
+In the domain of video processing, VideoBERT [58] extended
+the BERT model to video analysis but neglected the crucial
+roles of textual cues and cross-modal interactions. Meanwhile,
+ActBERT [59] depended on a pre-trained object detector
+to generate object pseudo-labels, but its limited detection
+categories and high computational costs resulted in suboptimal
+performance. Moving beyond one-directional transfer models,
+unified transformer-based architectures, as proposed by Wang
+et al. [31], have emerged to handle multimodal input sources,
+enabling joint pre-training for image-language and video-
+language tasks, thus benefiting both image and video-related
+assignments. More recently, with the advancement of prompt
+learning, VLP models have benefited from the integration of
+carefully designed prompts, which have significantly enhanced
+their performance in downstream tasks. This approach allows
+for greater control and precision, enabling models to produce
+task-specific outcomes more effectively. The success of prompt
+learning lies in its ability to address challenges such as limited
+data and complex annotations, positioning it as a promising
+direction for advancing cross-modal research. By incorporat-
+ing these techniques, researchers have achieved impressive
+results, further narrowing the gap between vision and language
+understanding. Our proposed HeurVidQA framework marks a
+significant departure by incorporating novel visual heuristics
+that enhance the VLP model with fine-grained perceptual capa-
+bilities. Leveraging the robust cross-modal learning strengths
+of these models, our approach not only improves their ability
+to capture intricate visual nuances but also bridges the gap
+between pre-training and downstream task execution. This
+integration of new visual cues within HeurVidQA represents a
+pivotal advancement in refining and advancing state-of-the-art
+visual language processing.
+C. Prompt Learning
+Prompt learning [4], [60], [61] has emerged as a powerful
+technique in the cross-modal field, allowing models to achieve
+task-specific results by incorporating targeted prompts during
+training. This approach enhances control and accuracy, provid-
+ing a promising solution to challenges posed by limited data
+and complex annotations. At its core, prompt learning can be
+likened to a ”fill-in-the-blank” task for pre-training models. By
+masking certain words in sentences and prompting the model
+to predict the missing tokens, the model learns to comprehend
+contextual relationships between words in a sentence. CLIP
+[12], in particular, showcases the efficacy of prompt-based
+learning for image recognition. Through contrastive learning
+on a large-scale noisy dataset, it aligns relevant image-text
+pairs and distinguishes unrelated ones, effectively achieving
+image-text alignment. For image recognition, it incorporates
+the label into a descriptive sentence, enabling the model to
+predict specific words (e.g., “An image about a [MASK]”).
+Remarkably, CLIP achieves impressive accuracy in image
+recognition tasks even without fine-tuning, thanks to the
+flexibility of prompt design, making it applicable to various
+image-text tasks. Building on the success of CLIP, ALIGN
+[57] further advances vision-language models by training on
+a massive dataset comprising 1.8 billion image-text pairs.
+ALIGN surpasses CLIP’s predictive performance, achieving
+superior results. Meanwhile, CoOp [62] introduces a prompt
+fine-tuning method, adapting NLP techniques to the cross-
+modal domain. By employing learnable tokens as prompts
+and minimizing classification losses, CoOp effectively learns
+Soft Prompts with minimal annotated data, overcoming the
+limitations of manually tuned prompts. This innovation yields
+significant performance improvements and greater flexibility.
+However, CoOp’s learned context struggles to generalize to
+unseen classes, a challenge addressed by CoCoOp [63]. Co-
+CoOp generates input-conditional vectors via a lightweight
+network, dynamically adjusting prompts to improve general-
+ization across varying classes. This method enhances perfor-
+mance on unseen classes, solidifying CoCoOp’s robustness.
+Additionally, Ma et al. [64] tackles the overfitting issue
+in CoOp by projecting gradients onto a low-rank subspace
+during back-propagation. Exploring prompt techniques further,
+researchers have focused on enhancing tasks through verb
+
+4
+Data Engineering
+Heuristic Boosting Answer Inference
+Entity-Action Heuristics Generation
+Perform
+0.02
+Kiss
+0.13
+Hug
+0.78
+L TAM
+L SEM
+LPred
+VFMs
+…
+…
+𝑣!"#
+𝑡!"#
+$
+𝑣!"#
+𝑡!"#
+$
+Action Prompter
+Entity Prompter
+Ceremony 0.12
+Bride
+0.38
+Wedding
+0.48
+Action Heuristics
+Temporal crop & Verb prompts
+Spatial crop & Noun Prompts
+[CLS] A video of  [verb1].
+[CLS] A video of  [verb2].
+[CLS] A video of  [verb3].
+[CLS] A video of  [noun1].
+[CLS] A video of  [noun2].
+[CLS] A video of  [noun3].
+…
+…
+VFMs
+Entity Heuristics
+VFMs
+Q: How did the 
+bride react when 
+the lady in grey 
+hugged her?
+A: Return the hug
+Raw video &
+QA label
+QA Reasoner
+𝑎!
+𝑒"
+𝒱
+𝒬
+Temporal
+Landscape
+Spatial
+Landscape
+Fig. 2. Overview of the Proposed HeurVidQA Framework. The framework consists of two primary stages: Entity-Action Heuristic Generation and Heuristic-
+Enhanced Answer Inference. In the first stage, EAPrompter extracts action heuristics through temporal-aware action detection and entity heuristics via
+spatial-aware entity detection using spatial-temporal-aware crops and instantiated prompt templates. These heuristics, sourced from a predefined vocabulary,
+include confidence scores for each detected action and entity. The second stage utilizes a Vision-Language Foundation Model (VFM) to process multimodal
+features through self-attention and cross-attention modules, resulting in a semantically enriched cross-modal fusion that supports both final answer prediction
+and anticipation of actions and entities in the video.
+and noun prompts. For instance, Li et al. [65] introduce
+CSA-Net, leveraging the RegionCLIP [66] model to create
+fine-grained regional semantic visual spaces, which enhances
+content comprehension. While prompt learning has been pre-
+dominantly explored in image-based tasks, Li et al. [33] extend
+these innovations to video models, using a pre-trained entity
+prompter to generate pseudo-labels, thereby achieving notable
+improvements across various benchmarks. However, video
+content goes beyond just entities; it crucially involves actions
+that convey vital information. Recognizing this, our approach
+leverages both entities and actions in the video to construct
+heuristics, empowering our model with enhanced temporal
+and spatial reasoning capabilities for video-based question
+answering. Incorporating these fine-grained details has led to
+state-of-the-art performance on the challenging NExT-QA [67]
+dataset, demonstrating the effectiveness of our approach in
+advancing video question answering tasks within the cross-
+modal domain.
+III. METHOD
+The overall architecture of our HeurVidQA is illustrated in
+Figure 2. In our approach, we seek to accurately predict the
+answer y to a given question Q, posed in natural language,
+based on the content of a raw video V. The following equation
+formalizes this objective:
+ˆy = argmax
+y∈A
+FW (y|V, Q, A),
+(1)
+where FW represents the VideoQA model parameterized by
+weights W. The function’s output, ˆy, varies based on the
+VideoQA task configuration, offering an open-ended response
+from a global answer set or a selected choice from multiple
+alternatives. For multiple-choice QA, we establish a linkage
+between the question and candidate answers with a [PAD]
+token, supplemented by the inclusion of a specialized [CLS]
+token positioned at the inception of the textual sequence:
+T MC(Q, ai|ai ∈AMC) = [CLS] Q [PAD] ai,
+(2)
+where T MC is the conversion function that converts multiple-
+choise question Q and its candidate answers ai to the input
+format. For open-ended QA, where no predefined candidate
+answers exist, the [CLS] token is directly associated with
+the commencement of the question. The formulation of the
+conversion function is as follows:
+T OE(Q) = [CLS] Q.
+(3)
+Our model is designed to be adaptable across these varied
+formats, enabling comprehensive applicability within the field
+of VideoQA.
+In the following, we outline the workflow of the proposed
+HeurVidQA framework, organized into three key phases. The
+Data Engineering phase establishes the foundation by op-
+timizing visual inputs for the EAPrompter through strategic
+clipping and crafting video entity-action templates. Next, the
+Entity-Action Heuristics Generation subsection introduces
+the EAPrompter’s architecture and training, focusing on syn-
+thesizing heuristic insights from the processed data. Finally,
+the Heuristic Boosting Answer Inference phase utilizes these
+heuristics to enable synergistic interaction between VFMs and
+the knowledge engine, enhancing answer inference perfor-
+mance.
+A. Data Engineering
+Our HeurVidQA framework begins by preparing videos
+and prompts for analysis. We segment the videos temporally
+and spatially, targeting key moments and areas likely to hold
+relevant information. Simultaneously, we generate domain-
+specific prompts using action-related verbs and object-focused
+nouns anticipated in the video content. These tailored prompts
+guide the foundation models in identifying critical elements.
+This phase is crucial for data preparation, ensuring the sub-
+sequent heuristic generation stages are well-informed and
+effective. To enhance both temporal and spatial sensitivity in
+video cropping, we employ distinct strategies tailored to each
+dimension. Temporal sensitivity is addressed by consistently
+
+5
+Multi-Granularity Contrastive Learning
+Video 
+Encoder
+Text 
+Encoder
+𝑉!"#
+$
+𝑉!"#
+%
+…
+𝑉!"#
+&
+𝑇!"#
+$
+𝑇!"#
+%
+…
+𝑇!"#
+&
+The fish moved its 
+body when it was 
+pulled onto the 
+shore by the man in 
+white. 
+Video Data
+Text Data
+𝑇!"#
+$ V!"#
+$
+·
+…
+𝑇!"#
+$ V%
+·
+𝑇!"#
+$ V&
+·
+𝑇!"#
+% V!"#
+$
+·
+𝑇!"#
+% V!"#
+%
+·
+𝑇!"#
+% V!"#
+&
+·
+𝑇!"#
+& V!"#
+$
+·
+𝑇!"#
+& V!"#
+%
+·
+𝑇!"#
+& V!"#
+&
+·
+…
+…
+…
+…
+…
+…
+𝑣!"#
+𝑡!"#
+Fig. 3. Training Framework of EAPrompter. The Symmetric Contrastive Loss
+is employed to jointly train a video encoder and a text encoder, facilitating
+the prediction of correct pairings within batches of {video, text} samples.
+cropping identical spatial regions across keyframes, ensuring
+focused capture of evolving actions. For spatial sensitivity,
+we extract varied regions across different frames, providing a
+comprehensive spatial understanding of the entities involved.
+The resulting video segments are denoted as ˆ
+V t for temporally
+cropped segments and ˆ
+V s for spatially cropped segments. Ad-
+ditionally, the textual component is refined through a prompt
+engineering process. We employ pre-defined prompt templates
+(detailed in Table VIII) for action and entity identification,
+such as “A video of [NOUN]” and “ A video of a [VERB].”
+These placeholders are systematically replaced with verbs
+and nouns extracted from the top 1,000 most frequent terms
+found in domain-specific QA pairs. This approach ensures
+that the prompts are highly relevant to the domain, enhancing
+the model’s ability to generate precise and context-aware
+responses. This preprocessing stage primes our model by
+equipping it with fine-grained visual cues and aligning it with
+contextually relevant textual prompts, laying a robust founda-
+tion for the extraction of meaningful entity-action heuristics.
+B. Entity-Action Heuristics Generation
+After data engineering, our HeurVidQA framework pro-
+gresses to the crucial stage of generating domain-specific
+fine-grained heuristics. This phase employs a two-pronged
+approach: (1) Action Heuristics Generation focuses on captur-
+ing verbs and their temporal dynamics within video content,
+enabling the model to comprehend ongoing activities; (2)
+Entity Heuristics Generation targets the identification and
+tracking of nouns and their spatial attributes, ensuring the
+accurate reference of key subjects within the visual space. This
+dual approach ensures that both temporal and spatial aspects
+are effectively captured, enhancing the model’s capacity for
+precise video question answering.
+1) EntityActionPrompter: The core of our heuristic gen-
+eration lies within the EntityActionPrompter (EAPrompter),
+which operates through two sub-modules: the action prompter
+(AP) and the entity prompter (EP), each tailored to capture
+distinct yet complementary aspects of the video content’s
+entity-action landscape. The AP enhances temporal precision
+by randomly cropping identical spatial regions across sparsely
+selected video frames, while the EP augments spatial acuity
+by extracting varied regions across different frames. Both
+modules share an identical architecture, adopting standard clip-
+based visual-language model structures with a video branch
+and a text branch. For the video branch, both AP and EP
+employ a 12-layer TimeSformer224 [24] to capture video
+embeddings. It takes as input a clip V ∈RC×F ×H×W , which
+undergoes random sampling, scaling, cropping, and random
+masking to enhance computational efficiency and consistent
+performance.
+To
+facilitate
+the
+formula
+expression,
+the
+unimodal
+visual
+embeddings
+derived
+from
+AP
+are
+denoted
+as
+{vt
+cls, vt
+1, . . . , vt
+N tv}, where vt
+cls and N t
+v corresponds to video
+global temporal embedding and temporal cropping numbers
+respectively. Visual embeddings from EP are denoted as
+{vs
+cls, vs
+1, . . . , vs
+Ns
+v}, where vs
+cls and N s
+v are video global
+spatial embedding and spatial cropping numbers. For the text
+branch, we employ a multi-layer bidirectional transformer [5]
+to encode text semantics in a hierarchical collaborative pars-
+ing pattern. This procedure produces corresponding prompts
+embeddings, {ta1
+cls, ta2
+cls, . . . , taM
+cls } and {te1
+cls, te2
+cls, . . . , teN
+cls} for
+action and entity prompts, respectively. For cross-modality
+alignment, a similarity function s(·) is optimized between the
+video and textual embeddings as follows:
+s(vcls, tcls) = fv(vcls) · ft(tcls),
+(4)
+where a higher similarity score is obtained for matching videos
+and prompts.
+Both AP and EP are pre-trained on webly sourced video-
+text pairs with video-text contrastive (VTC) loss. As depicted
+in Figure 3, the symmetric contrastive loss plays a key role
+in enhancing cross-modal alignment. By pulling positive pairs
+closer (on the diagonal) and pushing negative pairs further
+apart (off-diagonal), this mechanism drives the encoder rep-
+resentations to converge in a low-dimensional space, thereby
+optimizing inter-modal alignment. The symmetric contrastive
+loss for the vision-to-text modality is calculated as follows:
+Lv2t = −
+B
+X
+i=1
+log
+exp(s(vi
+cls, ti
+cls)/τ)
+PB
+j=1 exp(s(vi
+cls, tj
+cls)/τ)
+.
+(5)
+The symmetric contrastive loss for the text-to-vison contrastive
+loss is computed as:
+Lt2v = −
+B
+X
+i=1
+log
+exp(s(ti
+cls, vi
+cls)/τ)
+PB
+j=1 exp(s(ti
+cls, vj
+cls, )/τ)
+,
+(6)
+where B represents the batch size and τ signifies a learnable
+temperature parameter, the prompter, after being pre-trained
+on extensive datasets, exhibits strong alignment capabilities
+for video and textual data. To prevent external noise from
+affecting its performance, we freeze the prompter’s parameters
+during the entity-action heuristic generation stage. Through
+this approach, the EAPrompter effectively constructs a detailed
+entity-action map of the video content, providing a heuristic-
+driven analysis that greatly enhances the accuracy and rele-
+vance of the subsequent answer inference stage.
+2) Heuristic Generation: In the Heuristic Generation sub-
+section, we introduce a key innovation in our approach: the
+utilization of latent heuristic information embedded within
+
+6
+Temporal
+Action
+Modeling
+Action Heuristic Generation
+A video of  perform.
+[CLS]
+A footage of  kiss.
+[CLS]
+A video of  hugging.
+[CLS]
+.
+.
+Perform  0.03
+Kiss
+0.02
+.
+.
+Hugging 0.82
+.
+.
+L TAM
+Perform  0.13
+Kiss      0.18
+.
+.
+Hugging  0.62
+Heuristic Labels
+𝑣!"#
+$
+Video-language Foundation Models
+𝑡!"#
+%
+…
+Fig. 4.
+Operational Principle of Action Prompter. The Action Prompter
+processes instantiated templates alongside sparsely selected video frames,
+which have been refined through a space-time cropping strategy.
+video frames for VideoQA tasks. This involves generating
+heuristic labels through the action prompter module, as de-
+picted in Figure 4. The action prompter processes instan-
+tiated templates alongside carefully selected video frames,
+applying a precise space-time cropping strategy to capture
+rich action information. By leveraging the knowledge gained
+during pre-training, the prompter aligns these templates with
+the corresponding frames, resulting in heuristic labels charac-
+terized by detailed probability distributions. Specifically, the
+action heuristics can be derived by calculating the softmax-
+normalized similarity between the temporal embeddings of the
+video, denoted as ˆvt
+cls, and the action prompt embeddings,
+represented as tam
+cls
+M
+m=1. This formulation is mathematically
+expressed as follows:
+hˆvt,am =
+exp(s(ˆvt
+cls, tam
+cls )/τ)
+PM
+m=1 exp(s(ˆvt
+cls, tam
+cls )/τ)
+.
+(7)
+The entity heuristics, produced by calculating the softmax-
+normalized similarity between the spatial embeddings of the
+video ˆvs
+cls and all the entity prompt embeddings {ten
+cls}N
+n=1,
+can be formulated as follows:
+hˆvs,en =
+exp(s(ˆvs
+cls, ten
+cls)/τ)
+PN
+n=1 exp(s(ˆvs
+cls, ten
+cls)/τ)
+.
+(8)
+Figure 5 illustrates several examples of the entity-action
+heuristics generated by our approach. Our approach differs
+from traditional object detection methods that require sub-
+stantial computing power for object identification. our method
+leverages targeted heuristic generation, by efficiently extract-
+ing relevant entity and action information across temporal and
+spatial dimensions, reducing the computational burden while
+maintaining high precision in VideoQA tasks.
+C. Heuristic Boosting Answer Inference
+Heuristic boosting answer inference stage leverages heuris-
+tic labels from the previous phase to strengthen interactions
+between VFMs and the heuristic knowledge engine, refining
+the model’s ability to infer answers accurately. HeurVidQA
+utilizes VFMs to capture contextual video-language embed-
+dings, followed by a QA reasoner to conduct question-
+answering interaction and communication. The QA reasoner
+stacks cross-modality alignment layers to fuse visual-textual
+embeddings to explore in-depth, informative clues. Specifi-
+cally, it comprises several self-attention blocks, cross-attention
+layers, and feed-forward networks to deliver cross-modal fu-
+sions {ecls, e1, . . . , eNv+Nt}, where ecls serves as a pivotal
+link between the EAPrompter and the QA Reasoner. Instead
+of directly utilizing the fused embedding ecls to predict
+the answer, HeurVidQA skillfully introduces the generated
+domain-specific entity-action heuristics as supervisory targets
+with Temporal Action Modeling (TAM) and Spatial Entity
+Modeling (SEM) losses. TAM Loss enhances the model’s
+ability to understand temporal action sequences, while SEM
+Loss improves the recognition of spatial relationships among
+entities. These loss functions are pivotal in transferring the
+latent knowledge from the prompters to the baseline model,
+guiding the VFMs toward more precise reasoning in VideoQA
+tasks. Through two distinct classifiers c1(·) and c2(·), we
+initially obtained the normalized confidence scores of action
+and entity heuristics:
+pˆa,am = c1(ecls),
+pˆe,en = c2(ecls),
+(9)
+where pˆa,am and pˆe,en denote the classifier-derived probability
+distributions for action and entity heuristics, respectively. The
+subscripts am and en correspond to the mth action and nth
+entity within the respective distributions.
+The TAM loss is calculated as the cross-entropy between
+the classifier-derived action heuristic distribution pˆa and the
+target distribution hˆvcls,am:
+LT AM = −
+M
+X
+m=1
+hˆvcls,am · log pˆa,am.
+(10)
+Similarly, the SEM loss is calculated as the cross-entropy
+between the classifier-derived entity heuristic distribution pˆe
+and the target distribution hˆvcls,en:
+LSEM = −
+N
+X
+n=1
+hˆvcls,en · log pˆe,en.
+(11)
+Guided by the supervision of entity-action heuristics, the
+fusion embedding retrieves the unimodal information that
+might have been lost during cross-modal interaction, enabling
+HeurVidQA to achieve fine-grained spatiotemporal reasoning.
+To predict the final answer ˆy, we use an independent classifier,
+which takes the heuristic-enhanced fusion representation as
+input, formulated as follows:
+ˆy = c3(ecls).
+(12)
+Comparing the predictive answers ˆy with the ground truth y,
+we calculate the prediction loss as follows:
+Lpred = −
+X
+y log ˆy.
+(13)
+
+7
+The complete training objective of HeurVidQA can be ob-
+tained by combining the prediction loss with the heuristic
+losses as follows:
+L = Lpred + αLT AM + (1 −α)LSEM.
+(14)
+Where α represents a hyperparameter set to 0.5 in our exper-
+iments, it serves to balance the weighting between action and
+entity prompts. To explore other configurations, we introduced
+a dynamic gating mechanism that adjusts the influence of
+action and entity prompts based on the input data and training
+stage. This question-guided gating mechanism involves the
+following steps: processing the text input via VFMs to extract
+the global tcls embedding and passing this embedding through
+a gating network composed of two multi-layer perceptrons, a
+dropout function, and a sigmoid activation function.
+g(tcls) = Sigmoid(MLP2(Dropout(MLP1(tcls)))).
+(15)
+Through the gating mechanism, we obtain a scalar value
+ranging from 0 to 1, representing the gate weight for the
+action prompt. Next, the gate weight for the entity prompt
+is calculated by subtracting the action prompt’s weight from
+1. Finally, these gate weights are applied to the TAM loss and
+SEM loss. The combined loss function is then formulated as
+follows:
+L = Lpred + gLT AM + (1 −g)LSEM.
+(16)
+This adaptive gating scheme has demonstrated its effective-
+ness in enhancing both the model’s adaptability and stability
+by dynamically adjusting the influence of action and entity
+prompts.
+IV. EXPERIMENTS
+We have conducted an extensive analysis to evaluate the per-
+formance of HeurVidQA across several established VideoQA
+benchmark datasets, including NExT-QA [67], MSVD-QA
+[38], MSRVTT-QA [38], and SUTD-TrafficQA [68].
+A. Datasets
+• NExT-QA [67] presents complex challenges requiring
+advanced causal and temporal reasoning. It comprises
+5,440 videos averaging 44 seconds in length, with ap-
+proximately 52K annotated QA pairs categorized into
+causal, temporal, and descriptive questions. We also con-
+sider the ATPhard split from Buch et al. [69], featuring
+questions that demand sophisticated video comprehension
+beyond single-frame analysis.
+• MSVD-QA [38] is derived from the MSVD dataset and
+includes 10s video clips across 1,970 videos. It features
+around 51K QA pairs automatically generated based on
+video captions, covering diverse topics like video content,
+object recognition, and scene understanding.
+• MSRVTT-QA [38] is similar to MSVD-QA but on a
+larger scale, with 10K videos averaging 15 seconds each
+and containing 244K QA pairs. These are generated from
+video descriptions and serve to train and evaluate models
+in open-ended question answering.
+• SUTD-TrafficQA [68] serves as a critical resource for
+advancing research in traffic-related question answer-
+ing, requiring a deep understanding of traffic events
+and their causal relationships. It comprises over 10,000
+videos depicting diverse traffic incidents, supplemented
+by 62,535 human-annotated QA pairs—56,460 for train-
+ing and 6,075 for testing. This comprehensive dataset
+rigorously evaluates the cognitive abilities of models
+in understanding complex traffic scenarios. All tasks
+follow a multiple-choice format without constraints on
+the number of possible answers.
+B. Implementation Details
+Our method builds on ALPRO [33] as the video-language
+foundation model, fine-tuned using 4 NVIDIA GeForce 3090
+GPUs. We used weights pre-trained on WebVid-2M and CC-
+3M datasets, alongside prompter weights pre-trained on noisy
+video-text pairs. The AdamW optimizer was employed, with
+a weight decay of 0.001 and a unified learning rate of 5e-5
+across datasets. A linear decay schedule was used to adjust
+the learning rate dynamically, promoting rapid convergence
+initially and precise convergence during later training stages.
+For raw video processing, videos were rescaled to 224 × 224,
+and a random sparse sampling strategy was applied to ex-
+tract 16 frames while preserving their sequential order. The
+EAPrompter followed a distinct processing strategy, resizing
+videos to 256 × 256 before cropping a 224 × 224 area.
+After random sampling, 50-70% of the original spatial area
+was randomly masked to capture specific actions and entities
+effectively. For the Entity-Action Heuristic Generation, spaCy
+was used to extract the top 1,000 frequent verbs and nouns as
+action and entity candidates. Heuristics were discarded if the
+highest-scoring entity had a normalized similarity score below
+0.1. The training was conducted over 10 epochs for NExT-
+QA and SUTD-TrafficQA, and 15 epochs for MSVD-QA and
+MSRVTT-QA datasets.
+C. Experimental Results
+We evaluated our method against several state-of-the-art
+(SoTA) models on four VideoQA datasets: NExT-QA, SUTD-
+TrafficQA, MSVD-QA, and MSRVTT-QA. Our comparisons
+included non-pretrained models like VGT [18] and CoVGT
+[73], as well as pre-trained VL models, such as MIST [20]
+and our baseline, ALPRO [33].
+1) Comparison on NExT-QA: Table I presents the compar-
+ative results on the NExT-QA dataset, encompassing both non-
+pretrained and pretrained VL models. Notably, we emphasize
+the baseline method, ALPRO, to demonstrate the improve-
+ments achieved through heuristic prompts. The results indicate
+that pretrained visual-language (VL) models generally surpass
+non-pretrained models, as evidenced by the performance of
+VGT and CoVGT compared to their pretrained counterparts,
+VGT (PT) [18] and CoVGT (PT) [73]. Our method consis-
+tently achieves optimal or near-optimal results across overall
+performance metrics (Acc@All) and specific question types
+(Causal, Temporal, and Descriptive).
+
+8
+Top5 Action Heuristics
+1. Sing
+2. Perform
+3. Record 
+4. Concert
+5. Document
+Top5 Action Heuristics
+1. Drive
+2. Bring
+3. Seek
+4. Arrive
+5. Exit 
+Top5 Action Heuristics
+1. Marry
+2. Married
+3. Suit
+4. Couple
+5. Propose
+(0.55)
+(0.35)
+(0.05)
+(0.02)
+(0.01)
+(0.55)
+(0.35)
+(0.05)
+(0.02)
+(0.01)
+(0.93)
+(0.04)
+(0.01)
+(0.01)
+(0.01)
+Top5 Entity Heuristics
+1. Cats
+2. Fur
+3. Step
+4. Half
+5. Lies
+(0.86)
+(0.12)
+(0.01)
+(0.02)
+(0.01)
+Top5 Entity Heuristics
+1. Television
+2. TV
+3. Screening
+4. Videos
+5. Screen
+(0.69)
+(0.12)
+(0.05)
+(0.03)
+(0.03)
+Top5 Entity Heuristics
+1. Grapes
+2. Children
+3. Child
+4. Kid
+5. Kids
+(0.95)
+(0.02)
+(0.01)
+(0.01)
+(0.01)
+(a)
+(b)
+Fig. 5.
+Visualizations of heuristics generated by EAPrompter. We selected commonly used verbs and nouns as candidates for action and entity prompts,
+respectively, and labeled the top five with their associated probabilities (in brackets). To obtain heuristics for actions (a) and entities (b), we applied distinct
+processing strategies: consistent regions across frames for action prompts, and varying regions for entity prompts to mimic real-world scenarios. Labels with
+a probability below 10% were filtered out, with significant heuristics highlighted in red.
+TABLE I
+COMPARISON WITH STATE-OF-THE-ART RESULTS ON THE VALIDATION STANDARD AND TEST SETS OF THE NEXT-QA DATASET. ACC@C, ACC@T, AND
+ACC@D DENOTE ACCURACY FOR CAUSAL, TEMPORAL, AND DESCRIPTIVE QUESTIONS, RESPECTIVELY, EXPRESSED AS A PERCENTAGE (%). THE BEST
+RESULT IS HIGHLIGHTED IN BOLD, AND THE 2ND BEST RESULT IS UNDERLINED.
+Method
+Pre-trained
+NExT-QA Val
+NExT-QA Test
+Acc@C
+Acc@T
+Acc@D
+Acc@All
+Acc@C
+Acc@T
+Acc@D
+Acc@All
+SeViLA (2023) [53]
+-
+73.4
+68.8
+83.5
+73.4
+-
+-
+-
+-
+LSTP (2024) [70]
+-
+72.8
+66.5
+81.2
+72.1
+-
+-
+-
+-
+CREMA (2024) [71]
+-
+74.4
+69.4
+81.6
+73.9
+-
+-
+-
+-
+CoMem (2018) [42]
+✗
+45.2
+49.1
+55.3
+48.0
+45.9
+50.0
+54.4
+48.5
+EVQA (2019) [37]
+✗
+42.5
+46.3
+45.8
+44.2
+43.3
+46.9
+45.6
+44.9
+HME (2019) [43]
+✗
+46.2
+48.2
+58.3
+48.7
+46.8
+48.9
+57.4
+49.2
+HCRN (2020) [72]
+✗
+45.9
+49.3
+53.7
+48.2
+47.0
+49.3
+54.0
+48.9
+HGA (2020) [45]
+✗
+46.3
+50.7
+59.3
+49.7
+48.1
+49.1
+57.8
+50.0
+IGV (2022) [47]
+✗
+-
+-
+-
+-
+48.6
+51.7
+59.6
+51.3
+VGT (2022) [18]
+✗
+52.3
+55.1
+64.1
+55.0
+51.6
+51.9
+63.7
+53.7
+CoVGT (2023) [73]
+✗
+58.8
+57.4
+69.4
+60.0
+58.5
+57.0
+66.8
+59.4
+ALPRO (2022) [33]
+✓
+57.6
+57.8
+71.7
+59.9
+55.8
+56.0
+71.9
+58.3
+VGT (PT) (2022) [18]
+✓
+53.4
+56.4
+69.5
+56.9
+52.8
+54.5
+67.3
+55.7
+MIST-CLIP (2023) [20]
+✓
+54.6
+56.6
+66.9
+57.2
+-
+-
+-
+-
+SeViTFiD (2023) [74]
+✓
+54.0
+54.1
+71.3
+56.7
+-
+-
+-
+55.2
+VFC (2023) [75]
+✓
+57.6
+53.3
+72.8
+58.6
+-
+-
+-
+-
+CoVGT (PT) (2023) [73]
+✓
+59.7
+58.0
+69.9
+60.7
+58.0
+58.0
+68.4
+59.7
+HeurVidQA (Ours)
+✓
+58.8
+58.4
+73.0
+60.9
+58.1
+57.1
+71.1
+59.9
+It is noteworthy that despite employing ALPRO as the base-
+line model with identical pre-training weights, HeurVidQA
+surpasses ALPRO significantly under the same experimental
+conditions. Specifically, HeurVidQA exhibits a 1.0% improve-
+ment on the validation set and a 1.6% enhancement on the
+test set. This performance boost is primarily driven by the
+strategic incorporation of additional action and entity heuristic
+information, which significantly enhances the model’s fine-
+grained visual perception capabilities. A focused analysis
+reveals HeurVidQA’s distinct advantages in handling temporal
+questions, where it outperforms models with larger parame-
+ters or more input frames. This superiority stems from the
+EAPrompter’s ability to capture essential action information,
+which is crucial for answering temporal queries. Notably, this
+action information, although not explicitly present in the ques-
+tions or answers, provides precise prompts that significantly
+improve the model’s response accuracy. Similarly, HeurVidQA
+excels in descriptive questions, thanks to Entity Prompter’s
+effectiveness in identifying and describing a broad range of en-
+tity categories from visual data. By establishing relevant con-
+nections between the entities and the questions and answers,
+the Entity Prompter guides the baseline model in navigating
+entity-dense video content, thereby enhancing its descriptive
+question-answering capabilities. While HeurVidQA may not
+outperform certain methods in causal reasoning tasks, it is
+important to recognize that many leading approaches, such
+as CoVGT (PT) [73], leverage manually crafted complex
+methodologies, including intricate graph structures designed
+
+9
+TABLE II
+COMPARATIVE EXPERIMENTAL RESULTS OF THE PROPOSED HEURVIDQA MODEL AND EXISTING STATE-OF-THE-ART (SOTA) MODELS ON THE
+MSRVTT-QA (LEFT) AND MSVD-QA (RIGHT) BENCHMARKS. THE RESULTS ARE REPORTED AS PERCENTAGES (%), WITH THE BEST OUTCOMES
+HIGHLIGHTED IN BOLD.
+Method
+MSRVTT-QA
+MSVD-QA
+What
+Who
+How
+When
+Where
+All
+What
+Who
+How
+When
+Where
+All
+EVQA (2018) [37]
+18.9
+38.7
+83.5
+70.5
+29.2
+26.4
+9.7
+42.4
+83.8
+72.4
+53.6
+23.3
+CoMem (2018) [42]
+23.9
+42.5
+74.1
+69.0
+42.9
+32.0
+19.6
+48.7
+81.6
+74.1
+31.7
+31.7
+HME (2019) [43]
+26.5
+43.6
+82.4
+76.0
+28.6
+33.0
+22.4
+50.1
+73.0
+70.7
+42.9
+33.7
+CAN (2019) [76]
+26.7
+43.4
+83.7
+75.3
+35.2
+33.2
+21.1
+47.9
+84.1
+74.1
+57.1
+32.4
+STVQA (2019) [77]
+24.5
+41.2
+78.0
+76.5
+34.9
+30.9
+18.1
+50.0
+83.8
+72.4
+28.6
+31.3
+TSN (2019) [78]
+27.9
+46.1
+84.1
+77.8
+37.6
+35.4
+25.0
+51.3
+83.8
+78.4
+59.1
+36.7
+HGA (2020) [45]
+29.2
+45.7
+83.5
+75.2
+34.0
+35.5
+23.5
+50.4
+83.0
+72.4
+46.4
+34.7
+MHMAN (2020) [79]
+28.7
+47.1
+85.1
+77.1
+35.2
+35.6
+23.3
+50.7
+84.1
+72.4
+53.6
+34.6
+DualVGR (2021) [80]
+29.4
+45.6
+79.8
+76.7
+36.4
+35.5
+28.7
+53.9
+80.0
+70.7
+46.4
+39.0
+VGT (2022) [18]
+-
+-
+-
+-
+-
+39.7
+-
+-
+-
+-
+-
+-
+CoVGT (2023) [73]
+-
+-
+-
+-
+-
+38.3
+-
+-
+-
+-
+-
+-
+ALPRO (2022) [33]
+36.0
+51.7
+85.7
+79.6
+42.3
+41.9
+36.0
+57.0
+82.2
+72.4
+46.6
+44.7
+VGT (PT) (2022) [18]
+-
+-
+-
+-
+-
+39.7
+-
+-
+-
+-
+-
+-
+MGIN (2023) [21]
+-
+-
+-
+-
+-
+38.2
+-
+-
+-
+-
+-
+39.7
+All-in-one+ (2023) [81]
+-
+-
+-
+-
+-
+39.5
+-
+-
+-
+-
+-
+43.8
+CoVGT (PT) (2023) [73]
+-
+-
+-
+-
+-
+40.0
+-
+-
+-
+-
+-
+-
+HeurVidQA (Ours)
+36.1
+51.5
+83.1
+77.4
+46.2
+42.1
+36.4
+60.8
+83.5
+72.4
+50.0
+46.4
+TABLE III
+EXPERIMENTAL COMPARATIVE RESULTS OF THE PROPOSED HEURVIDQA MODEL AND EXISTING SOTA MODELS ON SUTD-TRAFFICQA. OVERALL
+ACCURACY IS PRESENTED AS A PERCENTAGE (%). THE BEST OUTCOMES ARE HIGHLIGHTED IN BOLD. B: BASIC UNDERSTANDING, F: FORECASTING
+TASK, R: REVERSE REASONING, C: COUNTERFACTUAL INFERENCE, I: INTROSPECTION, A: ATTRIBUTION. (C) AND (A) REFER TO PROMPT ADDITION
+STRATEGIES, WHILE (C) AND (C*) DENOTE TRAINING PROMPTS WITH/WITHOUT ADAPTER HEADS.
+Method
+B
+F
+R
+C
+I
+A
+Acc@All
+CLIP + Template
+31.8
+36.0
+29.9
+41.8
+22.1
+33.4
+32.3
+CLIP-Adapter
+35.8
+32.0
+35.4
+42.3
+33.1
+32.1
+34.8
+TVQA [82]
+-
+-
+-
+-
+-
+-
+35.2
+HCRN [43]
+-
+-
+-
+-
+-
+-
+36.5
+Eclipse [68]
+-
+-
+-
+-
+-
+-
+37.1
+LORA [83]
+38.7
+38.7
+36.7
+37.9
+34.5
+38.1
+38.3
+Prompt learning (C*) [62]
+40.3
+33.2
+41.0
+46.5
+34.9
+38.4
+39.7
+Prompt learning (C) [62]
+42.4
+32.4
+45.2
+55.5
+40.7
+43.6
+42.9
+Prompt learning (A) [84]
+41.7
+31.5
+40.1
+48.4
+33.1
+41.4
+41.1
+Tem-adapter (128 frames) [30]
+46.0
+36.5
+44.6
+55.0
+34.5
+47.7
+46.0
+HeurVidQA (w/o EAPrompter)
+44.5
+40.3
+51.5
+48.1
+36.5
+48.2
+45.6
+HeurVidQA (Ours)
+45.0
+40.3
+49.2
+50.3
+41.2
+49.5
+46.3
+for logical and causal reasoning. These approaches, combined
+with doubled input frame settings, naturally excel in causal
+reasoning tasks. Despite not securing the top spot in this
+domain, HeurVidQA has made significant progress, particu-
+larly in addressing the complexity of causal reasoning content,
+which requires an integrated analysis of various video ele-
+ments. The combined efforts of the action and entity prompters
+within the EAPrompter contribute to notable advancements in
+our baseline model’s performance.
+To further validate the effectiveness of our approach in en-
+hancing temporal-spatial reasoning, we conducted experiments
+on the ATPhard dataset, a subset of the NExT-QA dataset
+specifically designed to challenge single-frame inference. This
+subset allows us to assess whether performance improvements
+are due to genuine enhancements in temporal-spatial reasoning
+or merely increased model complexity. As shown in Table
+IV, HeurVidQA surpasses previous models across all question
+categories, establishing a new state-of-the-art. Remarkably,
+compared to the baseline model, the HeurVidQA exhibited
+an approximately 2% increase in performance on the more
+challenging dataset, compared to a roughly 1% enhancement
+on the original NExT-QA dataset. This differential in perfor-
+mance improvement underscores the capacity of EAPrompter
+to significantly bolster the answer reasoning capabilities of
+VideoQA tasks. Importantly, this enhancement is particularly
+pronounced in datasets that present a higher level of difficulty,
+highlighting EAPrompter’s potential to navigate and address
+complex VideoQA challenges effectively. Subsequent ablation
+experiments confirm that Heuristic Prompting significantly
+contributes to these performance gains.Moreover, we include
+recently proposed methods [53], [70], [71] leveraging LLMs,
+marked in gray due to their large model parameters and ex-
+tensive pre-training data. Although these methods excel across
+all metrics, they require significantly more computational
+resources, with model sizes and data needs far exceeding those
+of pre-trained vision-language models. Given this disparity,
+these methods are distinguished in gray.
+
+10
+TABLE IV
+COMPARISON ON THE ATP-HARD SUBSET OF THE NEXT-QA DATASET. IN
+ADDITION TO THE ORIGINAL VALIDATION SET, WE HAVE INCLUDED A
+CHALLENGING SUBSET IDENTIFIED BY ATP THAT REQUIRES
+VIDEO-LEVEL UNDERSTANDING FOR EFFECTIVE EVALUATION.
+Prompter
+Acc@C
+Acc@T
+Acc@All
+ATP [69]
+19.6
+22.6
+20.8
+Temporal[ATP] [69]
+38.4
+36.5
+37.6
+HGA [45]
+43.3
+45.3
+44.1
+VFC [75]
+39.9
+38.3
+39.3
+SeViTFiD [74]
+43.3
+46.5
+-
+ALPRO [33]
+44.4
+46.6
+45.3
+HeurVidQA (Ours)
+46.9
+47.8
+47.3
+2) Comparison on MSVD-QA and MSRVTT-QA: To assess
+the effectiveness of EAPrompter on short video datasets, we
+conducted experiments on the MSVD-QA and MSRVTT-QA
+datasets, with results summarized in Table II. The findings
+indicate that HeurVidQA achieves notable improvements on
+these datasets. While gains on short videos are modest com-
+pared to long video datasets, HeurVidQA offers clear advan-
+tages. It outperforms VGT and CoVGT by 2.4% and 3.8%,
+respectively, using only half the input frames. This success is
+largely attributed to EAPrompter’s ability to accurately iden-
+tify entities and actions, enhancing spatial reasoning. However,
+the limited duration of the videos in these datasets often leads
+to a higher prevalence of description and perception questions,
+which affects overall performance. Despite this, HeurVidQA
+remains competitive with more complex models that utilize
+intricate graph structures for logical and causal reasoning.
+Additionally, while approaches like MGIN focus on multi-
+level intra-granularity and inter-granularity relations, they may
+sometimes neglect the relevance of the question text itself.
+In contrast, HeurVidQA maintains a balanced focus, leading
+to consistent performance gains. However, it is important to
+acknowledge that the limited action and entity information
+within the MSVD-QA and MSRVTT-QA datasets, combined
+with the dominance of descriptive questions (e.g., “What”
+questions), diminishes the impact of integrating EAPrompter.
+As a result, the improvements on these datasets are not as
+significant. Additionally, in the MSRVTT-QA dataset, noise
+introduced by the Prompter may negatively affect perfor-
+mance, particularly when addressing “How” questions, further
+reducing the effectiveness of EAPrompter in these contexts.
+3) Comparison
+on
+SUTD-TrafficQA:
+To
+assess
+HeurVidQA’s
+generalization
+across
+different
+domains,
+we evaluated it on the specialized SUTD-TrafficQA dataset,
+focused on traffic scenarios. Our approach consistently
+outperformed state-of-the-art methods. Notably, HeurVidQA
+achieved
+a
+0.3%
+improvement
+over
+Tem-adapter
+[30],
+which uses 126 frames, while HeurVidQA utilized only 16.
+Significant gains were observed in Introspection questions,
+with a remarkable 6.7% increase, illustrating the model’s
+enhanced ability to analyze self-reflective queries within video
+content. Conversely, the Counterfactual inference questions,
+which
+involve
+hypothetical
+scenarios
+(e.g.,
+speculating
+outcomes had the blue car not accelerated), proved more
+challenging. HeurVidQA trailed the best-performing method
+by 4.7%, a limitation likely due to the pre-trained data
+TABLE V
+COMPARISON OF DIFFERENT PROMPT STRATEGIES. “W/ PROMPTER GATE”
+REFERS TO THE INTEGRATION OF A GATING MECHANISM THAT
+AUTOMATICALLY ADJUSTS THE WEIGHT DISTRIBUTION BETWEEN ENTITY
+AND ACTION PROMPTS. THE RATIOS IN PARENTHESES INDICATE THE
+RELATIVE PROPORTION OF ENTITY-TO-ACTION PROMPTS WITHIN THE
+OVERALL HEURISTIC POOL.
+Prompter
+Acc@C
+Acc@T
+Acc@D
+Acc@All
+w/o EAPrompter
+57.61
+57.75
+71.69
+59.85
+w/ EP (1:0)
+58.42
+58.31
+71.81
+60.47
+w/ AP (0:1)
+57.81
+58.56
+73.75
+60.53
+w/ EAPrompter (1:1)
+57.19
+58.31
+71.3
+59.75
+w/ EAPrompter Gate
+58.84
+58.37
+72.97
+60.89
+that lacks specialized knowledge in traffic scenarios. While
+HeurVidQA exhibits commendable inferential capabilities
+across various domains, its performance in complex reverse
+reasoning tasks remains constrained. Nevertheless, the model
+showed a significant improvement over the baseline across all
+question types, underscoring EAPrompter’s effectiveness in
+enhancing reasoning abilities, especially within traffic video
+QA tasks.
+D. Ablation Study
+We conducted several ablation experiments on the NExT-
+QA dataset to explore the effects of different factors, including
+heuristic ratios, sparsity versus density, heuristic quantities,
+and prompt templates. The goal was to understand how each
+component influences the overall performance of HeurVidQA.
+Aside from these specific parameters, all other experimental
+settings remained consistent with those defined earlier. The
+findings from these ablation studies provide deeper insights
+into the critical elements that contribute to the effectiveness
+of our proposed framework.
+1) Heuristic Ratios: To evaluate the impact of Heuristic
+Prompting, we conducted experiments by not only adding or
+removing the prompters but also varying the ratio between
+action and entity heuristics. We compared fixed heuristic ratios
+against a dynamic ratio adjusted by a gating mechanism.
+Table V details the results, showing a clear performance boost
+over the baseline model. Notably, the degree of improve-
+ment is influenced by the ratio of heuristic prompts used.
+Introducing either the Action Prompter or Entity Prompter
+significantly enhanced the model’s performance. However,
+using both prompts together yielded mixed results depending
+on their relative weighting. To achieve an optimal ratio,
+we incorporated a gating mechanism, enabling the model
+to dynamically calculate the appropriate proportion of each
+prompt based on the characteristics of the current training
+sample. This approach consistently improved performance,
+as visualized in Figure 7, where we gradually increased
+the proportion of action prompts. Our analysis showed that
+when the model lacked action prompts, adding entity prompts
+only marginally improved performance, as the baseline model
+already incorporated substantial entity information during pre-
+training. However, equalizing the action and entity prompts
+initially introduced noise, leading to performance fluctuations.
+Further increasing the action prompt proportion significantly
+
+11
+2
+4
+6
+8
+10
+12
+14
+16
+#Frames
+52
+54
+56
+58
+60
+Acc@C(%)
+(a) Acc@C
+2
+4
+6
+8
+10
+12
+14
+16
+#Frames
+52
+54
+56
+58
+60
+Acc@T(%)
+(b) Acc@D
+2
+4
+6
+8
+10
+12
+14
+16
+#Frames
+68
+70
+72
+74
+Acc@D(%)
+(c) Acc@T
+2
+4
+6
+8
+10
+12
+14
+16
+#Frames
+54
+56
+58
+60
+62
+Acc@All(%)
+(d) Acc@All
+Fig. 6.
+Variations in test accuracy with different video frame sampling strategies across question types: (a) Causal, (b) Descriptive, (c) Temporal, and (d)
+overall performance within the NExT-QA dataset. Sampling frames range from 2 to 16, showing consistent performance gains as frame count increases. The
+blue line represents HeurVidQA’s performance, while the orange line shows baseline ALPRO’s performance. Notably, causal and descriptive questions improve
+significantly with 4 frames, while temporal questions benefit more at 16 frames.
+w/o EAP
+w/o AP
+w/ EAP w/ EAP G w/o EP
+#Action Weights
+56
+57
+58
+59
+60
+Acc@C(%)
+(a) Acc@C
+w/o EAP
+w/o AP
+w/ EAP w/ EAP G w/o EP
+#Action Weights
+56
+57
+58
+59
+60
+Acc@T(%)
+(b) Acc@T
+w/o EAP
+w/o AP
+w/ EAP w/ EAP G w/o EP
+#Action Weights
+71
+72
+73
+74
+75
+Acc@D(%)
+(c) Acc@D
+w/o EAP
+w/o AP
+w/ EAP w/ EAP G w/o EP
+#Action Weights
+59.5
+60.0
+60.5
+61.0
+61.5
+Acc@All(%)
+(d) Acc@All
+Fig. 7.
+Analysis of the impact of different heuristic prompt components. The
+visualization shows model performance with varying proportions of action
+prompts. The red column indicates the baseline model without heuristic
+augmentation, while deeper blue columns represent higher action prompt
+ratios within the heuristic set. The curve illustrates the trend in model
+effectiveness as action prompts increase. EAP: EAPrompter, AP: Action
+Prompter, EP: Entity Prompter, EAP G: EAPrompter Gate.
+TABLE VI
+DETAILED RESULTS ON THE NEXT-QA BENCHMARK WITH VARYING
+NUMBERS OF FRAMES.
+#frms
+Acc@C
+Acc@T
+Acc@D
+Acc@All
+Baseline (ALPRO) frame ablation experiment
+1
+51.9
+52.8
+67.7
+54.7
+4
+56.3
+55.7
+69.4
+58.1
+8
+57.2
+57.6
+69.4
+59.2
+16
+57.6
+57.8
+71.7
+59.9
+HeurVidQA (ours) frame ablation experiment
+1
+54.2
+55.8
+70.4
+57.2
+4
+57.8
+57.4
+71.3
+59.8
+8
+58.0
+58.4
+71.3
+60.3
+16
+58.8
+58.4
+73.0
+60.9
+enhanced performance, indicating that both action and entity
+prompts are essential for the model, despite substantial pre-
+training emphasis on entity information.
+2) Sparse Vs. Dense: Figure 6 presents the ablation results
+for varying numbers of sampled frames per video, with can-
+didate values of N ∈{1, 4, 8, 16}. We compared HeurVidQA
+against the baseline under identical conditions. The blue line
+delineates the performance metrics of HeurVidQA, whereas
+the orange line illustrates the performance of the baseline
+model. Upon incrementally augmenting the number of input
+video frames, both the baseline model and HeurVidQA ex-
+hibited similar trends in performance. However, HeurVidQA
+consistently outperformed the baseline model across all frame
+configurations, demonstrating the comprehensive enhancement
+imparted by the EAPrompter. Table VI provides detailed
+experimental results, clearly showing the superiority of our
+method over the baseline, even with fewer sampled frames.
+The influence of additional frames varies by question type:
+causal questions benefit the most (around a 4.7% increase),
+while temporal and descriptive questions see similar improve-
+ments (about 2.6% each). Temporal questions likely demand
+more frames, yet merely adding frames does not suffice for
+major gains. Descriptive questions, less dependent on temporal
+data, achieve 70.4% effectiveness with just one frame but still
+benefit from additional frames.
+3) Impact of actions and entities candidate quantities:
+We conducted a comprehensive ablation study to assess the
+impact of actions and entities candidate quantities on model
+performance, with results detailed in Table VII. The first row
+showcases the baseline model’s performance using four frames
+without incorporating heuristics. We then systematically in-
+creased the number of verbs and nouns from 400 to 2000. The
+findings suggest that a balanced quantity of heuristics signifi-
+cantly improves visual-text alignment. However, an excessive
+number of heuristics introduces low-frequency elements and
+noise, which can degrade model performance.
+4) Impact of prompt templates: The design of prompt
+templates is critical to the effectiveness of the EAPrompter,
+as it directly influences the extraction of entity and action
+heuristics from video content. To explore this, we crafted
+10 distinct templates for various heuristic types, as shown in
+Table VIII. We then conducted an ablation study using both
+the long video dataset NExT-QA and the short video dataset
+MSVD-QA. Interestingly, the impact of prompt templates
+varied across datasets, as illustrated in Table IX. For the
+NExT-QA dataset, which features long videos with abundant
+actions and entities, using complex prompt templates led
+to a slight performance decline. This suggests that more
+confident heuristics from refined templates might inadvertently
+distract the model, leading to errors in reasoning and answer
+selection. Conversely, the MSVD-QA dataset, which focuses
+on descriptive and perceptual queries, benefited significantly
+
+12
+TABLE VII
+RESULTS VARY WITH DIFFERENT QUANTITIES OF CANDIDATE ACTIONS
+AND ENTITIES.
+#count
+Acc@C
+Acc@T
+Acc@D
+Acc@All
+-
+57.6
+57.8
+71.7
+59.9
+400
+58.1
+58.4
+73.5
+60.6
+600
+58.4
+59
+73.1
+60.9
+1000
+58.2
+59.4
+73.6
+61
+1600
+58.7
+58.4
+72.7
+60.8
+2000
+57.3
+58.3
+71.8
+60.2
+TABLE VIII
+PROMPT TEMPLATES FOR INSTANTIATING TEXT PROMPTS.
+Template Type
+Prompt templates
+Entities
+A video of a {}.
+A video of the entity {}.
+A video contains the entity of {}.
+A shooting of a {}.
+A shooting of the {}.
+A shooting contains the entity of {}.
+A video footage of a {}.
+A video footage of the {}.
+A footage contains the entity of {}.
+A video recording about the entity of {}.
+Actions
+A video contains the action of {}.
+A video about the action of {}.
+A video recording about the action of {}.
+A video shooting of the action {}.
+A video of action {} being performed.
+A footage of the action of {}.
+A shooting of the action {}.
+A shooting of {} in action.
+A clip of {} in action.
+A clip contains the action of {}.
+from the optimized templates. This enhancement indicates that
+refined templates help provide richer visual heuristics, thereby
+improving the model’s performance in perception-based tasks.
+E. Complexity analysis
+We conducted experiments on the model’s complexity.
+Detailed results are provided in Tables X and XI. Table
+X reveals that our model uses less than half the trainable
+parameters compared to popular contrastive models like Jus-
+tAsk, ATP, and VGT while achieving superior performance.
+Notably, leveraging EAPrompter does not increase the num-
+ber of trainable parameters but introduces additional frozen
+parameters specifically for generating heuristic information.
+This increment is justified by the significant performance
+gains observed. Moreover, the unified design of the EP
+and AP underscores their importance, as removing either
+component impacts performance without reducing the total
+TABLE IX
+EXPERIMENTAL RESULTS USING DIFFERENT TYPES OF PROMPT
+TEMPLATES. “SIMPLE TEMP.” REFERS TO SIMPLE AND IDENTICAL
+PROMPT TEMPLATES, WHILE “COMPLEX TEMP.” INVOLVES USING
+TEMPLATES SPECIFICALLY TAILORED FOR ENTITIES AND ACTIONS
+MSVD-QA
+NExT-QA
+Simple Temp.
+45.3
+60.9
+Complex Temp.
+46.6
+60.2
+TABLE X
+COMPARATIVE ANALYSIS OF MODEL PARAMETERS BETWEEN THE
+BASELINE AND OUR PROPOSED HEURVIDQA MODEL. THE TABLE ALSO
+HIGHLIGHTS THE PERFORMANCE COMPARISON BETWEEN OUR MODEL
+AND THE BASELINE UNDER IDENTICAL CONFIGURATION.
+Method
+Trainable
+param
+Total
+param
+Acc@All
+JustAsk [85]
+600M
+600M
+45.3
+ATP [69]
+-
+428M
+54.3
+VGT [18]
+511M
+511M
+55.7
+PAXION [86]
+8.2M
+482M
+56.9
+HeurVidQA w/o EAP
+237M
+237M
+59.9
+HeurVidQA w/ AP
+237M
+469M
+60.5
+HeurVidQA w/ EP
+237M
+469M
+60.4
+HeurVidQA (ours)
+237M
+469M
+60.9
+50
+52
+54
+56
+58
+60
+62
+0
+500
+1000
+1500
+2000
+2500
+3000
+1
+4
+8
+16
+Acc@All(%)
+GFLOPs
+# Frames
+W/ O EAP
+W/ AP
+W/ EP
+W/ EAP
+W/ O EAP
+W/ EAP
+Fig. 8. The time complexity of models across various configurations and their
+corresponding performance outcomes. The line chart illustrates the overall
+performance of HeurVidQA and the comparative models on the NExT-QA
+dataset. The bar chart shows the GFLOPs required for training a single sample.
+parameter count. This highlights EAPrompter’s effectiveness
+in enhancing VideoQA tasks without substantially increasing
+model complexity. In Table XI, we thoroughly analyze the
+time complexity of the HeurVidQA model across various
+configurations, using the Giga Floating Point Operations per
+Second (GFLOPs) metric to quantify computational demand
+for training and inference on a single sample. Moreover,
+our model demonstrates a GFLOP advantage over SeViLA,
+emphasizing its efficiency. To provide a clearer understanding,
+Figure 8 presents visualizations, contrasting HeurVidQA with
+the baseline model’s performance on the NExT-QA dataset.
+The results indicate that while the integration of EAPrompter
+marginally increases computational overhead as the number
+of input frames rises, this increase diminishes as more frames
+are added. Notably, during inference, HeurVidQA’s GFLOPs
+align closely with the baseline, confirming that EAPrompter
+does not add to the computational burden in this phase. Thus,
+the enhancements provided by EAPrompter in HeurVidQA
+strike a balance between performance gains and computational
+efficiency, without significantly increasing the model’s overall
+complexity.
+
+13
+C: Why does the baby hold the green cup upside down in the middle of the video?
+0. Moving backwards. 
+1. Part of child s costume. 
+2. Drop the toy out.
+3. Remove it. 
+4. Excited.
+GT: 2
+HeurVidQA: 2
+ALPRO:3
+C: How is the baby counting after the middle of the video?
+0. With his toe. 
+1. With an abacus. 
+2. Click laptop.
+3. With his hands. 
+4. With a calculator.
+GT:  3
+HeurVidQA : 3
+ALPRO: 1
+T: What does the lady do while the baby is about to crash into a street light?
+0. Reach out to hold baby. 
+1. Lift baby up. 
+2. Push baby towards the pavement.
+3. Touch the girl. 
+4. Pull the rope.
+GT:  2
+HeurVidQA : 2
+ALPRO: 2
+T: How is the woman in green feeling watching the man in brown and the girl ?
+0. Terrible.
+1. Afraid. 
+2. Happy.
+3. Shy. 
+4. Weary.
+GT:  2
+HeurVidQA : 2
+ALPRO: 3
+D: How did the lady in flower shirt see her surrounding clearly?
+0. Wear spectacles. 
+1. Rubs her eyes. 
+2. Wave hand and move body.
+3. Move away from camera. 
+4. Swing body.
+GT:  0
+HeurVidQA : 0
+ALPRO: 0
+0. Wear thin clothes. 
+1. Wrap inside a blanket. 
+2. Wear hoodie.
+3. Long sleeve clothing. 
+4. Wear winter clothes.
+D: How did the baby kept himself warm?
+GT:  3
+HeurVidQA : 3
+ALPRO: 0
+C: why does the man in blue laughs while recording the video near the beginning?
+0. Find the dance entertaining. 
+1. Excited to throw someone. 
+2. His fingers got dirty.
+3. Pick up cloth. 
+4. Look at boy in dark blue.
+GT: 0
+HeurVidQA : 1
+ALPRO: 1
+T: What does the dog do after the boy puts his hand on the sofa at the start?
+0. Dops stick on sofa. 
+1. Continue resting. 
+2. Sits up.
+3. Touch his arm. 
+4. Jumps down the sofa.
+GT:  3
+HeurVidQA : 4
+ALPRO: 3
+1.
+2.
+3.
+5.
+8.
+4.
+6.
+7.
+Fig. 9. Visualization of the question-answering results generated by the proposed HeurVidQA model on the NExT-QA dataset. The green letter at the top
+of each example indicates the question type: C for Causal, T for Temporal, and D for Descriptive. The ground truth answer, along with the predictions from
+HeurVidQA and the baseline ALPRO model, is shown at the bottom of each example. Correct answers are highlighted in green, while incorrect answers are
+marked in red.
+TABLE XI
+COMPARATIVE ANALYSIS OF MODEL GIGA FLOATING POINT OPERATIONS
+PER SECOND (GFLOPS) METRICS ACROSS VARIOUS CONFIGURATIONS.
+THE OVERALL PERFORMANCE INDICATORS FOR THE NEXT-QA DATASET
+ARE INCLUDED FOR A CONSOLIDATED COMPARISON.
+Method
+GFLOPs
+Acc@All
+SeViLA [53]
+51181
+73.4
+ALPRO [33]
+439
+59.9
+HeurVidQA w/ AP
+534
+60.5
+HeurVidQA w/ EP
+534
+60.4
+HeurVidQA (ours)
+629
+60.9
+F. Qualitative Analysis
+Figure 9 showcases the prediction outcomes generated by
+HeurVidQA on various question categories within the NExT-
+QA dataset. Each question is prefixed with a letter indi-
+cating its type, C for Causal, T for Temporal, and D for
+Descriptive. To comprehensively evaluate our approach, we
+analyze HeurVidQA with the comparative model ALPRO.
+Three key observations emerged from this analysis: (1) Both
+HeurVidQA and ALPRO effectively address questions with
+extended temporal scopes, such as comprehending the lady’s
+behavior in Example 5. (2) HeurVidQA surpasses ALPRO in
+localizing smaller visual objects and reasoning about chal-
+lenging questions. For instance, in Example 4, where the
+video captures a confined spatial and temporal presence of
+women, HeurVidQA’s enhanced performance is attributed to
+its heuristic prompts, which enable it to detect and identify
+diverse entities and actions, leading to improved sensitivity
+in temporal reasoning questions. (3) HeurVidQA outperforms
+ALPRO on more complex long-term questions. This advan-
+tage stems from its augmented language modeling capabili-
+ties, facilitated by heuristic prompts, allowing the model to
+manage multiple actions and physical information, ultimately
+contributing to superior performance. (4) While HeurVidQA
+demonstrates excellent performance in addressing descriptive
+questions, its efficacy is constrained when tackling intricate
+causal and temporal scenarios. This limitation is primarily
+attributed to the model’s reliance on explicitly derived action
+entities from video content as primary sources of heuristics.
+Such an approach, while effective for straightforward descrip-
+tive tasks, does not inherently equip HeurVidQA with the
+nuanced inferential capabilities requisite for dissecting and
+
+14
+addressing more complex reasoning challenges. Consequently,
+the model’s performance in managing scenarios that demand
+high-level complex reasoning exhibits certain boundaries.
+V. CONCLUSIONS AND FUTURE DIRECTIONS
+This paper presents the HeurVidQA model, which leverages
+principles of prompt learning and engineering to enhance
+the capabilities of pre-trained visual language models in
+VideoQA tasks. By integrating heuristic prompts that target
+both action information across temporal frames and entity
+information across spatial regions, we introduce two novel
+loss functions: Prompt Action Modeling and Prompt Entity
+Modeling. Additionally, we propose a dynamic gating mech-
+anism to maintain a balanced emphasis between action and
+entity prompts,optimizing the model’s reasoning and inference
+capabilities.
+While HeurVidQA demonstrates substantial improvements
+in VideoQA tasks, it is not without limitations. A key limita-
+tion lies in its reliance on domain-specific heuristic prompts,
+which, while effective, may restrict its generalization across
+significantly different domains. Additionally, the model’s per-
+formance in handling highly abstract or counterfactual reason-
+ing scenarios remains limited, as it predominantly leverages
+explicit action-entity heuristics derived from video content. To
+address these limitations, future work could explore adaptive
+prompt learning mechanisms that dynamically adjust to diverse
+domains without requiring manual heuristic definitions. Incor-
+porating more advanced reasoning techniques, such as causal
+inference and counterfactual analysis, could further enhance
+the model’s robustness in complex scenarios. Additionally,
+integrating knowledge graphs or external world knowledge
+may provide the model with a richer contextual understanding,
+enabling it to handle a broader range of VideoQA challenges.
+Finally, reducing the model’s dependency on large-scale pre-
+training data could improve its scalability and applicability to
+resource-constrained environments.
+REFERENCES
+[1] H. Touvron, T. Lavril, G. Izacard, X. Martinet, M.-A. Lachaux,
+T. Lacroix, B. Rozi`ere, N. Goyal, E. Hambro, F. Azhar et al.,
+“Llama: Open and efficient foundation language models,” arXiv preprint
+arXiv:2302.13971, 2023.
+[2] H. W. Chung, L. Hou, S. Longpre, B. Zoph, Y. Tay, W. Fedus, Y. Li,
+X. Wang, M. Dehghani, S. Brahma et al., “Scaling instruction-finetuned
+language models,” arXiv preprint arXiv:2210.11416, 2022.
+[3] S. Zhang, S. Roller, N. Goyal, M. Artetxe, M. Chen, S. Chen, C. Dewan,
+M. Diab, X. Li, X. V. Lin et al., “Opt: Open pre-trained transformer
+language models, 2022,” URL https://arxiv. org/abs/2205.01068.
+[4] T. Brown, B. Mann, N. Ryder, M. Subbiah, J. D. Kaplan, P. Dhariwal,
+A. Neelakantan, P. Shyam, G. Sastry, A. Askell et al., “Language mod-
+els are few-shot learners,” Advances in neural information processing
+systems, vol. 33, pp. 1877–1901, 2020.
+[5] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “Bert: Pre-training
+of deep bidirectional transformers for language understanding,” arXiv
+preprint arXiv:1810.04805, 2018.
+[6] W. Peng, J. Yi, F. Wu, S. Wu, B. Zhu, L. Lyu, B. Jiao, T. Xu, G. Sun,
+and X. Xie, “Are you copying my model? protecting the copyright of
+large language models for eaas via backdoor watermark,” arXiv preprint
+arXiv:2305.10036, 2023.
+[7] X. Zhu, J. Guan, M. Huang, and J. Liu, “Storytrans: Non-parallel
+story author-style transfer with discourse representations and content
+enhancing,” arXiv preprint arXiv:2208.13423, 2022.
+[8] H. Liu, C. Li, Q. Wu, and Y. J. Lee, “Visual instruction tuning,”
+Advances in neural information processing systems, vol. 36, 2024.
+[9] J. Li, D. Li, S. Savarese, and S. Hoi, “Blip-2: Bootstrapping language-
+image pre-training with frozen image encoders and large language
+models,” arXiv preprint arXiv:2301.12597, 2023.
+[10] B. Lin, B. Zhu, Y. Ye, M. Ning, P. Jin, and L. Yuan, “Video-llava:
+Learning united visual representation by alignment before projection,”
+arXiv preprint arXiv:2311.10122, 2023.
+[11] J. Achiam, S. Adler, S. Agarwal, L. Ahmad, I. Akkaya, F. L. Aleman,
+D. Almeida, J. Altenschmidt, S. Altman, S. Anadkat et al., “Gpt-4
+technical report,” arXiv preprint arXiv:2303.08774, 2023.
+[12] A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal,
+G. Sastry, A. Askell, P. Mishkin, J. Clark et al., “Learning transferable
+visual models from natural language supervision,” in International
+conference on machine learning.
+PMLR, 2021, pp. 8748–8763.
+[13] A. Ramesh, M. Pavlov, G. Goh, S. Gray, C. Voss, A. Radford, M. Chen,
+and I. Sutskever, “Zero-shot text-to-image generation,” in International
+Conference on Machine Learning.
+PMLR, 2021, pp. 8821–8831.
+[14] Y. Du, S. Yang, B. Dai, H. Dai, O. Nachum, J. Tenenbaum, D. Schu-
+urmans, and P. Abbeel, “Learning universal policies via text-guided
+video generation,” Advances in Neural Information Processing Systems,
+vol. 36, 2024.
+[15] M. Wang, Y. Li, B. Huang, C. Yuan, Y. Wang, Y. Luo, and B. Huang,
+“Self-feedback transformer: A multi-label diagnostic model for real-
+world pancreatic neuroendocrine neoplasms data,” in International Con-
+ference on Medical Image Computing and Computer-Assisted Interven-
+tion.
+Springer, 2023, pp. 521–530.
+[16] C.-H. Chiu, H.-W. Chung, Y.-J. Chen, Y. Shi, and T.-Y. Ho, “Toward
+fairness through fair multi-exit framework for dermatological disease
+diagnosis,” arXiv preprint arXiv:2306.14518, 2023.
+[17] G. Wang, Y. Xie, Y. Jiang, A. Mandlekar, C. Xiao, Y. Zhu, L. Fan, and
+A. Anandkumar, “Voyager: An open-ended embodied agent with large
+language models,” arXiv preprint arXiv:2305.16291, 2023.
+[18] J. Xiao, P. Zhou, T.-S. Chua, and S. Yan, “Video graph transformer for
+video question answering,” in Computer Vision–ECCV 2022: 17th Eu-
+ropean Conference, Tel Aviv, Israel, October 23–27, 2022, Proceedings,
+Part XXXVI.
+Springer, 2022, pp. 39–58.
+[19] C. Zang, H. Wang, M. Pei, and W. Liang, “Discovering the real
+association: Multimodal causal reasoning in video question answering,”
+in Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, 2023, pp. 19 027–19 036.
+[20] D. Gao, L. Zhou, L. Ji, L. Zhu, Y. Yang, and M. Z. Shou, “Mist:
+Multi-modal iterative spatial-temporal transformer for long-form video
+question answering,” in Proceedings of the IEEE/CVF Conference on
+Computer Vision and Pattern Recognition, 2023, pp. 14 773–14 783.
+[21] Y. Wang, M. Liu, J. Wu, and L. Nie, “Multi-granularity interaction and
+integration network for video question answering,” IEEE Transactions
+on Circuits and Systems for Video Technology, 2023.
+[22] J. Li, D. Li, C. Xiong, and S. Hoi, “Blip: Bootstrapping language-image
+pre-training for unified vision-language understanding and generation,”
+in International Conference on Machine Learning.
+PMLR, 2022, pp.
+12 888–12 900.
+[23] J. Wang, P. Zhou, M. Z. Shou, and S. Yan, “Position-guided text prompt
+for vision-language pre-training,” in Proceedings of the IEEE/CVF
+Conference on Computer Vision and Pattern Recognition, 2023, pp.
+23 242–23 251.
+[24] G. Bertasius, H. Wang, and L. Torresani, “Is space-time attention all you
+need for video understanding,” arXiv preprint arXiv:2102.05095, vol. 2,
+no. 3, p. 4, 2021.
+[25] X. Liu, H. Peng, N. Zheng, Y. Yang, H. Hu, and Y. Yuan, “Efficientvit:
+Memory efficient vision transformer with cascaded group attention,”
+in Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, 2023, pp. 14 420–14 430.
+[26] J. Li, R. Selvaraju, A. Gotmare, S. Joty, C. Xiong, and S. C. H.
+Hoi, “Align before fuse: Vision and language representation learning
+with momentum distillation,” Advances in neural information processing
+systems, vol. 34, pp. 9694–9705, 2021.
+[27] J. Liu, G. Wang, J. Xie, F. Zhou, and H. Xu, “Video question answering
+with semantic disentanglement and reasoning,” IEEE Transactions on
+Circuits and Systems for Video Technology, 2023.
+[28] Y. Zhuang, D. Xu, X. Yan, W. Cheng, Z. Zhao, S. Pu, and J. Xiao,
+“Multichannel attention refinement for video question answering,” ACM
+Transactions on Multimedia Computing, Communications, and Applica-
+tions (TOMM), vol. 16, no. 1s, pp. 1–23, 2020.
+[29] J. Zhang, J. Shao, R. Cao, L. Gao, X. Xu, and H. T. Shen, “Action-
+centric relation transformer network for video question answering,”
+IEEE Transactions on Circuits and Systems for Video Technology,
+vol. 32, no. 1, pp. 63–74, 2020.
+
+15
+[30] G. Chen, X. Liu, G. Wang, K. Zhang, P. H. Torr, X.-P. Zhang, and
+Y. Tang, “Tem-adapter: Adapting image-text pretraining for video ques-
+tion answer,” in Proceedings of the IEEE/CVF International Conference
+on Computer Vision, 2023, pp. 13 945–13 955.
+[31] J. Wang, D. Chen, Z. Wu, C. Luo, L. Zhou, Y. Zhao, Y. Xie, C. Liu, Y.-G.
+Jiang, and L. Yuan, “Omnivl: One foundation model for image-language
+and video-language tasks,” Advances in neural information processing
+systems, vol. 35, pp. 5696–5710, 2022.
+[32] J. Lei, L. Li, L. Zhou, Z. Gan, T. L. Berg, M. Bansal, and J. Liu, “Less
+is more: Clipbert for video-and-language learning via sparse sampling,”
+in Proceedings of the IEEE/CVF conference on computer vision and
+pattern recognition, 2021, pp. 7331–7341.
+[33] D. Li, J. Li, H. Li, J. C. Niebles, and S. C. Hoi, “Align and prompt:
+Video-and-language pre-training with entity prompts,” in Proceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern Recognition,
+2022, pp. 4953–4963.
+[34] W. Yu, H. Zheng, M. Li, L. Ji, L. Wu, N. Xiao, and N. Duan,
+“Learning from inside: Self-driven siamese sampling and reasoning for
+video question answering,” Advances in Neural Information Processing
+Systems, vol. 34, pp. 26 462–26 474, 2021.
+[35] H. Xu, Q. Ye, X. Wu, M. Yan, Y. Miao, J. Ye, G. Xu, A. Hu,
+Y. Shi, G. Xu et al., “Youku-mplug: A 10 million large-scale chinese
+video-language dataset for pre-training and benchmarks,” arXiv preprint
+arXiv:2306.04362, 2023.
+[36] M. Bain, A. Nagrani, G. Varol, and A. Zisserman, “Frozen in time: A
+joint video and image encoder for end-to-end retrieval,” in Proceedings
+of the IEEE/CVF International Conference on Computer Vision, 2021,
+pp. 1728–1738.
+[37] K.-H. Zeng, T.-H. Chen, C.-Y. Chuang, Y.-H. Liao, J. C. Niebles, and
+M. Sun, “Leveraging video descriptions to learn video question answer-
+ing,” in Proceedings of the AAAI Conference on Artificial Intelligence,
+vol. 31, no. 1, 2017.
+[38] D. Xu, Z. Zhao, J. Xiao, F. Wu, H. Zhang, X. He, and Y. Zhuang, “Video
+question answering via gradually refined attention over appearance and
+motion,” in Proceedings of the 25th ACM international conference on
+Multimedia, 2017, pp. 1645–1653.
+[39] X. Li, J. Song, L. Gao, X. Liu, W. Huang, X. He, and C. Gan, “Beyond
+rnns: Positional self-attention with co-attention for video question an-
+swering,” in The 33rd AAAI Conference on Artificial Intelligence, vol. 8,
+2019.
+[40] J. Jiang, Z. Chen, H. Lin, X. Zhao, and Y. Gao, “Divide and conquer:
+Question-guided spatio-temporal contextual attention for video question
+answering,” in Proceedings of the AAAI Conference on Artificial Intel-
+ligence, vol. 34, no. 07, 2020, pp. 11 101–11 108.
+[41] F. Zhang, R. Wang, F. Zhou, and Y. Luo, “Erm: Energy-based refined-
+attention mechanism for video question answering,” IEEE Transactions
+on Circuits and Systems for Video Technology, vol. 33, no. 3, pp. 1454–
+1467, 2022.
+[42] J. Gao, R. Ge, K. Chen, and R. Nevatia, “Motion-appearance co-memory
+networks for video question answering,” in Proceedings of the IEEE
+Conference on Computer Vision and Pattern Recognition, 2018, pp.
+6576–6585.
+[43] C. Fan, X. Zhang, S. Zhang, W. Wang, C. Zhang, and H. Huang,
+“Heterogeneous memory enhanced multimodal attention model for video
+question answering,” in Proceedings of the IEEE Conference on Com-
+puter Vision and Pattern Recognition, 2019, pp. 1999–2007.
+[44] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez,
+Ł. Kaiser, and I. Polosukhin, “Attention is all you need,” Advances in
+neural information processing systems, vol. 30, 2017.
+[45] P. Jiang and Y. Han, “Reasoning with heterogeneous graph alignment
+for video question answering,” in Proceedings of the AAAI Conference
+on Artificial Intelligence, vol. 34, no. 07, 2020, pp. 11 109–11 116.
+[46] J. Park, J. Lee, and K. Sohn, “Bridge to answer: Structure-aware graph
+interaction network for video question answering,” in Proceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern Recognition,
+2021, pp. 15 526–15 535.
+[47] Y. Li, X. Wang, J. Xiao, W. Ji, and T.-S. Chua, “Invariant grounding for
+video question answering,” in Proceedings of the IEEE/CVF Conference
+on Computer Vision and Pattern Recognition, 2022, pp. 2928–2937.
+[48] M. Gandhi, M. O. Gul, E. Prakash, M. Grunde-McLaughlin, R. Krishna,
+and M. Agrawala, “Measuring compositional consistency for video
+question answering,” in Proceedings of the IEEE/CVF Conference on
+Computer Vision and Pattern Recognition, 2022, pp. 5046–5055.
+[49] Y. Wang, M. Liu, J. Wu, and L. Nie, “Multi-granularity interaction and
+integration network for video question answering,” IEEE Transactions
+on Circuits and Systems for Video Technology, vol. 33, no. 12, pp. 7684–
+7695, 2023.
+[50] K. Guo, D. Tian, Y. Hu, C. Lin, Y. Sun, J. Zhou, X. Duan, J. Gao, and
+B. Yin, “Cfmmc-align: Coarse-fine multi-modal contrastive alignment
+network for traffic event video question answering,” IEEE Transactions
+on Circuits and Systems for Video Technology, pp. 1–1, 2024.
+[51] L. Li, T. Jin, W. Lin, H. Jiang, W. Pan, J. Wang, S. Xiao, Y. Xia,
+W. Jiang, and Z. Zhao, “Multi-granularity relational attention network
+for audio-visual question answering,” IEEE Transactions on Circuits and
+Systems for Video Technology, pp. 1–1, 2023.
+[52] T. Yu, K. Fu, J. Zhang, Q. Huang, and J. Yu, “Multi-granularity con-
+trastive cross-modal collaborative generation for end-to-end long-term
+video question answering,” IEEE Transactions on Image Processing,
+vol. 33, pp. 3115–3129, 2024.
+[53] S. Yu, J. Cho, P. Yadav, and M. Bansal, “Self-chained image-language
+model for video localization and question answering,” arXiv preprint
+arXiv:2305.06988, 2023.
+[54] M. Wu, M. Cao, Y. Bai, Z. Zeng, C. Chen, L. Nie, and M. Zhang,
+“An empirical study of frame selection for text-to-video retrieval,” arXiv
+preprint arXiv:2311.00298, 2023.
+[55] T. Yu, X. Lin, S. Wang, W. Sheng, Q. Huang, and J. Yu, “A comprehen-
+sive survey of 3d dense captioning: Localizing and describing objects
+in 3d scenes,” IEEE Transactions on Circuits and Systems for Video
+Technology, vol. 34, no. 3, pp. 1322–1338, 2024.
+[56] X. Li, X. Yin, C. Li, P. Zhang, X. Hu, L. Zhang, L. Wang, H. Hu,
+L. Dong, F. Wei et al., “Oscar: Object-semantics aligned pre-training for
+vision-language tasks,” in Computer Vision–ECCV 2020: 16th European
+Conference, Glasgow, UK, August 23–28, 2020, Proceedings, Part XXX
+16.
+Springer, 2020, pp. 121–137.
+[57] C. Jia, Y. Yang, Y. Xia, Y.-T. Chen, Z. Parekh, H. Pham, Q. Le, Y.-H.
+Sung, Z. Li, and T. Duerig, “Scaling up visual and vision-language
+representation learning with noisy text supervision,” in International
+Conference on Machine Learning.
+PMLR, 2021, pp. 4904–4916.
+[58] C. Sun, A. Myers, C. Vondrick, K. Murphy, and C. Schmid, “Videobert:
+A joint model for video and language representation learning,” in
+Proceedings of the IEEE/CVF international conference on computer
+vision, 2019, pp. 7464–7473.
+[59] L. Zhu and Y. Yang, “Actbert: Learning global-local video-text repre-
+sentations,” in Proceedings of the IEEE/CVF conference on computer
+vision and pattern recognition, 2020, pp. 8746–8755.
+[60] X. L. Li and P. Liang, “Prefix-tuning: Optimizing continuous prompts
+for generation,” arXiv preprint arXiv:2101.00190, 2021.
+[61] F. Petroni, T. Rockt¨aschel, P. Lewis, A. Bakhtin, Y. Wu, A. H. Miller,
+and S. Riedel, “Language models as knowledge bases?” arXiv preprint
+arXiv:1909.01066, 2019.
+[62] K. Zhou, J. Yang, C. C. Loy, and Z. Liu, “Learning to prompt for vision-
+language models,” International Journal of Computer Vision, vol. 130,
+no. 9, pp. 2337–2348, 2022.
+[63] Zhou, Kaiyang and Yang, Jingkang and Loy, Chen Change and Liu,
+Ziwei, “Conditional prompt learning for vision-language models,” in
+Proceedings of the IEEE/CVF conference on computer vision and
+pattern recognition, 2022, pp. 16 816–16 825.
+[64] C. Ma, Y. Liu, J. Deng, L. Xie, W. Dong, and C. Xu, “Understanding
+and mitigating overfitting in prompt tuning for vision-language models,”
+IEEE Transactions on Circuits and Systems for Video Technology,
+vol. 33, no. 9, pp. 4616–4629, 2023.
+[65] J. Li, L. Zhang, K. Zhang, B. Hu, H. Xie, and Z. Mao, “Cascade seman-
+tic prompt alignment network for image captioning,” IEEE Transactions
+on Circuits and Systems for Video Technology, vol. 34, no. 7, pp. 5266–
+5281, 2024.
+[66] Y. Zhong, J. Yang, P. Zhang, C. Li, N. Codella, L. H. Li, L. Zhou,
+X. Dai, L. Yuan, Y. Li et al., “Regionclip: Region-based language-image
+pretraining,” in Proceedings of the IEEE/CVF conference on computer
+vision and pattern recognition, 2022, pp. 16 793–16 803.
+[67] J. Xiao, X. Shang, A. Yao, and T.-S. Chua, “Next-qa: Next phase of
+question-answering to explaining temporal actions,” in Proceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern Recognition,
+2021, pp. 9777–9786.
+[68] L. Xu, H. Huang, and J. Liu, “Sutd-trafficqa: A question answering
+benchmark and an efficient network for video reasoning over traffic
+events,” in Proceedings of the IEEE/CVF conference on computer vision
+and pattern recognition, 2021, pp. 9878–9888.
+[69] S. Buch, C. Eyzaguirre, A. Gaidon, J. Wu, L. Fei-Fei, and J. C.
+Niebles, “Revisiting the” video” in video-language understanding,” in
+Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, 2022, pp. 2917–2927.
+[70] Y. Wang, Y. Wang, P. Wu, J. Liang, D. Zhao, and Z. Zheng, “Lstp:
+Language-guided spatial-temporal prompt learning for long-form video-
+text understanding,” arXiv preprint arXiv:2402.16050, 2024.
+
+16
+[71] S. Yu, J. Yoon, and M. Bansal, “Crema: Multimodal compositional video
+reasoning via efficient modular adaptation and fusion,” arXiv preprint
+arXiv:2402.05889, 2024.
+[72] T. M. Le, V. Le, S. Venkatesh, and T. Tran, “Hierarchical conditional
+relation networks for video question answering,” in Proceedings of the
+IEEE/CVF conference on computer vision and pattern recognition, 2020,
+pp. 9972–9981.
+[73] J. Xiao, P. Zhou, A. Yao, Y. Li, R. Hong, S. Yan, and T.-S. Chua,
+“Contrastive video question answering via video graph transformer,”
+arXiv preprint arXiv:2302.13668, 2023.
+[74] S. Kim, J.-H. Kim, J. Lee, and M. Seo, “Semi-parametric video-
+grounded text generation,” arXiv preprint arXiv:2301.11507, 2023.
+[75] L. Momeni, M. Caron, A. Nagrani, A. Zisserman, and C. Schmid, “Verbs
+in action: Improving verb understanding in video-language models,” in
+Proceedings of the IEEE/CVF International Conference on Computer
+Vision, 2023, pp. 15 579–15 591.
+[76] T. Yu, J. Yu, Z. Yu, and D. Tao, “Compositional attention networks with
+two-stream fusion for video question answering,” IEEE Transactions on
+Image Processing, vol. 29, pp. 1204–1218, 2019.
+[77] Y. Jang, Y. Song, C. D. Kim, Y. Yu, Y. Kim, and G. Kim, “Video question
+answering with spatio-temporal reasoning,” International Journal of
+Computer Vision, vol. 127, pp. 1385–1412, 2019.
+[78] T. Yang, Z.-J. Zha, H. Xie, M. Wang, and H. Zhang, “Question-aware
+tube-switch network for video question answering,” in Proceedings of
+the 27th ACM International Conference on Multimedia, 2019, pp. 1184–
+1192.
+[79] T. Yu, J. Yu, Z. Yu, Q. Huang, and Q. Tian, “Long-term video question
+answering via multimodal hierarchical memory attentive networks,”
+IEEE Transactions on Circuits and Systems for Video Technology,
+vol. 31, no. 3, pp. 931–944, 2020.
+[80] J. Wang, B.-K. Bao, and C. Xu, “Dualvgr: A dual-visual graph reasoning
+unit for video question answering,” IEEE Transactions on Multimedia,
+vol. 24, pp. 3369–3380, 2021.
+[81] D. Ko, J. S. Lee, M. Choi, J. Chu, J. Park, and H. J. Kim, “Open-
+vocabulary video question answering: A new benchmark for evaluating
+the generalizability of video question answering models,” in Proceedings
+of the IEEE/CVF International Conference on Computer Vision, 2023,
+pp. 3101–3112.
+[82] J. Lei, L. Yu, M. Bansal, and T. L. Berg, “Tvqa: Localized, compo-
+sitional video question answering,” arXiv preprint arXiv:1809.01696,
+2018.
+[83] E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang,
+and W. Chen, “Lora: Low-rank adaptation of large language models,”
+arXiv preprint arXiv:2106.09685, 2021.
+[84] M. Jia, L. Tang, B.-C. Chen, C. Cardie, S. Belongie, B. Hariharan,
+and S.-N. Lim, “Visual prompt tuning,” in European Conference on
+Computer Vision.
+Springer, 2022, pp. 709–727.
+[85] A. Yang, A. Miech, J. Sivic, I. Laptev, and C. Schmid, “Just ask:
+Learning to answer questions from millions of narrated videos,” in
+Proceedings of the IEEE/CVF International Conference on Computer
+Vision, 2021, pp. 1686–1697.
+[86] Z. Wang, A. Blume, S. Li, G. Liu, J. Cho, Z. Tang, M. Bansal, and
+H. Ji, “Paxion: Patching action knowledge in video-language foundation
+models,” Advances in Neural Information Processing Systems, vol. 36,
+2024.

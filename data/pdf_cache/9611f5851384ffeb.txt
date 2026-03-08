@@ -1,0 +1,1190 @@
+Text2Video-Zero:
+Text-to-Image Diffusion Models are Zero-Shot Video Generators
+Levon Khachatryan1∗
+Andranik Movsisyan1∗Vahram Tadevosyan1∗
+Roberto Henschel1∗
+Zhangyang Wang1,2 Shant Navasardyan1
+Humphrey Shi1,3,4
+1Picsart AI Resarch (PAIR)
+2UT Austin
+3U of Oregon
+4UIUC
+https://github.com/Picsart-AI-Research/Text2Video-Zero
+Text-to-Video generation: "a horse galloping on a street"
+Text-to-Video generation: "a panda is playing guitar on times square"
+Text-to-Video generation + pose control: "a bear
+dancing on the concrete"
+Video Instruct-Pix2Pix: "make it Van Gogh Starry Night style"
+Text-to-Video generation + edge control: "white butterfly"
+Figure 1: Our method Text2Video-Zero enables zero-shot video generation using (i) a textual prompt (see rows 1, 2), (ii)
+a prompt combined with guidance from poses or edges (see lower right), and (iii) Video Instruct-Pix2Pix, i.e., instruction-
+guided video editing (see lower left). Results are temporally consistent and follow closely the guidance and textual prompts.
+Abstract
+Recent text-to-video generation approaches rely on com-
+putationally heavy training and require large-scale video
+datasets. In this paper, we introduce a new task of zero-
+shot text-to-video generation and propose a low-cost ap-
+proach (without any training or optimization) by leverag-
+ing the power of existing text-to-image synthesis methods
+(e.g. Stable Diffusion), making them suitable for the video
+domain. Our key modiﬁcations include (i) enriching the la-
+*Equal contribution.
+tent codes of the generated frames with motion dynamics
+to keep the global scene and the background time consis-
+tent; and (ii) reprogramming frame-level self-attention us-
+ing a new cross-frame attention of each frame on the ﬁrst
+frame, to preserve the context, appearance, and identity of
+the foreground object. Experiments show that this leads to
+low overhead, yet high-quality and remarkably consistent
+video generation. Moreover, our approach is not limited to
+text-to-video synthesis but is also applicable to other tasks
+such as conditional and content-specialized video gener-
+ation, and Video Instruct-Pix2Pix, i.e., instruction-guided
+arXiv:2303.13439v1  [cs.CV]  23 Mar 2023
+
+video editing. As experiments show, our method performs
+comparably or sometimes better than recent approaches,
+despite not being trained on additional video data. Our
+code will be open sourced at: https://github.com/Picsart-
+AI-Research/Text2Video-Zero.
+1. Introduction
+In recent years, generative AI has attracted enormous at-
+tention in the computer vision community. With the advent
+of diffusion models [33, 12, 34, 35], it has become tremen-
+dously popular and successful to generate high-quality im-
+ages from textual prompts, also called text-to-image synthe-
+sis [25, 28, 31, 7, 43]. Recent works [14, 32, 11, 41, 5, 20]
+attempt to extend the success to text-to-video generation
+and editing tasks, by reusing text-to-image diffusion models
+in the video domain. While such approaches yield promis-
+ing outcomes, most of them require substantial training with
+a massive amount of labeled data which can be costly and
+unaffordable for many users. With the aim of making video
+generation cheaper, Tune-A-Video [41] introduces a mech-
+anism that can adopt Stable Diffusion (SD) model [28] for
+the video domain. The training effort is drastically reduced
+to tuning one video. While that is much more efﬁcient than
+previous approaches, it still requires an optimization pro-
+cess. In addition, the generation abilities of Tune-A-Video
+are limited to text-guided video editing applications; video
+synthesis from scratch, however, remains out of its reach.
+In this paper, we take one step forward in studying the
+novel problem of zero-shot, “training-free” text-to-video
+synthesis, which is the task of generating videos from tex-
+tual prompts without requiring any optimization or ﬁne-
+tuning.
+A key concept of our approach is to modify a
+pre-trained text-to-image model (e.g., Stable Diffusion), en-
+riching it with temporally consistent generation. By build-
+ing upon already trained text-to-image models, our method
+takes advantage of their excellent image generation qual-
+ity and enhances their applicability to the video domain
+without performing additional training. To enforce tempo-
+ral consistency, we present two innovative and lightweight
+modiﬁcations: (1) we ﬁrst enrich the latent codes of gen-
+erated frames with motion information to keep the global
+scene and the background time consistent; (2) we then use
+cross-frame attention of each frame on the ﬁrst frame to
+preserve the context, appearance, and identity of the fore-
+ground object throughout the entire sequence. Our exper-
+iments show that these simple modiﬁcations lead to high-
+quality and time-consistent video generations (see Fig. 1
+and further results in the appendix). Despite the fact that
+other works train on large-scale video data, our method
+achieves similar or sometimes even better performance (see
+Figures 8, 9 and appendix Figures 12, 23, 24). Further-
+more, our method is not limited to text-to-video synthe-
+sis but is also applicable to conditional (see Figures 6, 5
+and appendix Figures 17, 19, 20, 21) and specialized video
+generation (see Fig. 7), and instruction-guided video edit-
+ing, which we refer as Video Instruct-Pix2Pix motivated by
+Instruct-Pix2Pix [2] (see Fig. 9 and appendix Figures 22,
+23, 24).
+Our contributions are summarized as three-folds:
+• A new problem setting of zero-shot text-to-video syn-
+thesis, aiming at making text-guided video generation
+and editing “freely affordable”. We use only a pre-
+trained text-to-image diffusion model without any fur-
+ther ﬁne-tuning or optimization.
+• Two novel post-hoc techniques to enforce temporally
+consistent generation, via encoding motion dynamics
+in the latent codes, and reprogramming each frame’s
+self-attention using a new cross-frame attention.
+• A broad variety of applications that demonstrate our
+method’s effectiveness, including conditional and spe-
+cialized video generation, and Video Instruct-Pix2Pix
+i.e., video editing by textual instructions.
+2. Related Work
+2.1. Text-to-Image Generation
+Early approaches to text-to-image synthesis relied on
+methods such as template-based generation [18] and fea-
+ture matching [27]. However, these methods were limited
+in their ability to generate realistic and diverse images.
+Following the success of GANs [8], several other deep
+learning-based methods were proposed for text-to-image
+synthesis. These include StackGAN [45], AttnGAN [42],
+and MirrorGAN [23], which further improve image quality
+and diversity by introducing novel architectures and atten-
+tion mechanisms.
+Later, with the advancement of transformers [37], new
+approaches emerged for text-to-image synthesis. Being a
+12-billion-parameter transformer model, Dall-E [26] intro-
+duces two-stage training process: First, it generates image
+tokens, which later are combined with text tokens for joint
+training of an autoregressive model. Later Parti [44] pro-
+posed a method to generate content-rich images with multi-
+ple objects. Make-a-Scene [7] enables a control mechanism
+by segmentation masks for text-to-image generation.
+Current approaches build upon diffusion models, thereby
+taking text-to-image synthesis quality to the next level.
+GLIDE [22] improved Dall-E by adding classiﬁer-free
+guidance [13]. Later, Dall-E 2 [25] utilizes the contrastive
+model CLIP [24]. By means of diffusion processes, (i) a
+mapping from CLIP text encodings to image encodings,
+and (ii) a CLIP decoder is obtained. LDM / SD [28] ap-
+plies a diffusion model on lower-resolution encoded signals
+
+of VQ-GAN [6], showing competitive quality with a sig-
+niﬁcant gain in speed and efﬁciency. Imagen [31] shows in-
+credible performance in text-to-image synthesis by utilizing
+large language models for text processing. Versatile Dif-
+fusion [43] further uniﬁes text-to-image, image-to-text and
+variations in a single multi-ﬂow diffusion model.
+Because of their great image quality, it is desired to
+exploit text-to-image models for video generation. How-
+ever, applying diffusion models in the video domain is not
+straightforward, especially due to their probabilistic gen-
+eration procedure, making it difﬁcult to ensure temporal
+consistency. As we show in our ablation experiments with
+Fig. 10 (see also appendix), our modiﬁcations are crucial
+for temporal consistency in terms of both global scene and
+background motion, and for the preservation of the fore-
+ground object identity.
+2.2. Text-to-Video Generation
+Text-to-video synthesis is a relatively new research di-
+rection.
+Existing approaches try to leverage autoregres-
+sive transformers and diffusion processes for the genera-
+tion. NUWA [40] introduces a 3D transformer encoder-
+decoder framework and supports both text-to-image and
+text-to-video generation. Phenaki [38] introduces a bidi-
+rectional masked transformer with a causal attention mech-
+anism that allows the generation of arbitrary-long videos
+from text prompt sequences. CogVideo [15] extends the
+text-to-image model CogView 2 [4] by tuning it using
+a multi-frame-rate hierarchical training strategy to better
+align text and video clips. Video Diffusion Models (VDM)
+[14] naturally extend text-to-image diffusion models and
+train jointly on image and video data. Imagen Video [11]
+constructs a cascade of video diffusion models and utilizes
+spatial and temporal super-resolution models to generate
+high-resolution time-consistent videos. Make-A-Video [32]
+builds upon a text-to-image synthesis model and leverages
+video data in an unsupervised manner. Gen-1 [5] extends
+SD and proposes a structure and content-guided video edit-
+ing method based on visual or textual descriptions of de-
+sired outputs. Tune-A-Video [41] proposes a new task of
+one-shot video generation by extending and tuning SD on a
+single reference video.
+Unlike the methods mentioned above, our approach is
+completely training-free, does not require massive comput-
+ing power or dozens of GPUs, which makes the video gener-
+ation process affordable for everyone. In this respect, Tune-
+a-Video [41] comes closest to our work, as it reduces the
+necessary computations to tuning on only one video. How-
+ever, it still requires an optimization process and is heavily
+dependent on the reference video.
+3. Method
+We start this section with a brief introduction of diffu-
+sion models, particularly Stable Diffusion (SD) [28]. Then
+we introduce the problem formulation of zero-shot text-to-
+video synthesis, followed by a subsection presenting our ap-
+proach. After that, to show the universality of our method,
+we use it in combination with ControlNet [46] and Dream-
+Booth [30] diffusion models for generating conditional and
+specialized videos. Later we demonstrate the power of our
+approach with the application of instruction-guided video
+editing, namely, Video Instruct-Pix2Pix.
+3.1. Stable Diffusion
+SD is a diffusion model operating in the latent space of
+an autoencoder D(E(·)), namely VQ-GAN [6] or VQ-VAE
+[36], where E and D are the corresponding encoder and
+decoder, respectively. More precisely if x0 ∈Rh×w×c is
+the latent tensor of an input image Im to the autoencoder,
+i.e. x0 = E(Im), diffusion forward process iteratively adds
+Gaussian noise to the signal x0:
+q(xt|xt−1) = N(xt;
+p
+1 −βtxt−1, βtI), t = 1, .., T (1)
+where q(xt|xt−1) is the conditional density of xt given
+xt−1, and {βt}T
+t=1 are hyperparameters. T is chosen to be
+as large that the forward process completely destroys the
+initial signal x0 resulting in xT ∼N(0, I). The goal of SD
+is then to learn a backward process
+pθ(xt−1|xt) = N(xt−1; µθ(xt, t), Σθ(xt, t))
+(2)
+for t = T, . . . , 1, which allows to generate a valid signal x0
+from the standard Gaussian noise xT . To get the ﬁnal image
+generated from xT it remains to pass x0 to the decoder of
+the initially chosen autoencoder: Im = D(x0).
+After learning the abovementioned backward diffusion
+process (see DDPM [12]) one can apply a deterministic
+sampling process, called DDIM [34]:
+xt−1 = √αt−1
+xt −√1 −αtϵt
+θ(xt)
+√αt
+
++
+p
+1 −αt−1ϵt
+θ(xt),
+t = T, . . . , 1,
+(3)
+where αt = Qt
+i=1(1 −βi) and
+ϵt
+θ(xt) =
+√1 −αt
+βt
+xt + (1 −βt)(1 −αt)
+βt
+µθ(xt, t).
+(4)
+To get a text-to-image synthesis framework, SD guides
+the diffusion processes with a textual prompt τ. Particularly
+for DDIM sampling, we get:
+xt−1 = √αt−1
+xt −√1 −αtϵt
+θ(xt, τ)
+√αt
+
++
+p
+1 −αt−1ϵt
+θ(xt, τ),
+t = T, . . . , 1.
+(5)
+
+It is worth noting that in SD, the function ϵt
+θ(xt, τ) is mod-
+eled as a neural network with a UNet-like [29] architecture
+composed of convolutional and (self- and cross-) attentional
+blocks. xT is called the latent code of the signal x0 and
+there is a method [3] to apply a deterministic forward pro-
+cess to reconstruct the latent code xT given a signal x0. This
+method is known as DDIM inversion. Sometimes for sim-
+plicity, we will call xt, t = 1, . . . , T also the latent codes of
+the initial signal x0.
+3.2. Zero-Shot Text-to-Video Problem Formulation
+Existing text-to-video synthesis methods require either
+costly training on a large-scale (ranging from 1M to 15M
+data-points) text-video paired data [40, 15, 38, 11, 14, 5] or
+tuning on a reference video [41]. To make video generation
+cheaper and easier, we propose a new problem: zero-shot
+text-to-video synthesis. Formally, given a text description
+τ and a positive integer m ∈N, the goal is to design a
+function F that outputs video frames V ∈Rm×H×W ×3
+(for predeﬁned resolution H × W) that exhibit temporal
+consistency. To determine the function F, no training or
+ﬁne-tuning must be performed on a video dataset.
+Our problem formulation provides a new paradigm for
+text-to-video. Noticeably, a zero-shot text-to-video method
+naturally leverages quality improvements of text-to-image
+models.
+3.3. Method
+In this paper, we approach the zero-shot text-to-video
+task by exploiting the text-to-image synthesis power of Sta-
+ble Diffusion (SD). As we need to generate videos instead
+of images, SD should operate on sequences of latent codes.
+The na¨ıve approach is to independently sample m latent
+codes from standard Gaussian distribution x1
+T , . . . , xm
+T ∼
+N(0, I) and apply DDIM sampling to obtain the corre-
+sponding tensors xk
+0 for k = 1, . . . , m, followed by decod-
+ing to obtain the generated video sequence {D(xk
+0)}m
+k=1 ∈
+Rm×H×W ×3. However, as shown in Fig. 10 (ﬁrst row), this
+leads to completely random generation of images sharing
+only the semantics described by τ but neither object appear-
+ance nor motion coherence.
+To address this issue, we propose to (i) introduce motion
+dynamics between the latent codes x1
+T , . . . , xm
+T to keep the
+global scene time consistent and (ii) use cross-frame atten-
+tion mechanism to preserve the appearance and the identity
+of the foreground object. Each of the components of our
+method are described below in detail. The overview of our
+method can be found in Fig. 2.
+Note, to simplify notation, we will denote the entire se-
+quence of latent codes by x1:m
+T
+= [x1
+T , . . . , xm
+T ].
+Algorithm 1 Motion dynamics in latent codes
+Require: ∆t ≥0, m ∈N, λ > 0, δ = (δx, δy) ∈
+R2, Stable Diffusion (SD)
+1: x1
+T ∼N(0, I)
+▷random sample the ﬁrst latent code
+2: x1
+T ′ ←DDIM Backward(x1
+T , ∆t, SD) ▷perform ∆t
+backward steps by SD
+3: for all k = 2, 3, . . . , m do
+4:
+δk ←λ · (k −1)δ ▷computing global translation
+vectors
+5:
+Wk ←Warping by δk ▷deﬁning warping functions
+6:
+˜xk
+T ′ ←Wk(x1
+T ′)
+7:
+xk
+T ←DDPM Forward(˜xk
+T ′, ∆t) ▷DDPM forward
+for more motion freedom
+return x1:m
+T
+3.3.1
+Motion Dynamics in Latent Codes
+Instead of sampling the latent codes x1:m
+T
+randomly and
+independently from the standard Gaussian distribution, we
+construct them by performing the following steps (see also
+Algorithm 1 and Fig. 2).
+1. Randomly sample the latent code of the ﬁrst frame:
+x1
+T ∼N(0, I).
+2. Perform ∆t ≥0 DDIM backward steps on the latent
+code x1
+T by using the SD model and get the corre-
+sponding latent x1
+T ′, where T ′ = T −∆t.
+3. Deﬁne a direction δ = (δx, δy) ∈R2 for the global
+scene and camera motion. By default δ can be the main
+diagonal direction δx = δy = 1.
+4. For each frame k = 1, 2, . . . , m we want to generate,
+compute the global translation vector δk = λ·(k−1)δ,
+where λ is a hyperparameter controlling the amount of
+the global motion.
+5. Apply the constructed motion (translation) ﬂow δ1:m
+to x1
+T ′, denote the resulting sequence by ˜x1:m
+T ′ :
+˜xk
+T ′ = Wk(x1
+T ′) for k = 1, 2, . . . , m,
+(6)
+where Wk(x1
+T ′) is the warping operation for transla-
+tion by the vector δk.
+6. Perform ∆t DDPM forward steps on each of the la-
+tents ˜x2:m
+T ′ and get the corresponding latent codes x2:m
+T
+.
+Then we take the sequence x1:m
+T
+as the starting point of
+the backward (video) diffusion process. As a result, the la-
+tent codes generated with our proposed motion dynamics
+lead to better temporal consistency of the global scene as
+well as the background, see Fig. 10. Yet, the initial latent
+codes are not constraining enough to describe particular col-
+ors, identities or shapes, thus still leading to temporal incon-
+sistencies, especially for the foreground object.
+
+Figure 2: Method overview: Starting from a randomly sampled latent code x1
+T , we apply ∆t DDIM backward steps to obtain
+x1
+T ′ using a pre-trained Stable Diffusion model (SD). A speciﬁed motion ﬁeld results for each frame k in a warping function
+Wk that turns x1
+T ′ to xk
+T ′. By enhancing the latent codes with motion dynamics, we determine the global scene and camera
+motion and achieve temporal consistency in the background and the global scene. A subsequent DDPM forward application
+delivers latent codes xk
+T for k = 1, . . . , m. By using the (probabilistic) DDPM method, a greater degree of freedom is
+achieved with respect to the motion of objects (see appendix Sec. 6.2). Finally, the latent codes are passed to our modiﬁed
+SD model using the proposed cross-frame attention, which uses keys and values from the ﬁrst frame to generate the image of
+frame k = 1, . . . , m. By using cross-frame attention, the appearance and the identity of the foreground object are preserved
+throughout the sequence. Optionally, we apply background smoothing. To this end, we employ salient object detection to
+obtain for each frame k a mask M k indicating the foreground pixels. Finally, for the background (using the mask M k), a
+convex combination between the latent code x1
+t of frame one warped to frame k and the latent code xk
+t is used to further
+improve the temporal consistency of the background.
+3.3.2
+Reprogramming Cross-Frame Attention
+To address the issue mentioned above, we use a cross-frame
+attention mechanism to preserve the information about (in
+particular) the foreground object’s appearance, shape, and
+identity throughout the generated video.
+To leverage the power of cross-frame attention and at the
+same time exploit a pretrained SD without retraining, we
+replace each of its self-attention layers with a cross-frame
+attention, with the attention for each frame being on the ﬁrst
+frame. More precisely in the original SD UNet architecture
+ϵt
+θ(xt, τ), each self-attention layer takes a feature map x ∈
+Rh×w×c, linearly projects it into query, key, value features
+Q, K, V ∈Rh×w×c, and computes the layer output by the
+following formula (for simplicity described here for only
+one attention head) [37]:
+Self-Attn(Q, K, V ) = Softmax
+QKT
+√c
+
+V.
+(7)
+In our case, each attention layer receives m inputs:
+x1:m = [x1, . . . , xm] ∈Rm×h×w×c.
+Hence, the lin-
+ear projection layers produce m queries, keys, and values
+Q1:m, K1:m, V 1:m, respectively.
+Therefore, we replace each self-attention layer with a
+cross-frame attention of each frame on the ﬁrst frame as
+follows:
+Cross-Frame-Attn(Qk, K1:m, V 1:m) =
+Softmax
+Qk(K1)T
+√c
+
+V 1
+(8)
+for k = 1, . . . , m. By using cross frame attention, the ap-
+pearance and structure of the objects and background as
+well as identities are carried over from the ﬁrst frame to
+subsequent frames, which signiﬁcantly increases the tem-
+poral consistency of the generated frames (see Fig. 10 and
+the appendix, Figures 16, 20, 21).
+3.3.3
+Background smoothing (Optional)
+We further improve temporal consistency of the background
+using a convex combination of background-masked latent
+codes between the ﬁrst frame and frame k.
+This is es-
+pecially helpful for video generation from textual prompts
+when one or no initial image and no further guidance are
+provided.
+In more detail, given the generated sequence of our video
+generator, x1:m
+0
+, we apply (an in-house solution for) salient
+object detection [39] to the decoded images to obtain a cor-
+responding foreground mask M k for each frame k. Then
+we warp x1
+t according to the employed motion dynamics
+deﬁned by Wk and denote the result by ˆxk
+t := Wk(x1
+t).
+
+(a) a high quality realistic photo of a cute cat running in a beautiful meadow
+(b) an astronaut is skiing down a hill
+(c) a dog is walking down the street
+(d) a high quality realistic photo of a panda walking alone down the street
+Figure 3: Text-to-Video results of our method. Depicted frames show that identities and appearances are temporally consis-
+tent and ﬁtting to the textual prompt. For more results, see Appendix Sec. 6.
+Text prompt: "A
+horse is galloping
+on the street"
+zero_conv
+zero_conv
+Condition:
+Canny
+edges,
+poses,
+etc.
+zero_conv
+Text2Video-Zero
+ControlNet
+Figure 4: The overview of Text2Video-Zero + ControlNet
+Background smoothing is achieved by a convex combi-
+nation between the actual latent code xk
+t and the warped
+latent code ˆxk
+t on the background, i.e.,
+xk
+t = M k ⊙xk
+t + (1 −M k) ⊙(αˆxk
+t + (1 −α)xk
+t ), (9)
+for k = 1, . . . , m, where α is a hyperparameter, which
+we empirically choose α = 0.6. Finally, DDIM sampling
+is employed on xk
+t , which delivers video generation with
+background smoothing. We use background smoothing in
+our video generation from text when no guidance is pro-
+vided. For an ablation study on background smoothing, see
+the appendix, Sec. 6.2.
+3.4. Conditional and Specialized Text-to-Video
+Recently powerful controlling mechanisms [46, 21, 17]
+emerged to guide the diffusion process for text-to-image
+generation. Particularly, ControlNet [46] enables to con-
+dition the generation process using edges, pose, semantic
+masks, image depths, etc. However, a direct application of
+ControlNet in the video domain leads to temporal inconsis-
+tencies and to severe changes of object appearance, identity,
+and the background (see Fig. 10 and the appendix Figures
+16, 20, 21). It turns out that our modiﬁcations on the basic
+diffusion process for videos result in more consistent videos
+guided by ControlNet conditions. We would like to point
+out again that our method does not require any ﬁne-tuning
+or optimization processes.
+More speciﬁcally, ControlNet creates a trainable copy
+of the encoder (including the middle blocks) of the UNet
+ϵt
+θ(xt, τ) while additionally taking the input xt and a con-
+dition c, and adds the outputs of each layer to the skip-
+connections of the original UNet. Here c can be any type
+
+(a) a panda dancing in Antarctica
+(b) a cyborg dancing near a volcano
+(c) an astronaut dancing in the outer space
+Figure 5: Conditional generation with pose control. For
+more results see appendix, Sec. 8.
+(a) oil painting of a girl dancing close-up
+(b) Cyberpunk boy with a hat dancing close-up
+Figure 6: Conditional generation with edge control. For
+more results see appendix, Sec. 7.
+of condition, such as edge map, scribbles, pose (body land-
+marks), depth map, segmentation map, etc. The trainable
+branch is being trained on a speciﬁc domain for each type
+of the condition c resulting in an effective conditional text-
+to-image generation mechanism.
+To guide our video generation process with ControlNet
+we apply our method to the basic diffusion process, i.e.
+enrich the latent codes x1:m
+T
+with motion information and
+change the self-attentions into cross-frame attentions in the
+main UNet. While adopting the main UNet for video gener-
+ation task, we apply the ControlNet pretrained copy branch
+per-frame on each xk
+t for k = 1, . . . , m in each diffusion
+time-step t = T, . . . , 1 and add the ControlNet branch out-
+puts to the skip-connections of the main UNet.
+Furthermore, for our conditional generation task, we
+adopted the weights of specialized DreamBooth (DB) [30]
+(a) oil painting of a beautiful girl avatar style
+(b) gta-5 style
+Figure 7: Conditional generation with edge control and DB
+models.
+models1. This gives us specialized time-consistent video
+generations (see Fig. 7).
+3.5. Video Instruct-Pix2Pix
+With the rise of text-guided image editing methods
+such as Prompt2Prompt [9], Instruct-Pix2Pix [2], SDEdit
+[19], etc., text-guided video editing approaches emerged
+[1, 16, 41]. While these methods require complex optimiza-
+tion processes, our approach enables the adoption of any
+SD-based text-guided image editing algorithm to the video
+domain without any training or ﬁne-tuning. Here we take
+the text-guided image editing method Instruct-Pix2Pix and
+combine it with our approach. More precisely, we change
+the self-attention mechanisms in Instruct-Pix2Pix to cross-
+frame attentions according to Eq. 8. Our experiments show
+that this adaptation signiﬁcantly improves the consistency
+of the edited videos (see Fig. 9) over the na¨ıve per-frame
+usage of Instruct-Pix2Pix.
+4. Experiments
+4.1. Implementation Details
+We take the Stable Diffusion [28] code2 with its pre-
+trained weights from version 1.5 as basis and implement
+our modiﬁcations. In our experiments, we generate m = 8
+frames with 512 × 512 resolution for each video. However,
+our framework allows generating any number of frames, ei-
+ther by increasing m, or by employing our method in an
+auto-regressive fashion where the last generated frame m
+becomes the ﬁrst frame in computing the next m frames.
+For text-to-video generation, we take T ′ = 881, T = 941,
+while for conditional and specialized generation, and for
+1Avatar
+model:
+https://civitai.com/models/9968/
+avatar-style.
+GTA-5
+model:
+https://civitai.com/
+models/1309/gta5-artwork-diffusion.
+2https://github.com/huggingface/diffusers. We also
+beneﬁt from the codebase of Tune-A-Video https://github.com/
+showlab/Tune-A-Video.
+
+Video Instruct-Pix2Pix, we take T ′ = T = 1000.
+For a conditional generation, we use the codebase3 of
+ControlNet [46]. For specialized models, we take Dream-
+Booth [30] models from publicly available sources.
+For
+Video Instruct-Pix2Pix, we use the codebase4 of Instruct
+Pix2Pix [2].
+4.2. Qualitative Results
+All applications of Text2Video-Zero show that it suc-
+cessfully generates videos where the global scene and the
+background are time consistent and the context, appear-
+ance, and identity of the foreground object are maintained
+throughout the entire sequence.
+In the case of text-to-video, we observe that it generates
+high-quality videos that are well-aligned to the text prompt
+(see Fig. 3 and the appendix). For instance, the depicted
+panda shows a naturally walking on the street. Likewise,
+using additional guidance from edges or poses (see Fig. 5,
+Fig, 6 and Fig. 7 and the appendix), high quality videos are
+generated matching the prompt and the guidance that show
+great temporal consistency and identity preservation.
+In the case of Video Instruct-Pix2Pix (see Fig. 1 and
+the appendix) generated videos possess high-ﬁdelity with
+respect to the input video, while following closely the in-
+struction.
+4.3. Comparison with Baselines
+We compare our method with two publicly available
+baselines: CogVideo [15] and Tune-A-Video [41]. Since
+CogVideo is a text-to-video method we compare with it in
+pure text-guided video synthesis settings. With Tune-A-
+Video we compare in our Video Instruct-Pix2Pix setting.
+4.3.1
+Quantitative Comparison
+To show quantitative results, we evaluate the CLIP score
+[10], which indicates video-text alignment. We randomly
+take 25 videos generated by CogVideo and synthesize cor-
+responding videos using the same prompts according to our
+method. The CLIP scores for our method and CogVideo
+are 31.19 and 29.63, respectively. Our method thus slightly
+outperforms CogVideo, even though the latter has 9.4 bil-
+lion parameters and requires large-scale training on videos.
+4.3.2
+Qualitative Comparison
+We present several results of our method in Fig. 8 and
+provide a qualitative comparison to CogVideo [15]. Both
+methods show good temporal consistency throughout the
+3https://github.com/lllyasviel/ControlNet.
+4https://github.com/timothybrooks/
+instruct-pix2pix.
+sequence, preserving the identity of the object and back-
+ground.
+However, our method shows better text-video
+alignment. For instance, while our method correctly gen-
+erates a video of a man riding a bicycle in the sunshine
+in Fig. 8(b), CogVideo sets the background to moon light.
+Also in Fig. 8(a), our method correctly shows a man run-
+ning in the snow, while neither the snow nor a man running
+are clearly visible in the video generated by CogVideo.
+Qualitative results of Video Instruct-Pix2Pix and a visual
+comparison with per-frame Instruct-Pix2Pix and Tune-A-
+Video are shown in Fig. 9. While Instruct-Pix2Pix shows
+a good editing performance per frame, it lacks temporal
+consistency. This becomes evident especially in the video
+depicting a skiing person, where the snow and the sky are
+drawn using different styles and colors. Using our Video
+Instruct-Pix2Pix method, these issues are solved resulting
+in temporally consistent video edits throughout the entire
+sequence.
+While Tune-A-Video creates temporally consistent video
+generations, it is less aligned to the instruction guidance
+than our method, struggles creating local edits and losses
+details of the input sequence. This becomes apparent when
+looking at the edit of the dancer video depicted in Fig. 9 (left
+side). In contrast to Tune-A-Video, our method draws the
+entire dress brighter and at the same time better preserves
+the background, e.g. the wall behind the dancer is almost
+kept the same. Tune-A-Video draws a severely modiﬁed
+wall. Moreover, our method is more faithful to the input
+details, e.g., Video Instruct-Pix2Pix draws the dancer us-
+ing the pose exactly as provided (Fig. 9 left), and shows all
+skiing persons appearing in the input video (compare last
+frame of Fig. 9(right)), in constrast to Tune-A-Video. All
+the above-mentioned weaknesses of Tune-A-Video can also
+be observed in our additional evaluations that are provided
+in the appendix, Figures 23, 24.
+4.4. Ablation Study
+We perform an ablation study on two main components
+of our method: making the initial latent codes coherent to a
+motion, and using cross-frame attention on the ﬁrst frame
+instead of self-attention (for an ablation study on back-
+ground smoothing see appendix Sec. 6.2). The qualitative
+results are presented in Fig. 10. With the base model only,
+i.e. without our changes (ﬁrst row), no temporal consistency
+is achieved.
+This is especially severe for unconstrained
+text-to-video generations. For example, the appearance and
+position of the horse changes very quickly, and the back-
+ground is utterly inconsistent. Using our proposed motion
+dynamics (second row), the general concept of the video is
+preserved better throughout the sequence. For example, all
+frames show a close-up of a horse in motion. Likewise, the
+appearance of the woman and the background in the mid-
+dle four ﬁgures (using ControlNet with edge guidance) is
+
+(a) a man is running in the snow
+(b) a man is riding a bicycle in the sunshine
+(c) a man is walking in the rain
+Figure 8: Comparison of our method vs CogVideo on text-to-video generation task (left is ours, right is CogVideo [15]). For
+more comparisons, see appendix Fig. 12.
+Original
+color his dress white
+make it Van Gogh Starry Night style
+Video
+Instruct-
+Pix2Pix
+(Ours)
+Instruct-Pix2Pix
+Tune-A-Video
+Figure 9: Comparison of Video Instruct-Pix2Pix(ours) with Tune-A-Video and per-frame Instruct-Pix2Pix. For more com-
+parisons see our appendix.
+greatly improved.
+Using our proposed cross frame attention (third row), we
+see across all generations improved preservation of the ob-
+ject identities and their appearances. Finally, by combining
+both concepts (last row), we achieve the best temporal co-
+herence. For instance, we see the same background motifs
+and also about object identity preservation in the last four
+columns and at the same time a natural transition between
+the generated images.
+5. Conclusion
+In this paper, we addressed the problem of zero-shot text-
+to-video synthesis and proposed a novel method for time-
+consistent video generation. Our approach does not require
+any optimization or ﬁne-tuning, making text-to-video gen-
+eration and its applications affordable for everyone.
+We
+demonstrated the effectiveness of our method for various
+applications, including conditional and specialized video
+generation, and Video Instruct-Pix2Pix, i.e., instruction-
+guided video editing. Our contributions to the ﬁeld include
+
+No Motion in Latents
+No Cross-Frame Attention
+Motion in Latents
+No Cross-Frame Attention
+No Motion in Latents
+Cross-Frame Attention
+Motion in Latents
+Cross-Frame Attention
+Figure 10: Ablation study showing the effect of our proposed components for text-to-video and text-guided video editing.
+Additional ablation study results are provided in the appendix.
+presenting a new problem of zero-shot text-to-video syn-
+thesis, showing the utilization of text-to-image diffusion
+models for generating time-consistent videos, and provid-
+ing evidence of the effectiveness of our method for various
+video synthesis applications. We believe that our proposed
+method will open up new possibilities for video generation
+and editing, making it accessible and affordable for every-
+one.
+References
+[1] Omer Bar-Tal, Dolev Ofri-Amar, Rafail Fridman, Yoni Kas-
+ten, and Tali Dekel. Text2live: Text-driven layered image
+and video editing. In Computer Vision–ECCV 2022: 17th
+European Conference, Tel Aviv, Israel, October 23–27, 2022,
+Proceedings, Part XV, pages 707–723. Springer, 2022. 7
+[2] Tim Brooks, Aleksander Holynski, and Alexei A Efros. In-
+structpix2pix: Learning to follow image editing instructions.
+arXiv preprint arXiv:2211.09800, 2022. 2, 7, 8, 13, 24, 25
+[3] Prafulla Dhariwal and Alexander Nichol. Diffusion models
+beat gans on image synthesis. Advances in Neural Informa-
+tion Processing Systems, 34:8780–8794, 2021. 4
+[4] Ming Ding, Wendi Zheng, Wenyi Hong, and Jie Tang.
+Cogview2: Faster and better text-to-image generation via hi-
+erarchical transformers. arXiv preprint arXiv:2204.14217,
+2022. 3
+[5] Patrick Esser,
+Johnathan Chiu,
+Parmida Atighehchian,
+Jonathan Granskog, and Anastasis Germanidis.
+Structure
+and content-guided video synthesis with diffusion models.
+arXiv preprint arXiv:2302.03011, 2023. 2, 3, 4
+[6] Patrick Esser, Robin Rombach, and Bjorn Ommer. Taming
+transformers for high-resolution image synthesis.
+In Pro-
+ceedings of the IEEE/CVF conference on computer vision
+and pattern recognition, pages 12873–12883, 2021. 3
+[7] Oran Gafni, Adam Polyak, Oron Ashual, Shelly Sheynin,
+Devi Parikh, and Yaniv Taigman.
+Make-a-scene: Scene-
+based text-to-image generation with human priors. In Com-
+puter Vision–ECCV 2022: 17th European Conference, Tel
+Aviv, Israel, October 23–27, 2022, Proceedings, Part XV,
+pages 89–106. Springer, 2022. 2
+[8] Ian Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing
+Xu, David Warde-Farley, Sherjil Ozair, Aaron Courville, and
+Yoshua Bengio. Generative adversarial networks. Commu-
+nications of the ACM, 63(11):139–144, 2020. 2
+[9] Amir Hertz, Ron Mokady, Jay Tenenbaum, Kﬁr Aberman,
+Yael Pritch, and Daniel Cohen-Or. Prompt-to-prompt im-
+age editing with cross attention control.
+arXiv preprint
+arXiv:2208.01626, 2022. 7
+[10] Jack Hessel, Ari Holtzman, Maxwell Forbes, Ronan Le Bras,
+and Yejin Choi. Clipscore: A reference-free evaluation met-
+ric for image captioning. arXiv preprint arXiv:2104.08718,
+2021. 8
+[11] Jonathan Ho, William Chan, Chitwan Saharia, Jay Whang,
+Ruiqi Gao, Alexey Gritsenko, Diederik P Kingma, Ben
+Poole, Mohammad Norouzi, David J Fleet, et al. Imagen
+video: High deﬁnition video generation with diffusion mod-
+els. arXiv preprint arXiv:2210.02303, 2022. 2, 3, 4
+[12] Jonathan Ho, Ajay Jain, and Pieter Abbeel. Denoising diffu-
+sion probabilistic models. Advances in Neural Information
+Processing Systems, 33:6840–6851, 2020. 2, 3
+[13] Jonathan Ho and Tim Salimans.
+Classiﬁer-free diffusion
+guidance. arXiv preprint arXiv:2207.12598, 2022. 2
+[14] Jonathan Ho, Tim Salimans, Alexey Gritsenko, William
+Chan, Mohammad Norouzi, and David J Fleet. Video dif-
+fusion models. arXiv preprint arXiv:2204.03458, 2022. 2, 3,
+4
+[15] Wenyi Hong, Ming Ding, Wendi Zheng, Xinghan Liu,
+and Jie Tang.
+Cogvideo:
+Large-scale pretraining for
+
+text-to-video generation via transformers.
+arXiv preprint
+arXiv:2205.15868, 2022. 3, 4, 8, 9, 13, 15
+[16] Yao-Chih Lee, Ji-Ze Genevieve Jang, Yi-Ting Chen, Eliza-
+beth Qiu, and Jia-Bin Huang. Shape-aware text-driven lay-
+ered video editing. arXiv e-prints, pages arXiv–2301, 2023.
+7
+[17] Xihui Liu, Dong Huk Park, Samaneh Azadi, Gong Zhang,
+Arman Chopikyan, Yuxiao Hu, Humphrey Shi, Anna
+Rohrbach, and Trevor Darrell. More control for free! im-
+age synthesis with semantic diffusion guidance. In Proceed-
+ings of the IEEE/CVF Winter Conference on Applications of
+Computer Vision, pages 289–299, 2023. 6
+[18] Elman Mansimov, Emilio Parisotto, Jimmy Lei Ba, and Rus-
+lan Salakhutdinov. Generating images from captions with
+attention. arXiv preprint arXiv:1511.02793, 2015. 2
+[19] Chenlin Meng, Yang Song, Jiaming Song, Jiajun Wu, Jun-
+Yan Zhu, and Stefano Ermon. Sdedit: Image synthesis and
+editing with stochastic differential equations. arXiv preprint
+arXiv:2108.01073, 2021. 7
+[20] Eyal Molad, Eliahu Horwitz, Dani Valevski, Alex Rav
+Acha, Yossi Matias, Yael Pritch, Yaniv Leviathan, and Yedid
+Hoshen. Dreamix: Video diffusion models are general video
+editors. arXiv preprint arXiv:2302.01329, 2023. 2
+[21] Chong Mou, Xintao Wang, Liangbin Xie, Jian Zhang, Zhon-
+gang Qi, Ying Shan, and Xiaohu Qie. T2i-adapter: Learning
+adapters to dig out more controllable ability for text-to-image
+diffusion models. arXiv preprint arXiv:2302.08453, 2023. 6
+[22] Alex Nichol, Prafulla Dhariwal, Aditya Ramesh, Pranav
+Shyam, Pamela Mishkin, Bob McGrew, Ilya Sutskever, and
+Mark Chen. Glide: Towards photorealistic image generation
+and editing with text-guided diffusion models. arXiv preprint
+arXiv:2112.10741, 2021. 2
+[23] Tingting Qiao, Jing Zhang, Duanqing Xu, and Dacheng Tao.
+Mirrorgan: Learning text-to-image generation by redescrip-
+tion. In Proceedings of the IEEE/CVF Conference on Com-
+puter Vision and Pattern Recognition, pages 1505–1514,
+2019. 2
+[24] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya
+Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry,
+Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning
+transferable visual models from natural language supervi-
+sion. In International conference on machine learning, pages
+8748–8763. PMLR, 2021. 2
+[25] Aditya Ramesh, Prafulla Dhariwal, Alex Nichol, Casey Chu,
+and Mark Chen. Hierarchical text-conditional image gen-
+eration with clip latents. arXiv preprint arXiv:2204.06125,
+2022. 2
+[26] Aditya Ramesh, Mikhail Pavlov, Gabriel Goh, Scott Gray,
+Chelsea Voss, Alec Radford, Mark Chen, and Ilya Sutskever.
+Zero-shot text-to-image generation. In International Confer-
+ence on Machine Learning, pages 8821–8831. PMLR, 2021.
+2
+[27] Scott E Reed, Zeynep Akata, Santosh Mohan, Samuel Tenka,
+Bernt Schiele, and Honglak Lee. Learning what and where
+to draw. Advances in neural information processing systems,
+29, 2016. 2
+[28] Robin Rombach, Andreas Blattmann, Dominik Lorenz,
+Patrick Esser, and Bj¨orn Ommer.
+High-resolution image
+synthesis with latent diffusion models.
+In Proceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, pages 10684–10695, 2022. 2, 3, 7
+[29] Olaf Ronneberger, Philipp Fischer, and Thomas Brox. U-
+net: Convolutional networks for biomedical image segmen-
+tation. In Medical Image Computing and Computer-Assisted
+Intervention–MICCAI 2015: 18th International Conference,
+Munich, Germany, October 5-9, 2015, Proceedings, Part III
+18, pages 234–241. Springer, 2015. 4
+[30] Nataniel Ruiz, Yuanzhen Li, Varun Jampani, Yael Pritch,
+Michael Rubinstein, and Kﬁr Aberman. Dreambooth: Fine
+tuning text-to-image diffusion models for subject-driven
+generation. arXiv preprint arXiv:2208.12242, 2022. 3, 7,
+8, 21
+[31] Chitwan Saharia, William Chan, Saurabh Saxena, Lala
+Li, Jay Whang, Emily Denton, Seyed Kamyar Seyed
+Ghasemipour,
+Burcu Karagol Ayan,
+S Sara Mahdavi,
+Rapha Gontijo Lopes, et al.
+Photorealistic text-to-image
+diffusion models with deep language understanding. arXiv
+preprint arXiv:2205.11487, 2022. 2, 3
+[32] Uriel Singer, Adam Polyak, Thomas Hayes, Xi Yin, Jie An,
+Songyang Zhang, Qiyuan Hu, Harry Yang, Oron Ashual,
+Oran Gafni, et al. Make-a-video: Text-to-video generation
+without text-video data. arXiv preprint arXiv:2209.14792,
+2022. 2, 3
+[33] Jascha Sohl-Dickstein, Eric Weiss, Niru Maheswaranathan,
+and Surya Ganguli.
+Deep unsupervised learning using
+nonequilibrium thermodynamics. In International Confer-
+ence on Machine Learning, pages 2256–2265. PMLR, 2015.
+2
+[34] Jiaming
+Song,
+Chenlin
+Meng,
+and
+Stefano
+Ermon.
+Denoising diffusion implicit models.
+arXiv preprint
+arXiv:2010.02502, 2020. 2, 3
+[35] Yang Song, Jascha Sohl-Dickstein, Diederik P Kingma, Ab-
+hishek Kumar, Stefano Ermon, and Ben Poole. Score-based
+generative modeling through stochastic differential equa-
+tions. arXiv preprint arXiv:2011.13456, 2020. 2
+[36] Aaron Van Den Oord, Oriol Vinyals, et al. Neural discrete
+representation learning. Advances in neural information pro-
+cessing systems, 30, 2017. 3
+[37] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-
+reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia
+Polosukhin. Attention is all you need. Advances in neural
+information processing systems, 30, 2017. 2, 5
+[38] Ruben Villegas, Mohammad Babaeizadeh, Pieter-Jan Kin-
+dermans, Hernan Moraldo, Han Zhang, Mohammad Taghi
+Saffar, Santiago Castro, Julius Kunze, and Dumitru Erhan.
+Phenaki: Variable length video generation from open domain
+textual description. arXiv preprint arXiv:2210.02399, 2022.
+3, 4
+[39] Wenguan Wang, Qiuxia Lai, Huazhu Fu, Jianbing Shen,
+Haibin Ling, and Ruigang Yang.
+Salient object detec-
+tion in the deep learning era: An in-depth survey.
+IEEE
+Transactions on Pattern Analysis and Machine Intelligence,
+44(6):3239–3259, 2021. 5
+[40] Chenfei Wu, Jian Liang, Lei Ji, Fan Yang, Yuejian Fang,
+Daxin Jiang, and Nan Duan. N¨uwa: Visual synthesis pre-
+training for neural visual world creation.
+In Computer
+
+Vision–ECCV 2022: 17th European Conference, Tel Aviv,
+Israel, October 23–27, 2022, Proceedings, Part XVI, pages
+720–736. Springer, 2022. 3, 4
+[41] Jay Zhangjie Wu, Yixiao Ge, Xintao Wang, Weixian Lei,
+Yuchao Gu, Wynne Hsu, Ying Shan, Xiaohu Qie, and
+Mike Zheng Shou. Tune-a-video: One-shot tuning of image
+diffusion models for text-to-video generation. arXiv preprint
+arXiv:2212.11565, 2022. 2, 3, 4, 7, 8, 13, 25
+[42] Tao Xu, Pengchuan Zhang, Qiuyuan Huang, Han Zhang,
+Zhe Gan, Xiaolei Huang, and Xiaodong He. Attngan: Fine-
+grained text to image generation with attentional generative
+adversarial networks. In Proceedings of the IEEE conference
+on computer vision and pattern recognition, pages 1316–
+1324, 2018. 2
+[43] Xingqian Xu, Zhangyang Wang, Eric Zhang, Kai Wang,
+and Humphrey Shi.
+Versatile diffusion:
+Text, images
+and variations all in one diffusion model.
+arXiv preprint
+arXiv:2211.08332, 2022. 2, 3
+[44] Jiahui Yu, Yuanzhong Xu, Jing Yu Koh, Thang Luong, Gun-
+jan Baid, Zirui Wang, Vijay Vasudevan, Alexander Ku, Yin-
+fei Yang, Burcu Karagol Ayan, et al.
+Scaling autoregres-
+sive models for content-rich text-to-image generation. arXiv
+preprint arXiv:2206.10789, 2022. 2
+[45] Han Zhang, Tao Xu, Hongsheng Li, Shaoting Zhang, Xiao-
+gang Wang, Xiaolei Huang, and Dimitris N Metaxas. Stack-
+gan: Text to photo-realistic image synthesis with stacked
+generative adversarial networks. In Proceedings of the IEEE
+international conference on computer vision, pages 5907–
+5915, 2017. 2
+[46] Lvmin Zhang and Maneesh Agrawala. Adding conditional
+control to text-to-image diffusion models.
+arXiv preprint
+arXiv:2302.05543, 2023. 3, 6, 8
+
+Appendix
+This supplementary material provides additional results
+to show the quality of our text-to-video generation method
+and its applications, and the importance of individual parts
+of our approach.
+The quality of our text-to-video method without addi-
+tional conditioning or specialization is investigated further
+in Sec. 6.
+To this end, qualitative results are presented
+and compared to the only publicly available state-of-the-art
+competitor CogVideo [15]. In order to analyze the relevance
+of our proposed procedures, several ablation studies are per-
+formed qualitatively.
+Sec. 7 supplements our paper by elaborating results for
+conditional text-to-video generation guided by pose infor-
+mation. In Sec. 8 we discuss more results of conditional
+text-to-video generation guided by edge information. Qual-
+itative results and extensive ablation studies are presented.
+Finally, Sec. 9 provides additional qualitative results
+and more comparison with a recent state-of-the art method
+Tune-A-Video [41] for the instruction-guided video editing
+task and compares to our Video Instruct-Pix2Pix method.
+6. Additional Experiments for Text-to-Video
+Unconditional Generation
+6.1. Qualitative results
+We provide additional qualitative results of our method
+in the setting of text-to-video unconditional synthesis. For
+high-quality generation, we append to each prompt pre-
+sented in subsequent ﬁgures the sufﬁx ”high quality, HD,
+8K, trending on artstation, high focus”.
+Fig. 11 shows qualitative results for different actions,
+e.g. ”skiing”, ”waving” or ”dancing”. Thanks to our pro-
+posed attention modiﬁcation, generated frames are consis-
+tent across time regarding style and scene. We obtain plau-
+sible motions due to the proposed motion latent approach.
+As can be seen in Fig. 12, our method performs compa-
+rable or sometimes even better than a state-of-the-art ap-
+proach CogVideo[15] which has been trained on a large-
+scale video data in contrast with our optimization-free ap-
+proach. Fig. 12(a-b)&(e) show that generated videos by our
+method are more text-aligned than CogVideo, regarding the
+scene. Also the depicted motion is with higher quality in
+several video generation (e.g. Fig. 12(a)&(e)&(g)).
+6.2. Ablation Studies
+We conduct additional ablation studies regarding back-
+ground smoothing, cross-frame attention, latent motion and
+the number ∆t of DDPM forward steps.
+Timestep to apply motion on latents: Applying motion
+on the latent codes xT (corresponding to ∆t = 0) leads
+mainly to a global shift without any individual motion of the
+object, as can be seen for instance at the video of the horse
+galloping or the gorilla dancing in Fig. 13. It is thus crucial
+to apply motion on the latents for T ′ < T. We empirically
+set ∆t = 60 in our method, which provides good object
+motions (see Fig. 13).
+Background smoothing: We visualize the impact of us-
+ing background smoothing in Fig. 14 and Fig. 15. When
+background smoothing is turned on, α = 0.6 is used. When
+activate, the background is more consistent and better pre-
+served (see e.g. red sign in Fig. 15).
+Cross-frame attention and motion latents: Finally, we
+present additional results where we study the importance
+of cross-frame attention and motion information on latent
+codes in Fig. 16. Without cross-frame attention and without
+motion information on latents the scene differs from frame
+to frame, and the identity of the main object is not pre-
+served. With motion on latents activated, the poses of the
+objects are better aligned. Yet, the appearance differs be-
+tween the frames (e.g. when looking at the depicted dog se-
+quence). The identity is much better preserved when cross-
+frame attention is activated. Also the background scene is
+more aligned. Finally, we obtain the best results when both,
+cross-frame attention and motion on latents are activated.
+7. Text-to-Video with Edge Guidance
+In Fig. 17 we present more video generation results by
+guiding our method with edge information. In Fig. 20 we
+show the effect of our cross-frame attention and motion in
+latents for text-to-video generation with edge guidance. As
+can be noticed when using CF-Attn layer the generation pre-
+serves the identity of the person better, and using motion in
+latents further improves the temporal consistency.
+8. Text-to-Video with Pose Guidance
+In Fig. 19 we present additional results of our method
+guided by pose information. In Fig. 21 we show the effect of
+our cross-frame attention and motion information in latents.
+9. Video Instruct-Pix2Pix
+In Fig. 22 we present additional results of instruct-
+guided video editing by using our approach combined with
+Instruct-Pix2Pix [2]. As shown in Figures 23 and 24 our
+method outperforms naive per-frame approach of Instruct-
+Pix2Pix and a recent state-of-the-art method Tune-A-Video
+[41]. Particularly, while being semantically aware of text-
+guided edits, Tune-A-Video has limitations in localized
+editing, and struggles to transfer the style and color infor-
+mation. On the other hand Instruct-Pix2Pix makes visually
+plausible edits on image level but has issues with tempo-
+ral consistency. In contrast with the mentioned approaches
+our method preserves the temporal consistency when edit-
+ing videos by given prompts.
+
+(a) a high quality realistic photo of a panda surﬁng on a wakeboard
+(b) a high quality realistic photo of a panda playing guitar on times square
+(c) an astronaut is skiing down a hill
+(d) A bear dancing on times square
+(e) an astronaut is waving his hands on the moon
+(f) a high quality realistic photo of a cute cat running on lawn
+Figure 11: Qualitative results of our text-to-video generation method for different prompts.
+
+(a) A panda dancing on times square.
+(b) A bear walking on a mountain.
+(c) A cat running on the lawn.
+(d) A horse galloping on the street.
+(e) An astronaut skiing down a hill.
+(f) A dog running on the street.
+(g) A gorilla walking down the street.
+Figure 12: Qualitative comparison between CogVideo [15] (frames 1-4 in each row) and our method (frames 5-8 in each
+row).
+
+∆t = 0
+∆t = 60
+∆t = 0
+∆t = 60
+∆t = 0
+∆t = 60
+Figure 13: Ablation study on the number ∆t of DDPM forward steps. The prompts to our method for text-to-video generation
+are (from left to right, top to bottom): “A bear walking on a mountain”, “a gorilla dancing on times square”, “A horse galloping
+on a street”, “a sloth walking down the street”, “A bear dancing on times square”, “A cat walking down the street.”
+
+(a) a bear walking on a mountain, no background smoothing
+(b) a bear walking on a mountain, with background smoothing
+(c) a gorilla dancing on times square, no background smoothing
+(d) a gorilla dancing on times square, with background smoothing
+Figure 14: Ablation study on background smoothing.
+
+(a) a panda walking alone down the street, no background smoothing
+(b) a panda walking alone down the street, with background smoothing
+(c) an astronaut walking on a street, no background smoothing
+(d) an astronaut walking on a street, with background smoothing
+Figure 15: Ablation study on background smoothing.
+
+No Motion in latents.
+No CF-Attention
+Motion In latents.
+No CF-Attention
+No Motion In latents.
+CF-Attention
+Motion In latents.
+CF-Attention
+No Motion In latents.
+No CF-Attention
+Motion In latents.
+No CF-Attention
+No Motion In latents.
+CF-Attention
+Motion In latents.
+CF-Attention
+Figure 16: Ablation study on relevance of CF-Attention and Motion In latents. The left half of the rows 1-4 are generated
+with the prompt “A bear dancing on times square”. The right half of the rows 1-4 are generated with the prompt “A cat
+walking on a street”. The left half or the rows 5-8 are generated with the prompts “A Minion dancing on times square”. The
+right half of the rows 5 - 8 are generated with the prompt “A dog walking on a street.”
+
+(a) wild fox is walking, a high-quality, detailed and professional photo
+(b) beautiful girl Halloween style, a high-quality, detailed and professional photo
+(c) a hawk, a high-quality, detailed and professional photo
+(d) a santa claus, a high-quality, detailed and professional photo
+(e) oil painting of a deer, a high-quality, detailed and professional photo
+(f) a tiger, a high-quality, detailed and professional photo
+(g) a jellyﬁsh, a high-quality, detailed and professional photo
+Figure 17: Conditional generation of our method with edge control.
