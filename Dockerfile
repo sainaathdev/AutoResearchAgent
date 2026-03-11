@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 # Set the working directory
 WORKDIR /app
@@ -7,7 +7,7 @@ WORKDIR /app
 # Install system dependencies
 # ChromaDB requires a recent version of SQLite (>= 3.35)
 RUN apt-get update && \
-    apt-get install -y build-essential curl software-properties-common sqlite3 && \
+    apt-get install -y --no-install-recommends build-essential curl sqlite3 && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements file into the container
